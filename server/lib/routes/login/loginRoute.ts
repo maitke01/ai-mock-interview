@@ -18,5 +18,33 @@ export const loginRoute: Route = async (ctx) => {
 
   const { username, password } = data
 
-  return new Response('one day!')
+  const row = await ctx.env.DB.prepare(`select password, id from accounts where username = ?`)
+    .bind(username)
+    .first<{ password: string, id: number }>()
+
+  if (row === null) {
+    return new Response('No account exists with that username', { status: 400 })
+  }
+
+  const passwordHash = await ctx.env.AUTH.argon2Hash(password)
+
+  if (passwordHash !== row.password) {
+    return new Response('Passwords do not match', { status: 401 })
+  }
+
+  // 1 year in seconds
+  const maxAge = 1 * 60 * 60 * 24 * 365
+
+  const jwt = await ctx.env.AUTH.signJwt({
+    audience: 'https://ai-mock-interview.cc',
+    payload: {},
+    subject: `${row.id}`,
+    expires: '1y'
+  })
+
+  return new Response('Logged in!', {
+    headers: {
+      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; Domain=ai-mock-interview.cc;`
+    }
+  })
 }

@@ -22,8 +22,43 @@ export const registerRoute: Route = async (ctx) => {
     return new Response('Passwords do not match', { status: 400 })
   }
 
-  // make db query here to find account
-  // then use ctx.env.AUTH argon2 bindings to verify password
+  const row = await ctx.env.DB.prepare(`
+    select username, password from accounts where username = ?  
+  `).bind(username).first<{ username: string, password: string }>()
 
-  return new Response('eventually')
+  if (row !== null) {
+    return new Response('An account with that username already exists', { status: 400 })
+  }
+
+  const passwordHash = await ctx.env.AUTH.argon2Hash(password)
+
+  const newAccount = await ctx.env.DB.prepare(`
+    insert into accounts (
+      username, password
+    ) values (?, ?)
+      returning id
+  `).bind(username, passwordHash).first<{ id: number }>()
+
+  if (newAccount === null) {
+    return new Response('?', { status: 502 })
+  }
+
+  // 1 year in seconds
+  const maxAge = 1 * 60 * 60 * 24 * 365
+
+  const jwt = await ctx.env.AUTH.signJwt({
+    audience: 'https://ai-mock-interview.cc',
+    payload: {},
+    subject: `${newAccount.id}`,
+    expires: '1y'
+  })
+
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+  // "Setting the domain will make the cookie available to it, as well as to all its subdomains."
+  return new Response('Account created successfully', {
+    status: 302,
+    headers: {
+      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; Domain=ai-mock-interview.cc;`
+    }
+  })
 }
