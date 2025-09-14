@@ -1,6 +1,13 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { loginRoute } from './lib/routes/login/loginRoute'
+
+type Bindings = { Bindings: Env }
+
+export type Route<R extends string = string> = (ctx: Context<Bindings, R>) => Promise<Response> | Response
 
 const app = new Hono({ strict: false })
+  .post('/login', loginRoute)
+  .post('/register')
 
 export default {
 	fetch: app.fetch

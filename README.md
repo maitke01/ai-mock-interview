@@ -1,4 +1,4 @@
-# yellow-frost-663d
+# ai-mock-interview
 
 This template should help get you started developing with Vue 3 in Vite.
 

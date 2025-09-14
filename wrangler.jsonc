@@ -22,7 +22,13 @@
 	],
 	"ai": {
 		"binding": "AI"
-	}
+	},
+  "services": [
+    {
+      "binding": "AUTH",
+      "service": "auth"
+    }
+  ]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
