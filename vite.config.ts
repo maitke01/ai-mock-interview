@@ -10,8 +10,10 @@ import { cloudflare } from "@cloudflare/vite-plugin"
 export default defineConfig({
 	plugins: [
 		vue(),
-		vueDevTools(),
-		cloudflare()
+		// vueDevTools(),
+		cloudflare({
+      configPath: './wrangler.jsonc'
+		})
 	],
 	resolve: {
 		alias: {
