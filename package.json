@@ -7,31 +7,21 @@
 		"node": "^20.19.0 || >=22.12.0"
 	},
 	"scripts": {
-		"dev": "vite",
-		"build": "run-p type-check \"build-only {@}\" --",
-		"preview": "npm run build && wrangler dev",
-		"build-only": "vite build",
-		"type-check": "vue-tsc --build",
-		"deploy": "npm run build && wrangler deploy",
-		"cf-typegen": "wrangler types"
+		"lint": "npx oxlint --type-aware"
 	},
 	"dependencies": {
-		"hono": "^4.9.7",
-		"vue": "^3.5.18",
-		"vue-router": "^4.5.1",
-		"zod": "^4.1.8"
+
 	},
 	"devDependencies": {
-		"@cloudflare/vite-plugin": "^1.13.0",
-		"@tsconfig/node22": "^22.0.2",
 		"@types/node": "^22.16.5",
-		"@vitejs/plugin-vue": "^6.0.1",
-		"@vue/tsconfig": "^0.7.0",
-		"npm-run-all2": "^8.0.4",
+		"oxlint": "^1.15.0",
+		"oxlint-tsgolint": "^0.2.0",
 		"typescript": "~5.8.0",
-		"vite": "^7.0.6",
-		"vite-plugin-vue-devtools": "^8.0.0",
-		"vue-tsc": "^3.0.4",
 		"wrangler": "^4.36.0"
-	}
+	},
+  "workspaces": [
+    "packages/app",
+    "packages/argon2-cloudflare",
+    "packages/auth"
+  ]
 }
