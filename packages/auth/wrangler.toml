@@ -26,8 +26,45 @@ enabled = true
 # - https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 # Note: Use secrets to store sensitive data.
 # - https://developers.cloudflare.com/workers/configuration/secrets/
-# [vars]
-# MY_VARIABLE = "production_value"
+[vars]
+PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
+MIIEugIBADANBgkqhkiG9w0BAQEFAASCBKQwggSgAgEAAoIBAQCTPr3IkHEdAe6p
+0MYkpxjZxEnLFGNsQOWllKvrsw4/L1XlES/DHnM/gDjku03TMBE4QLRvFdKvXL0X
+XQ4VBafvgpfpZ52wlJJ7ITEJHHiOjVPt/DXmh8o1+fRyZ+CyyEK49l7igZh0Pa3T
+mKNtFRwRTP7FobEIavbtgAePrEz1rRVJoIG6RHhpHiGkmeY2v2U+gDkOdOuppLMy
+HGYNmmSidd6KiwBsn5AExxPBP2HERgOFIqtSLdBVY5EQLzgs20m2Omnk5Y9rqn+6
+1mTD0pxoJ73NPKOgmQP7FIeymWtzr0pxLaqbK+jokd4Ae4kCfyGDmVkzIerLSFPf
+qEwEKCaPAgMBAAECggEAJImooWjKUMbmeMggKv816O/O2fBcvYObGMv8H1hGvEIc
+P+PUZMgdFBBWzdd2t+WRGFLiE0Coj7BlEbObJ3dIVWQkGxyFokgz0w8I8nhYqBME
+1STFIUfn0x4L3QnO1b5g5DHqmK1M7edSR5P0VcCrvtVK0TLO0cZtMMEY3zuDu2CP
+1Dcvi7t1vH67RoY0AX9rJmEEAHJnZ9u3dppAui9HewnKP4QfO5jZuCQxBm7ts0AT
+jmy0vB7V5lAb+zadmGta6+d7Zyo0fZYxVIEEez6eshiN2Fy9xYNdF1qI96oemEGm
+j/OQKj0h/JEcDtgpIT0Ag/u/s+6LU/tZNITrwo372QKBgQDLya2uqC5V36aJfU5q
+sM3H52Lf7UCNkLNmG3D8+ZuL/JUOjYOS9tWHOKlWp87XG/WGD8j/WV7AF+ndHQyc
+3HYEvbzisqZv1WDtitb17K9t2QRxNifeEnfdquRuTz6lMfqHCNhl31pSNaVPS2iv
+KIH1sUFnXsWt/O6kLXJEpRQKKQKBgQC4+HWMMdxvHwmsZLIiR7fI9r26E2aJ7x1n
+h5bq2p3j7ALfgUL7hp2lQzAlYOhnrTCjxBIRZg4t+1gfBRxYMNOI8Hy4byJINj6B
+g46s1cg0FMH4DOwj4jAwco7X+F1QCcWYFa3acNIEnMom5Ctih96/C+YnDq/6vtWG
+C6ta/eyx9wJ/XFcGXB3Y4RB2ZdZhsfZrSCmQo+bdWUg4AgxtJjP0R3osEGwPMoim
+OJ90G8/t6YrBtf1xFkNoq6IqVgbTsEA1OfC/pflNcV8+jGRdAxI8a4nqeWIQro+v
+wMGuwE0oFbKP0qAvbfnG83lbbpK83KF+QdYPzMcky7HQcJQnMvOaIQKBgFAhWpL0
+WsFM2dzz9nOBTC3kLkb49pfUnZFnHMr7ECFX8dqvXbwnEg4w8B+RPr0DOyoG26jr
+5EKpOwCdLy1JYapWPEGN63ULAsMKoflf144wW+NAfeABscybJCSNdKcixJXg9mLG
+M0VKQwzcFatmnul2lyreYwAmQcwDLCWMEUj7AoGAYpcTS00yDYWx/l/mprPzb8D+
+1WFIgmq5Gq0fWmnWNf1v9FVyHWi9TbGsuBK+GQ/vUCYN+vjp3oc4aWnwJzCnjhOe
+ROM4/1Uzzuh65CsFTXD1Bl1LBFOHApgZNlILenxxwTcWMCRR6b+6DlH7+KI7AqZ9
+3l1POYKk0/qVmxzfByA=
+-----END PRIVATE KEY-----"""
+
+PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkz69yJBxHQHuqdDGJKcY
+2cRJyxRjbEDlpZSr67MOPy9V5REvwx5zP4A45LtN0zAROEC0bxXSr1y9F10OFQWn
+74KX6WedsJSSeyExCRx4jo1T7fw15ofKNfn0cmfgsshCuPZe4oGYdD2t05ijbRUc
+EUz+xaGxCGr27YAHj6xM9a0VSaCBukR4aR4hpJnmNr9lPoA5DnTrqaSzMhxmDZpk
+onXeiosAbJ+QBMcTwT9hxEYDhSKrUi3QVWOREC84LNtJtjpp5OWPa6p/utZkw9Kc
+aCe9zTyjoJkD+xSHsplrc69KcS2qmyvo6JHeAHuJAn8hg5lZMyHqy0hT36hMBCgm
+jwIDAQAB
+-----END PUBLIC KEY-----"""
 
 # Bind the Workers AI model catalog. Run machine learning models, powered by serverless GPUs, on Cloudflare’s global network
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#workers-ai

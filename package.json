@@ -10,7 +10,7 @@
 		"lint": "npx oxlint --type-aware"
 	},
 	"dependencies": {
-
+		"zod": "^4.1.8"
 	},
 	"devDependencies": {
 		"@types/node": "^22.16.5",
@@ -19,9 +19,9 @@
 		"typescript": "~5.8.0",
 		"wrangler": "^4.36.0"
 	},
-  "workspaces": [
-    "packages/app",
-    "packages/argon2-cloudflare",
-    "packages/auth"
-  ]
+	"workspaces": [
+		"packages/app",
+		"packages/argon2-cloudflare",
+		"packages/auth"
+	]
 }

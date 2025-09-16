@@ -8,12 +8,38 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('username:', username);
-    console.log('Password:', password);
-    console.log('Confirm Password:', confirmPassword);
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('password', password);
+      formData.append('confirmPassword', confirmPassword);
+
+      const response = await fetch('/register', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const message = await response.text();
+        console.log('Registration successful:', message);
+        // Handle successful registration (e.g., redirect or update app state)
+      } else {
+        const errorMessage = await response.text();
+        setError(errorMessage);
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -22,6 +48,12 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
         <h1 className="mb-6 text-2xl font-bold text-center text-gray-800">Sign Up</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+              {error}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-semibold text-gray-700">Username</label>
             <input
@@ -60,9 +92,10 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
 
           <button
             type="submit"
-            className="w-full py-2 font-semibold bg-black text-black rounded-lg hover:bg-gray-900 transition-colors"
+            disabled={isLoading}
+            className="w-full py-2 font-semibold bg-black text-white rounded-lg hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign Up
+            {isLoading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
 

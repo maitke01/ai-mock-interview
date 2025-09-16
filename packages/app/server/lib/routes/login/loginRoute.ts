@@ -8,7 +8,7 @@ const schema = z.object({
 
 export const loginRoute: Route = async (ctx) => {
   const fd = await ctx.req.formData()
-  const entries = Object.fromEntries(fd.entries())
+  const entries = Object.fromEntries(fd)
 
   const { success, data, error } = schema.safeParse(entries)
 
@@ -26,9 +26,9 @@ export const loginRoute: Route = async (ctx) => {
     return new Response('No account exists with that username', { status: 400 })
   }
 
-  const passwordHash = await ctx.env.AUTH.argon2Hash(password)
+  const verified = await ctx.env.AUTH.argon2Verify(row.password, password)
 
-  if (passwordHash !== row.password) {
+  if (!verified) {
     return new Response('Passwords do not match', { status: 401 })
   }
 

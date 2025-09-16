@@ -9,7 +9,7 @@ const schema = z.object({
 
 export const registerRoute: Route = async (ctx) => {
   const fd = await ctx.req.formData()
-  const entries = Object.fromEntries(fd.entries())
+  const entries = Object.fromEntries(fd)
   const { success, data, error } = schema.safeParse(entries)
   
   if (!success) {
@@ -46,9 +46,10 @@ export const registerRoute: Route = async (ctx) => {
   // 1 year in seconds
   const maxAge = 1 * 60 * 60 * 24 * 365
 
+  console.log(newAccount.id)
   const jwt = await ctx.env.AUTH.signJwt({
     audience: 'https://ai-mock-interview.cc',
-    payload: {},
+    payload: { id: newAccount.id },
     subject: `${newAccount.id}`,
     expires: '1y'
   })

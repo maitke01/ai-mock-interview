@@ -17,7 +17,8 @@
 		{
 			"binding": "DB",
 			"database_name": "ai-mock-interview",
-			"database_id": "9cae5d70-e81c-482a-81aa-3ac1821fae7f"
+			"database_id": "9cae5d70-e81c-482a-81aa-3ac1821fae7f",
+			"remote": true
 		}
 	],
 	"ai": {
