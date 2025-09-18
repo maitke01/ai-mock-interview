@@ -8,13 +8,15 @@
   },
   "scripts": {
     "lint": "npx oxlint --type-aware",
-    "format": "dprint fmt"
+    "format": "dprint fmt",
+    "dev": "concurrently 'npm run dev --w argon2-clouflare' 'npm run dev --w auth' 'npm run dev --w app'"
   },
   "dependencies": {
     "zod": "^4.1.8"
   },
   "devDependencies": {
     "@types/node": "^22.16.5",
+    "concurrently": "^9.2.1",
     "dprint": "^0.50.2",
     "install": "^0.13.0",
     "npm": "^11.6.0",
