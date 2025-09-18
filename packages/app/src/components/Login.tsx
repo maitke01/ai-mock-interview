@@ -1,100 +1,98 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-interface LoginProps {
-  onSwitchToSignup: () => void;
-}
-
-const Login: React.FC<LoginProps> = ({ onSwitchToSignup }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+const Login: React.FC = () => {
+  const navigate = useNavigate()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
+    e.preventDefault()
+    setIsLoading(true)
+    setError('')
 
     try {
-      const formData = new FormData();
-      formData.append('username', username);
-      formData.append('password', password);
+      const formData = new FormData()
+      formData.append('username', username)
+      formData.append('password', password)
 
       const response = await fetch('/login', {
         method: 'POST',
-        body: formData,
-      });
+        body: formData
+      })
 
       if (response.ok) {
-        const message = await response.text();
-        console.log('Login successful:', message);
-        // Handle successful login (e.g., redirect or update app state)
+        const message = await response.text()
+        console.log('Login successful:', message)
+        void navigate('/dashboard')
       } else {
-        const errorMessage = await response.text();
-        setError(errorMessage);
+        const errorMessage = await response.text()
+        setError(errorMessage)
       }
     } catch (err) {
       console.error(err)
-      setError('Network error. Please try again.');
+      setError('Network error. Please try again.')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-md">
-        <h1 className="mb-6 text-2xl font-bold text-center text-gray-800">Login</h1>
+    <div className='flex items-center justify-center min-h-screen bg-gray-50'>
+      <div className='w-full max-w-md p-8 bg-white rounded-2xl shadow-md'>
+        <h1 className='mb-6 text-2xl font-bold text-center text-gray-800'>Login</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className='space-y-4'>
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            <div className='p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg'>
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Username</label>
+            <label className='block text-sm font-semibold text-gray-700'>Username</label>
             <input
-              type="text"
-              placeholder="Enter your username"
+              type='text'
+              placeholder='Enter your username'
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:outline-none"
+              className='w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:outline-none'
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Password</label>
+            <label className='block text-sm font-semibold text-gray-700'>Password</label>
             <input
-              type="password"
-              placeholder="Enter your password"
+              type='password'
+              placeholder='Enter your password'
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:outline-none"
+              className='w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:outline-none'
             />
           </div>
 
           <button
-            type="submit"
+            type='submit'
             disabled={isLoading}
-            className="w-full py-2 font-semibold bg-black text-white rounded-lg hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className='w-full py-2 font-semibold bg-black text-white rounded-lg hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
           >
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
-        <p className="mt-6 text-sm text-center text-gray-600">
+        <p className='mt-6 text-sm text-center text-gray-600'>
           Don't have an account?{' '}
-          <button onClick={onSwitchToSignup} className="font-semibold text-black hover:underline">
+          <button onClick={() => navigate('/signup')} className='font-semibold text-black hover:underline'>
             Sign up
           </button>
         </p>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Login;
+export default Login

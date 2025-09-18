@@ -1,5 +1,5 @@
-import type { Route } from '../../..'
 import { z } from 'zod'
+import type { Route } from '../../..'
 
 const schema = z.object({
   username: z.string().min(4).max(32),
@@ -20,7 +20,7 @@ export const loginRoute: Route = async (ctx) => {
 
   const row = await ctx.env.DB.prepare(`select password, id from accounts where username = ?`)
     .bind(username)
-    .first<{ password: string, id: number }>()
+    .first<{ password: string; id: number }>()
 
   if (row === null) {
     return new Response('No account exists with that username', { status: 400 })

@@ -1,5 +1,5 @@
-import type { Route } from '../../..'
 import z from 'zod'
+import type { Route } from '../../..'
 
 const schema = z.object({
   username: z.string().min(4).max(32),
@@ -11,7 +11,7 @@ export const registerRoute: Route = async (ctx) => {
   const fd = await ctx.req.formData()
   const entries = Object.fromEntries(fd)
   const { success, data, error } = schema.safeParse(entries)
-  
+
   if (!success) {
     return new Response(z.prettifyError(error), { status: 400 })
   }
@@ -24,7 +24,7 @@ export const registerRoute: Route = async (ctx) => {
 
   const row = await ctx.env.DB.prepare(`
     select username, password from accounts where username = ?  
-  `).bind(username).first<{ username: string, password: string }>()
+  `).bind(username).first<{ username: string; password: string }>()
 
   if (row !== null) {
     return new Response('An account with that username already exists', { status: 400 })
