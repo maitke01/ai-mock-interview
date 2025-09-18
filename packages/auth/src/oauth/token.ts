@@ -1,6 +1,5 @@
 import type { z } from 'zod'
 import { getCachedOrFetch } from '../util/get-or-cache'
-import { resetCookieHeaders } from './constants'
 import { accessTokenSchema, validateOAuthErrorBody } from './util'
 
 interface TokenOptions {
@@ -43,12 +42,6 @@ export const refreshOAuthToken = async (
   })
 
   if (!response.ok) {
-    let headers: Headers | undefined
-
-    if (response.status === 401 || response.status === 403) {
-      headers = resetCookieHeaders
-    }
-
     let error = 'unknown'
 
     try {
@@ -59,8 +52,7 @@ export const refreshOAuthToken = async (
       error,
       at: 'OAuth refresh_token'
     }, {
-      status: 404,
-      headers
+      status: 404
     })
   }
 

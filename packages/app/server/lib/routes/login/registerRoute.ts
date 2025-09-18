@@ -54,12 +54,15 @@ export const registerRoute: Route = async (ctx) => {
     expires: '1y'
   })
 
+  const origin = ctx.req.header('Origin')
+  const domain = import.meta.env.DEV ? '' : `Domain=${origin};`
+
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
   // "Setting the domain will make the cookie available to it, as well as to all its subdomains."
   return new Response('Account created successfully', {
     status: 302,
     headers: {
-      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; Domain=ai-mock-interview.cc;`
+      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; ${domain}`
     }
   })
 }

@@ -42,9 +42,12 @@ export const loginRoute: Route = async (ctx) => {
     expires: '1y'
   })
 
+  const origin = ctx.req.header('Origin')
+  const domain = import.meta.env.DEV ? '' : `Domain=${origin};`
+
   return new Response('Logged in!', {
     headers: {
-      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; Domain=ai-mock-interview.cc;`
+      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; ${domain}`
     }
   })
 }

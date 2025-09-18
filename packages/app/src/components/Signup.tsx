@@ -36,6 +36,7 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
         setError(errorMessage);
       }
     } catch (err) {
+      console.error(err)
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
