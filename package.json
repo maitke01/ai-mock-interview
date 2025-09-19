@@ -1,24 +1,30 @@
 {
-	"name": "ai-mock-interview",
-	"version": "0.0.0",
-	"private": true,
-	"type": "module",
-	"engines": {
-		"node": "^20.19.0 || >=22.12.0"
-	},
-	"scripts": {
-		"lint": "npx oxlint --type-aware"
-	},
-	"dependencies": {
-
-	},
-	"devDependencies": {
-		"@types/node": "^22.16.5",
-		"oxlint": "^1.15.0",
-		"oxlint-tsgolint": "^0.2.0",
-		"typescript": "~5.8.0",
-		"wrangler": "^4.36.0"
-	},
+  "name": "ai-mock-interview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "lint": "npx oxlint --type-aware",
+    "format": "dprint fmt",
+    "dev": "concurrently 'npm run dev --w argon2-clouflare' 'npm run dev --w auth' 'npm run dev --w app'"
+  },
+  "dependencies": {
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "concurrently": "^9.2.1",
+    "dprint": "^0.50.2",
+    "install": "^0.13.0",
+    "npm": "^11.6.0",
+    "oxlint": "^1.15.0",
+    "oxlint-tsgolint": "^0.2.0",
+    "typescript": "~5.8.0",
+    "wrangler": "^4.36.0"
+  },
   "workspaces": [
     "packages/app",
     "packages/argon2-cloudflare",

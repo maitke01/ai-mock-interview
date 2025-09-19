@@ -1,5 +1,5 @@
-import type { Route } from '../../..'
 import { z } from 'zod'
+import type { Route } from '../../..'
 
 const schema = z.object({
   username: z.string().min(4).max(32),
@@ -8,7 +8,7 @@ const schema = z.object({
 
 export const loginRoute: Route = async (ctx) => {
   const fd = await ctx.req.formData()
-  const entries = Object.fromEntries(fd.entries())
+  const entries = Object.fromEntries(fd)
 
   const { success, data, error } = schema.safeParse(entries)
 
@@ -20,15 +20,15 @@ export const loginRoute: Route = async (ctx) => {
 
   const row = await ctx.env.DB.prepare(`select password, id from accounts where username = ?`)
     .bind(username)
-    .first<{ password: string, id: number }>()
+    .first<{ password: string; id: number }>()
 
   if (row === null) {
     return new Response('No account exists with that username', { status: 400 })
   }
 
-  const passwordHash = await ctx.env.AUTH.argon2Hash(password)
+  const verified = await ctx.env.AUTH.argon2Verify(row.password, password)
 
-  if (passwordHash !== row.password) {
+  if (!verified) {
     return new Response('Passwords do not match', { status: 401 })
   }
 
@@ -42,9 +42,12 @@ export const loginRoute: Route = async (ctx) => {
     expires: '1y'
   })
 
+  const origin = ctx.req.header('Origin')
+  const domain = import.meta.env.DEV ? '' : `Domain=${origin};`
+
   return new Response('Logged in!', {
     headers: {
-      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; Domain=ai-mock-interview.cc;`
+      'Set-Cookie': `token=${jwt}; Max-Age=${maxAge}; Secure; HttpOnly; Path=/; ${domain}`
     }
   })
 }

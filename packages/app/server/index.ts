@@ -1,4 +1,4 @@
-import { Hono, type Context } from 'hono'
+import { type Context, Hono } from 'hono'
 import { loginRoute } from './lib/routes/login/loginRoute'
 import { registerRoute } from './lib/routes/login/registerRoute'
 
@@ -11,5 +11,5 @@ const app = new Hono({ strict: false })
   .post('/register', registerRoute)
 
 export default {
-	fetch: app.fetch
+  fetch: app.fetch
 } satisfies ExportedHandler<Env>
