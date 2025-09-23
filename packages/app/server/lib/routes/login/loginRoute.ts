@@ -26,10 +26,20 @@ export const loginRoute: Route = async (ctx) => {
     return new Response('No account exists with that username', { status: 400 })
   }
 
-  const verified = await ctx.env.AUTH.argon2Verify(row.password, password)
+  try {
+    const verified = await ctx.env.AUTH.argon2Verify(row.password, password)
 
-  if (!verified) {
-    return new Response('Passwords do not match', { status: 401 })
+    if (!verified) {
+      return new Response('Passwords do not match', { status: 401 })
+    }
+  } catch (e) {
+    if (!import.meta.env.DEV) {
+      throw e
+    }
+
+    if (row.password !== password) {
+      return new Response('Passwords do not match', { status: 401 })
+    }
   }
 
   // 1 year in seconds
