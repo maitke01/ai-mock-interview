@@ -8,13 +8,13 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center py-4">
             <h1 className="text-2xl font-bold text-white">AI Resume & Interview Trainer</h1>
             <nav className="flex space-x-8">
-              <a href="#" className="text-white hover:text-blue-200 font-medium">
+              <a href="#" className="text-white font-bold hover:text-blue-200 font-medium">
                 Dashboard
               </a>
-              <a href="#" className="text-white hover:text-blue-200 font-medium">
+              <a href="#" className="text-white font-bold hover:text-blue-200 font-medium">
                 Resume Builder
               </a>
-              <a href="#" className="text-white hover:text-blue-200 font-medium">
+              <a href="#" className="text-white font-bold hover:text-blue-200 font-medium">
                 Mock Interview
               </a>
             </nav>
@@ -26,7 +26,7 @@ const Dashboard: React.FC = () => {
         <div className="px-4 py-6 sm:px-0">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, John!</h2>
-            <p className="text-gray-600">You have 1 scheduled interview and 3 tasks to complete this week.</p>
+            <p className="text-gray-600">You have 1 scheduled interview and 0 tasks to complete this week.</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
