@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",
+    "extract-gfm": "^0.1.0",
     "hono": "^4.9.7",
+    "pdfjs-dist": "^5.4.149",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1"

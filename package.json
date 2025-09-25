@@ -13,6 +13,7 @@
     "dev": "concurrently \"npm run dev --w auth\" \"npm run dev --w app\""
   },
   "dependencies": {
+    "pdfjs-dist": "^5.4.149",
     "zod": "^4.1.8"
   },
   "devDependencies": {
