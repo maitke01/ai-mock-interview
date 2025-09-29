@@ -30,7 +30,17 @@ export const registerRoute: Route = async (ctx) => {
     return new Response('An account with that username already exists', { status: 400 })
   }
 
-  const passwordHash = await ctx.env.AUTH.argon2Hash(password)
+  let passwordHash: string
+
+  try {
+    passwordHash = await ctx.env.AUTH.argon2Hash(password)
+  } catch (e) {
+    if (!import.meta.env.DEV) {
+      throw e
+    }
+
+    passwordHash = password
+  }
 
   const newAccount = await ctx.env.DB.prepare(`
     insert into accounts (

@@ -4,6 +4,7 @@
  */
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
+  "account_id": "fbc1a98f43043f48604bf34d88625d91",
   "name": "ai-mock-interview",
   "compatibility_date": "2025-09-12",
   "main": "server/index.ts",
