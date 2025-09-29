@@ -1,7 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const Dashboard: React.FC = () => {
+const MockInterview: React.FC = () => {
   const navigate = useNavigate()
 
   return (
@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
               >
                 Resume Builder
               </a>
-              <a
+             <a
                 href='#'
                 className='text-white font-bold hover:text-blue-200 font-medium'
                 onClick={() => navigate('/interview')}
@@ -42,4 +42,4 @@ const Dashboard: React.FC = () => {
   )
 }
 
-export default Dashboard
+export default MockInterview
