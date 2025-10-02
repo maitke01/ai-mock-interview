@@ -4,6 +4,7 @@ import Login from './components/Login'
 import ResumeBuilder from './components/ResumeBuilder'
 import Signup from './components/Signup'
 import MockInterview from "./components/MockInterview";
+import JobSearch from "./components/JobSearch";
 
 function App () {
   return (
@@ -15,7 +16,7 @@ function App () {
         <Route path='/dashboard' element={<Dashboard />} />
         <Route path='/resume' element={<ResumeBuilder />} />
         <Route path="/interview" element={<MockInterview />} />
-        {/* ...existing code... */}
+  <Route path="/job-search" element={<JobSearch />} />
       </Routes>
     </Router>
   )
