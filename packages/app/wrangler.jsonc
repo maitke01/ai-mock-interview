@@ -2,35 +2,21 @@
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
+
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "account_id": "fbc1a98f43043f48604bf34d88625d91",
   "name": "ai-mock-interview",
   "compatibility_date": "2025-09-12",
   "main": "server/index.ts",
-  "assets": {
-    "not_found_handling": "single-page-application"
-  },
-  "observability": {
-    "enabled": true
-  },
+  "assets": { "not_found_handling": "single-page-application" },
+  "observability": { "enabled": true },
   "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "ai-mock-interview",
-      "database_id": "9cae5d70-e81c-482a-81aa-3ac1821fae7f",
-      "remote": true
-    }
+    { "binding": "DB", "database_name": "ai-mock-interview", "database_id": "9cae5d70-e81c-482a-81aa-3ac1821fae7f", "remote": true }
   ],
-  "ai": {
-    "binding": "AI"
-  },
-  "services": [
-    {
-      "binding": "AUTH",
-      "service": "auth"
-    }
-  ]
+  "ai": { "binding": "AI" },
+  "services": [ { "binding": "AUTH", "service": "auth" } ]
+
   /**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

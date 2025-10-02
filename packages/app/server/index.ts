@@ -15,31 +15,61 @@ import {
   batchProcessingRoute
 } from './lib/routes/resumeRoutes'
 
-type Bindings = { Bindings: Env }
+// Env interface (matches wrangler bindings)
+export interface Env {
+  AI: any   // Workers AI binding
+  DB: D1Database
+  AUTH: Fetcher
+}
 
-export type Route<R extends string = string> = (ctx: Context<Bindings, R>) => Promise<Response> | Response
+// Hono app
+const app = new Hono<{ Bindings: Env }>({ strict: false })
 
-const app = new Hono({ strict: false })
-  .use('*', cors({
-    origin: '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization']
-  }))
-  // Authentication routes
-  .post('/login', loginRoute)
-  .post('/register', registerRoute)
-  // Resume processing routes
-  .post('/resume/parse', resumeParserRoute)
-  .post('/resume/analyze', resumeAnalysisRoute)
-  .post('/resume/analyze-enhanced', enhancedResumeAnalysisRoute)
-  .post('/resume/process-pdf', pdfProcessingRoute)
-  .post('/resume/job-match', jobMatchingRoute)
-  .post('/resume/templates', templateSuggestionsRoute)
-  .post('/resume/versions', versionManagementRoute)
-  .post('/resume/search', vectorSearchRoute)
-  .post('/resume/analytics', analyticsTrackingRoute)
-  .post('/resume/batch', batchProcessingRoute)
+// Enable CORS globally
+app.use('*', cors({
+  origin: '*',
+  allowMethods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowHeaders: ['Content-Type','Authorization']
+}))
 
+// ---------------- Authentication Routes ----------------
+app.post('/login', loginRoute)
+app.post('/register', registerRoute)
+
+// ---------------- Resume Routes ----------------
+app.post('/resume/parse', resumeParserRoute)
+app.post('/resume/analyze', resumeAnalysisRoute)
+app.post('/resume/analyze-enhanced', enhancedResumeAnalysisRoute)
+app.post('/resume/process-pdf', pdfProcessingRoute)
+app.post('/resume/job-match', jobMatchingRoute)
+app.post('/resume/templates', templateSuggestionsRoute)
+app.post('/resume/versions', versionManagementRoute)
+app.post('/resume/search', vectorSearchRoute)
+app.post('/resume/analytics', analyticsTrackingRoute)
+app.post('/resume/batch', batchProcessingRoute)
+
+// ---------------- AI Resume Suggestions ----------------
+app.post('/resume/ai-suggestions', async (ctx) => {
+  try {
+    const env = ctx.env as unknown as { AI: any }
+    const body = await ctx.req.json()
+    const text: string = body.text || ''
+
+    if (!text) return ctx.json({ error: 'No resume text provided' }, 400)
+
+    // Call Workers AI LLM
+    const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      prompt: `You are a resume improvement assistant. Suggest improvements for this resume:\n\n${text}`,
+      max_output_tokens: 400
+    })
+
+    return ctx.json({ suggestions: aiResponse.output_text || aiResponse })
+  } catch (err) {
+    return ctx.json({ error: (err as Error).message }, 500)
+  }
+})
+
+// Export for Cloudflare Worker
 export default {
   fetch: app.fetch
 } satisfies ExportedHandler<Env>
