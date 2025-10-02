@@ -1,9 +1,9 @@
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
 import Login from './components/Login'
+import MockInterview from './components/MockInterview'
 import ResumeBuilder from './components/ResumeBuilder'
 import Signup from './components/Signup'
-import MockInterview from "./components/MockInterview";
 import JobSearch from "./components/JobSearch";
 
 function App () {
