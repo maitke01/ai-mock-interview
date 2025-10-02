@@ -5,7 +5,6 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      <div className='bg-green-600 text-white text-3xl font-bold text-center py-6'>TEST: Dashboard.tsx is ACTIVE</div>
       <div className='bg-blue-600 dark:bg-blue-800 shadow-sm'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='flex justify-between items-center py-4'>
