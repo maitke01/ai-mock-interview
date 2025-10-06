@@ -270,6 +270,15 @@ const ResumeBuilder: React.FC = () => {
                               >
                                 AI Optimize Resume
                               </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate('/job-search');
+                                  }}
+                                  className='text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors'
+                                >
+                                  Job Search
+                                </button>
                               {pdfData[file.name]?.images?.length > 0 && (
                                 <span className='text-xs text-green-600 bg-green-50 px-2 py-1 rounded'>
                                   {pdfData[file.name].images.length} image(s) extracted

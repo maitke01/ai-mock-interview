@@ -16,7 +16,7 @@ function App () {
         <Route path='/dashboard' element={<Dashboard />} />
         <Route path='/resume' element={<ResumeBuilder />} />
         <Route path="/interview" element={<MockInterview />} />
-  <Route path="/jobs" element={<JobSearch />} />
+  <Route path="/job-search" element={<JobSearch />} />
       </Routes>
     </Router>
   )
