@@ -449,5 +449,9 @@ const ResumeBuilder: React.FC = () => {
   )
 }
 
+<<<<<<< Updated upstream
 export default ResumeBuilder
 
+=======
+export default ResumeBuilder
+>>>>>>> Stashed changes
