@@ -59,6 +59,7 @@ const Dashboard: React.FC = () => {
             <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome back!</h2>
             <p className='text-gray-600 dark:text-gray-400'>
               You have 1 scheduled interview and 0 tasks to complete this week.
+              
             </p>
           </div>
 
@@ -127,14 +128,19 @@ const Dashboard: React.FC = () => {
                         <p className='text-sm text-gray-600 dark:text-gray-400'>Tomorrow, 10:00 AM</p>
                       </div>
                     </div>
-                    <button className='bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors'>
+
+                    
+                    <button
+                      className='border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent px-6 py-2 rounded-md font-medium transition-colors'
+                      onClick={() => navigate('/interview')}
+                    >
                       Start
                     </button>
                   </div>
                 </div>
                 <button
                   className='w-full border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent py-2 px-4 rounded-md font-medium transition-colors'
-                  onClick={() => navigate('/interview')}
+
                 >
                   + Schedule New Interview
                 </button>
