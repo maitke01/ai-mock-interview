@@ -1,7 +1,6 @@
 import type React from "react"
 import { useNavigate } from "react-router-dom"
 import { X } from "lucide-react"
-
 import { useEffect, useState } from "react"
 
 interface ScheduledInterview {
@@ -36,26 +35,30 @@ const Dashboard: React.FC = () => {
   }, [])
 
   const formatDateTime = (date: string, time: string) => {
-    const dateObj = new Date(date)
+    // Treat date as local (not UTC)
+    const [year, month, day] = date.split("-").map(Number)
+    const dateObj = new Date(year, month - 1, day)
+  
     const today = new Date()
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
-
+  
     let dateStr = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-
+  
     if (dateObj.toDateString() === today.toDateString()) {
       dateStr = "Today"
     } else if (dateObj.toDateString() === tomorrow.toDateString()) {
       dateStr = "Tomorrow"
     }
-
+  
     const [hours, minutes] = time.split(":")
     const hour = Number.parseInt(hours)
     const ampm = hour >= 12 ? "PM" : "AM"
     const displayHour = hour % 12 || 12
-
+  
     return `${dateStr}, ${displayHour}:${minutes} ${ampm}`
   }
+  
 
   const cancelInterview = (id: string) => {
     const updatedInterviews = scheduledInterviews.filter((interview) => interview.id !== id)
@@ -274,17 +277,18 @@ const Dashboard: React.FC = () => {
               Are you sure you want to cancel the interview?
             </h3>
             <div className="flex justify-end space-x-3 mt-6">
-              <button
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-bold transition-colors"
-                onClick={() => setInterviewToCancel(null)}
-              >
-                No
-              </button>
+    
               <button
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-medium transition-colors"
                 onClick={() => cancelInterview(interviewToCancel)}
               >
                 Yes
+              </button>
+              <button
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-bold transition-colors"
+                onClick={() => setInterviewToCancel(null)}
+              >
+                No
               </button>
             </div>
           </div>

@@ -7,11 +7,11 @@ const ScheduleInterview: React.FC = () => {
   const [date, setDate] = useState("")
   const [time, setTime] = useState("")
   const [interviewType, setInterviewType] = useState("Technical - Algorithms")
+  const [showPopup, setShowPopup] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Create new interview object
     const newInterview = {
       id: Date.now().toString(),
       date,
@@ -20,20 +20,23 @@ const ScheduleInterview: React.FC = () => {
       scheduledAt: new Date().toISOString(),
     }
 
-    // Get existing interviews from localStorage
     const existingInterviews = localStorage.getItem("scheduledInterviews")
     const interviews = existingInterviews ? JSON.parse(existingInterviews) : []
 
-    // Add new interview and save back to localStorage
     interviews.push(newInterview)
     localStorage.setItem("scheduledInterviews", JSON.stringify(interviews))
 
-    alert("Interview scheduled!")
+    // Show popup instead of alert
+    setShowPopup(true)
+  }
+
+  const handleOkClick = () => {
+    setShowPopup(false)
     navigate("/dashboard")
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-10">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-10 relative">
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-8 w-full max-w-xl mx-auto">
         <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Schedule Interview</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -51,6 +54,7 @@ const ScheduleInterview: React.FC = () => {
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Time</label>
             <input
@@ -61,6 +65,7 @@ const ScheduleInterview: React.FC = () => {
               onChange={(e) => setTime(e.target.value)}
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Interview Type</label>
             <select
@@ -73,8 +78,9 @@ const ScheduleInterview: React.FC = () => {
               <option>Systems Design</option>
             </select>
           </div>
+
           <div className="text-center">
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md">
+            <button type="submit" className="ml-3 text-sm font-bold text-gray-600 dark:text-gray-300">
               Schedule
             </button>
             <button
@@ -87,6 +93,23 @@ const ScheduleInterview: React.FC = () => {
           </div>
         </form>
       </div>
+{/* popup message with Ok button */}
+      {showPopup && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Interview scheduled!
+            </h2>
+            <button
+              onClick={handleOkClick}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700
+               hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-medium transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
