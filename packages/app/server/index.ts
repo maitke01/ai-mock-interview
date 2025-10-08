@@ -2,6 +2,7 @@ import { type Context, Hono } from 'hono'
 import { loginRoute } from './lib/routes/login/loginRoute'
 import { registerRoute } from './lib/routes/login/registerRoute'
 import { optimizeResumeRoute } from './lib/routes/resume/optimizeResumeRoute'
+import { extractKeywordsRoute } from './lib/routes/resume/extractKeywordsRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -11,6 +12,7 @@ const app = new Hono({ strict: false })
   .post('/login', loginRoute)
   .post('/register', registerRoute)
   .post('/api/optimize-resume', optimizeResumeRoute)
+  .post('/api/extract-keywords', extractKeywordsRoute)
 
 export default {
   fetch: app.fetch
