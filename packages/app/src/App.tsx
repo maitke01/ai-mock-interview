@@ -8,6 +8,7 @@ import Signup from './components/Signup'
 import JobSearch from "./components/JobSearch";
 import ScheduleInterview from "./components/ScheduleInterview";
 
+
 function App () {
   return (
     <Router>
@@ -18,8 +19,8 @@ function App () {
         <Route path='/dashboard' element={<Dashboard />} />
         <Route path='/resume' element={<ResumeBuilder />} />
         <Route path="/interview" element={<MockInterview />} />
-        <Route path="/schedule-interview" element={<ScheduleInterview />} />
-        <Route path="/job-search" element={<JobSearch />} />
+  <Route path="/schedule-interview" element={<ScheduleInterview />} />
+  <Route path="/job-search" element={<JobSearch />} />
       </Routes>
     </Router>
   )

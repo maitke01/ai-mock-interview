@@ -140,7 +140,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <button
                   className='w-full border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent py-2 px-4 rounded-md font-medium transition-colors'
-
+                  onClick={() => navigate('/schedule-interview')}
                 >
                   + Schedule New Interview
                 </button>
