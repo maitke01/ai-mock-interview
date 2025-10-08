@@ -1,8 +1,11 @@
+
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
 import Login from './components/Login'
+import MockInterview from './components/MockInterview'
 import ResumeBuilder from './components/ResumeBuilder'
 import Signup from './components/Signup'
+import JobSearch from "./components/JobSearch";
 
 function App () {
   return (
@@ -13,7 +16,8 @@ function App () {
         <Route path='/signup' element={<Signup />} />
         <Route path='/dashboard' element={<Dashboard />} />
         <Route path='/resume' element={<ResumeBuilder />} />
-        {/* ...existing code... */}
+        <Route path="/interview" element={<MockInterview />} />
+  <Route path="/job-search" element={<JobSearch />} />
       </Routes>
     </Router>
   )
