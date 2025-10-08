@@ -1,8 +1,25 @@
 import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { useEffect, useState } from 'react'
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
+  const [atsScore, setAtsScore] = useState<number | null>(null)
+
+  useEffect(() => {
+    const s = localStorage.getItem('atsScore')
+    if (s !== null) setAtsScore(Number(s))
+  }, [])
+
+  // expose a window hook for other components to update ATS score if needed
+  useEffect(() => {
+    ;(window as any).updateAtsScore = (n: number) => {
+      setAtsScore(n)
+      localStorage.setItem('atsScore', String(n))
+    }
+  }, [])
+
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
       <div className='bg-blue-600 dark:bg-blue-800 shadow-sm'>
@@ -133,9 +150,9 @@ const Dashboard: React.FC = () => {
               <div className='px-6 py-4'>
                 <div className='grid grid-cols-3 gap-4'>
                   <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
-                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>0</div>
-                    <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
-                    <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>ATS Score</div>
+                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{atsScore ?? 0}</div>
+                      <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
+                      <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>ATS Score</div>
                   </div>
                   <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
                     <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>0</div>

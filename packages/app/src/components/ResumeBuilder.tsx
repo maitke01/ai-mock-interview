@@ -55,7 +55,10 @@ const ResumeBuilder: React.FC = () => {
     }
 
     const imageUrls = images.map((img) => {
-      const blob = new Blob([img.data], { type: `image/${img.key}` })
+      // Convert the possibly-non-ArrayBuffer-backed typed array into a plain ArrayBuffer
+      // Uint8Array.from will create a new ArrayBuffer-backed typed array.
+      const arr = Uint8Array.from((img as any).data || [])
+      const blob = new Blob([arr.buffer], { type: `image/${img.key}` })
       return URL.createObjectURL(blob)
     })
 
@@ -178,6 +181,23 @@ const ResumeBuilder: React.FC = () => {
         ...prev,
         [fileName]: result.optimizedResume
       }))
+      // After optimizing, calculate ATS score using server route
+      try {
+        const atsResp = await fetch('/api/ats-score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resumeText: data.text, keywords: [] })
+        })
+        if (atsResp.ok) {
+          const atsResult = await atsResp.json()
+          if (atsResult?.atsScore !== undefined) {
+            // store in localStorage so Dashboard can read it
+            localStorage.setItem('atsScore', String(atsResult.atsScore))
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to calculate ATS score after optimize:', e)
+      }
     } catch (error) {
       console.error('Error optimizing resume:', error)
       alert('Failed to optimize resume. Please try again.')
