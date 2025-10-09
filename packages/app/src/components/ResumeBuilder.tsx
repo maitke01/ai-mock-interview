@@ -312,7 +312,19 @@ const ResumeBuilder: React.FC = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    navigate('/job-search');
+                                    // store selected resume info in sessionStorage so JobSearch can show it
+                                    try {
+                                      const payload = {
+                                        fileName: file.name,
+                                        text: pdfData[file.name]?.text || '',
+                                        images: pdfData[file.name]?.images || [],
+                                        optimized: aiOptimizedResumes[file.name] || null
+                                      }
+                                      sessionStorage.setItem('selectedResume', JSON.stringify(payload))
+                                    } catch (err) {
+                                      console.warn('Failed to store selected resume in sessionStorage', err)
+                                    }
+                                    navigate('/job-search')
                                   }}
                                   className='text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors'
                                 >
