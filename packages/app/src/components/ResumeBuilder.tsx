@@ -21,6 +21,24 @@ const ResumeBuilder: React.FC = () => {
     mainContent: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS\n\nACHIEVEMENTS'
   })
 
+  const [formattedSections, setFormattedSections] = useState<{
+    header?: string
+    sidebar?: string
+    mainContent?: string
+  }>({})
+
+  const [loadingStates, setLoadingStates] = useState<{
+    header: boolean
+    sidebar: boolean
+    mainContent: boolean
+    overall: boolean
+  }>({
+    header: false,
+    sidebar: false,
+    mainContent: false,
+    overall: false
+  })
+
   const addFiles = async (files: FileList | File[]) => {
     const newFiles = Array.from(files).filter((f) => !resumeFiles.some((existing) => existing.name === f.name))
     setResumeFiles((prev) => [...prev, ...newFiles])
@@ -125,7 +143,9 @@ const ResumeBuilder: React.FC = () => {
     setResumeTemplate((prev) => ({ ...prev, [section]: value }))
   }
 
-  const handleTemplateSubmit = async () => {
+  const formatSection = async (sectionType: 'header' | 'sidebar' | 'mainContent') => {
+    setLoadingStates((prev) => ({ ...prev, [sectionType]: true }))
+
     try {
       const response = await fetch('/api/format-resume', {
         method: 'POST',
@@ -133,9 +153,8 @@ const ResumeBuilder: React.FC = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          header: resumeTemplate.header,
-          sidebar: resumeTemplate.sidebar,
-          mainContent: resumeTemplate.mainContent
+          sectionType: sectionType,
+          content: resumeTemplate[sectionType]
         })
       })
 
@@ -144,11 +163,38 @@ const ResumeBuilder: React.FC = () => {
       }
 
       const result = await response.json()
-      alert('Resume submitted for AI formatting!')
-      console.log('Formatted resume:', result)
+
+      if (result.success) {
+        setFormattedSections((prev) => ({
+          ...prev,
+          [sectionType]: result.formattedContent
+        }))
+      } else {
+        throw new Error(result.error || 'Failed to format section')
+      }
     } catch (error) {
-      console.error('Error submitting resume:', error)
-      alert('Failed to submit resume. Please try again.')
+      console.error(`Error formatting ${sectionType}:`, error)
+      alert(`Failed to format ${sectionType}. Please try again.`)
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, [sectionType]: false }))
+    }
+  }
+
+  const formatAllSections = async () => {
+    setLoadingStates((prev) => ({ ...prev, overall: true }))
+
+    try {
+      await Promise.all([
+        formatSection('header'),
+        formatSection('sidebar'),
+        formatSection('mainContent')
+      ])
+      alert('All sections formatted successfully!')
+    } catch (error) {
+      console.error('Error formatting all sections:', error)
+      alert('Some sections failed to format. Please try individual sections.')
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, overall: false }))
     }
   }
 
@@ -429,47 +475,123 @@ const ResumeBuilder: React.FC = () => {
                     <div className='w-full h-full flex flex-col'>
                       
                       <div className='border-b-2 border-gray-300 pb-6 mb-6'>
+                        <div className='flex justify-between items-start mb-2'>
+                          <h4 className='text-sm font-medium text-gray-600'>Header Section</h4>
+                          <button
+                            onClick={() => formatSection('header')}
+                            disabled={loadingStates.header}
+                            className='text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors'
+                          >
+                            {loadingStates.header ? 'Formatting...' : 'Format Header'}
+                          </button>
+                        </div>
                         <textarea
-                          value={resumeTemplate.header}
-                          onChange={(e) => handleTemplateChange('header', e.target.value)}
-                          className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400'
+                          value={formattedSections.header || resumeTemplate.header}
+                          onChange={(e) => {
+                            if (formattedSections.header) {
+                              setFormattedSections(prev => ({ ...prev, header: e.target.value }))
+                            } else {
+                              handleTemplateChange('header', e.target.value)
+                            }
+                          }}
+                          className={`w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none placeholder-gray-400 ${
+                            formattedSections.header ? 'text-green-800' : 'text-gray-900'
+                          }`}
                           placeholder='Your Name&#10;your.email@example.com&#10;(123) 456-7890&#10;LinkedIn Profile'
                           rows={4}
                           style={{lineHeight: '1.3'}}
                         />
+                        {formattedSections.header && (
+                          <div className='text-xs text-green-600 mt-1 text-center'>✓ AI Formatted</div>
+                        )}
                       </div>
 
                       <div className='flex-1 flex gap-6'>
                         <div className='w-1/3 border-r-2 border-gray-300 pr-6'>
+                          <div className='flex justify-between items-start mb-2'>
+                            <h4 className='text-sm font-medium text-gray-600'>Sidebar</h4>
+                            <button
+                              onClick={() => formatSection('sidebar')}
+                              disabled={loadingStates.sidebar}
+                              className='text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors'
+                            >
+                              {loadingStates.sidebar ? 'Formatting...' : 'Format Sidebar'}
+                            </button>
+                          </div>
                           <textarea
-                            value={resumeTemplate.sidebar}
-                            onChange={(e) => handleTemplateChange('sidebar', e.target.value)}
-                            className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
+                            value={formattedSections.sidebar || resumeTemplate.sidebar}
+                            onChange={(e) => {
+                              if (formattedSections.sidebar) {
+                                setFormattedSections(prev => ({ ...prev, sidebar: e.target.value }))
+                              } else {
+                                handleTemplateChange('sidebar', e.target.value)
+                              }
+                            }}
+                            className={`w-full h-full bg-transparent border-none outline-none resize-none text-sm placeholder-gray-400 ${
+                              formattedSections.sidebar ? 'text-green-800' : 'text-gray-900'
+                            }`}
                             placeholder='SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS&#10;&#10;LANGUAGES'
-                            style={{lineHeight: '1.5', minHeight: '500px'}}
+                            style={{lineHeight: '1.5', minHeight: '460px'}}
                           />
+                          {formattedSections.sidebar && (
+                            <div className='text-xs text-green-600 mt-1'>✓ AI Formatted</div>
+                          )}
                         </div>
 
                         <div className='flex-1'>
+                          <div className='flex justify-between items-start mb-2'>
+                            <h4 className='text-sm font-medium text-gray-600'>Main Content</h4>
+                            <button
+                              onClick={() => formatSection('mainContent')}
+                              disabled={loadingStates.mainContent}
+                              className='text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors'
+                            >
+                              {loadingStates.mainContent ? 'Formatting...' : 'Format Content'}
+                            </button>
+                          </div>
                           <textarea
-                            value={resumeTemplate.mainContent}
-                            onChange={(e) => handleTemplateChange('mainContent', e.target.value)}
-                            className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
+                            value={formattedSections.mainContent || resumeTemplate.mainContent}
+                            onChange={(e) => {
+                              if (formattedSections.mainContent) {
+                                setFormattedSections(prev => ({ ...prev, mainContent: e.target.value }))
+                              } else {
+                                handleTemplateChange('mainContent', e.target.value)
+                              }
+                            }}
+                            className={`w-full h-full bg-transparent border-none outline-none resize-none text-sm placeholder-gray-400 ${
+                              formattedSections.mainContent ? 'text-green-800' : 'text-gray-900'
+                            }`}
                             placeholder='PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS&#10;&#10;ACHIEVEMENTS'
-                            style={{lineHeight: '1.5', minHeight: '500px'}}
+                            style={{lineHeight: '1.5', minHeight: '460px'}}
                           />
+                          {formattedSections.mainContent && (
+                            <div className='text-xs text-green-600 mt-1'>✓ AI Formatted</div>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
                   
-                  <div className='text-center mt-6'>
-                    <button
-                      onClick={handleTemplateSubmit}
-                      className='bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-md font-medium transition-colors shadow-lg'
-                    >
-                      Submit for AI Formatting
-                    </button>
+                  <div className='text-center mt-6 space-y-4'>
+                    <div className='flex justify-center gap-4'>
+                      <button
+                        onClick={formatAllSections}
+                        disabled={loadingStates.overall}
+                        className='bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-8 py-3 rounded-md font-medium transition-colors shadow-lg'
+                      >
+                        {loadingStates.overall ? 'Formatting All...' : 'Format All Sections'}
+                      </button>
+                    </div>
+
+                    {(formattedSections.header || formattedSections.sidebar || formattedSections.mainContent) && (
+                      <div className='bg-green-50 border border-green-200 rounded-lg p-4'>
+                        <h4 className='text-green-800 font-medium mb-2'>✓ AI-Formatted Sections Available</h4>
+                        <p className='text-green-700 text-sm'>
+                          Your resume sections have been professionally formatted. The green text shows AI-improved content.
+                          You can continue editing or use this formatted version.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
