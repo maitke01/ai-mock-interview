@@ -1,19 +1,19 @@
 import { create } from 'zustand'
 
-interface ResumeCompletionStore {
-  trackCompletion: (action: string, fileName?: string, amount?: number) => Promise<void>
+interface ResumeStore {
+  saveResumeDraft: (title: string, content: string, templateType?: string) => Promise<void>
 }
 
-export const useResumeCompletionStore = create<ResumeCompletionStore>(() => ({
-  trackCompletion: async (action: string, fileName?: string, amount: number = 10) => {
+export const useResumeStore = create<ResumeStore>(() => ({
+  saveResumeDraft: async (title: string, content: string, templateType: string = 'modern') => {
     try {
-      await fetch('/api/resume-completion', {
+      await fetch('/api/resume-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, fileName, amount })
+        body: JSON.stringify({ title, content, templateType })
       })
     } catch (error) {
-      console.warn('Resume completion tracking failed', error)
+      console.warn('Resume draft save failed', error)
     }
   }
 }))

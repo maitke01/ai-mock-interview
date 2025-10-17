@@ -12,26 +12,26 @@ export interface ResumeTemplateData {
  * @param templateData - Object containing header, sidebar, and mainContent text
  * @returns PDF bytes ready for download
  */
-export async function mergePDFWithText(
+export async function mergePDFWithText (
   pdfUrl: string,
   templateData: ResumeTemplateData
 ): Promise<Uint8Array> {
   try {
     // Fetch the PDF template
-    const existingPdfBytes = await fetch(pdfUrl).then(res => res.arrayBuffer())
-    
+    const existingPdfBytes = await fetch(pdfUrl).then((res) => res.arrayBuffer())
+
     // Load the PDF
     const pdfDoc = await PDFDocument.load(existingPdfBytes)
     const pages = pdfDoc.getPages()
     const firstPage = pages[0]
-    
+
     // Get page dimensions
     const { height } = firstPage.getSize()
-    
+
     // Embed fonts
     const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-    
+
     // Helper function to draw multi-line text
     const drawMultiLineText = (
       text: string,
@@ -44,14 +44,14 @@ export async function mergePDFWithText(
     ) => {
       const lines = text.split('\n')
       let y = startY
-      
+
       lines.forEach((line) => {
         if (line.trim()) {
           // Check if line is a heading (ALL CAPS or first line)
           const isHeading = line === line.toUpperCase() && line.length < 30
           const currentFont = isHeading ? boldFont : font
           const currentSize = isHeading ? fontSize + 1 : fontSize
-          
+
           firstPage.drawText(line, {
             x,
             y,
@@ -64,18 +64,18 @@ export async function mergePDFWithText(
         y -= lineHeight
       })
     }
-    
+
     // Draw Header (centered at top)
     const headerLines = templateData.header.split('\n')
     let yPosition = height - 60
-    
+
     headerLines.forEach((line, index) => {
       if (line.trim()) {
         const fontSize = index === 0 ? 20 : 11
         const font = index === 0 ? boldFont : regularFont
         const textWidth = font.widthOfTextAtSize(line, fontSize)
         const xCenter = (firstPage.getWidth() - textWidth) / 2
-        
+
         firstPage.drawText(line, {
           x: xCenter,
           y: yPosition,
@@ -86,7 +86,7 @@ export async function mergePDFWithText(
         yPosition -= index === 0 ? 25 : 18
       }
     })
-    
+
     // Draw Sidebar (left column)
     drawMultiLineText(
       templateData.sidebar,
@@ -97,7 +97,7 @@ export async function mergePDFWithText(
       180,
       15
     )
-    
+
     // Draw Main Content (right column)
     drawMultiLineText(
       templateData.mainContent,
@@ -108,11 +108,10 @@ export async function mergePDFWithText(
       300,
       15
     )
-    
+
     // Save the modified PDF
     const pdfBytes = await pdfDoc.save()
     return pdfBytes
-    
   } catch (error) {
     console.error('Error merging PDF:', error)
     throw new Error('Failed to merge text into PDF template')
@@ -124,7 +123,7 @@ export async function mergePDFWithText(
  * @param pdfBytes - PDF data as Uint8Array
  * @param fileName - Name for the downloaded file
  */
-export function downloadPDF(pdfBytes: Uint8Array, fileName: string): void {
+export function downloadPDF (pdfBytes: Uint8Array, fileName: string): void {
   // Use the underlying ArrayBuffer to satisfy Blob typing
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
