@@ -37,28 +37,6 @@ const Dashboard: React.FC = () => {
       localStorage.setItem("atsScore", String(n))
     }
 
-    // updater for resume completion. Usage: window.updateResumeCompletion(action, fileName?, amount?)
-    ;(window as any).updateResumeCompletion = (action: string, fileName?: string, amount: number = 10) => {
-      try {
-        const actionsRaw = localStorage.getItem('resumeActions')
-        const actions = actionsRaw ? JSON.parse(actionsRaw) : {}
-        const key = fileName || '__global__'
-        // ensure we only count the same action once per file/template
-        if (!actions[key]) actions[key] = []
-        if (actions[key].includes(action)) return
-        actions[key].push(action)
-        localStorage.setItem('resumeActions', JSON.stringify(actions))
-
-        const currentRaw = localStorage.getItem('resumeCompletion')
-        const current = currentRaw ? Number(currentRaw) : 0
-        const updated = Math.min(100, current + amount)
-        localStorage.setItem('resumeCompletion', String(updated))
-        setResumeCompletion(updated)
-      } catch (e) {
-        // fail silently
-        console.warn('updateResumeCompletion failed', e)
-      }
-    }
   }, [])
 
   const formatDateTime = (date: string, time: string) => {

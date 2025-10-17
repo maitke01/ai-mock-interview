@@ -1,6 +1,15 @@
-import React from "react";
+import React from 'react'
 
-const ModernTemplate = ({ data, onChange }) => {
+interface ModernTemplateProps {
+  data: {
+    header: string
+    sidebar: string
+    mainContent: string
+  }
+  onChange: (key: string, value: string) => void
+}
+
+const ModernTemplate: React.FC<ModernTemplateProps> = ({ data, onChange }) => {
   return (
     <div className="max-w-4xl mx-auto bg-white p-8 shadow-lg min-h-[800px]">
       {/* Header */}
@@ -44,4 +53,4 @@ const ModernTemplate = ({ data, onChange }) => {
   );
 };
 
-export default ModernTemplate;
+export default ModernTemplate

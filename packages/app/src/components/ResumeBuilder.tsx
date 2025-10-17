@@ -6,6 +6,7 @@ import classicPreview from "./assets/classic-preview.png";
 import modernPDF from "./assets/pdfs/modern-template.pdf";
 import classicPDF from "./assets/pdfs/classic-template.pdf";
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
+import { useResumeCompletionStore } from '../stores/resumeCompletionStore'
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
@@ -26,6 +27,7 @@ const templates = [
 const ResumeBuilder: React.FC = () => {
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
+  const { trackCompletion } = useResumeCompletionStore()
 
   // File handling
   const [resumeFiles, setResumeFiles] = useState<File[]>([])
@@ -212,7 +214,7 @@ const ResumeBuilder: React.FC = () => {
       // also keep a quick lookup map for optimized resumes
       setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
       // notify dashboard to increase resume completion for this file
-      try { (window as any).updateResumeCompletion?.('ai_optimize', fileName, 20) } catch (e) { /* ignore */ }
+      trackCompletion('ai_optimize', fileName, 20)
     } catch (error) {
       console.error('Error optimizing resume:', error)
       // On error, run a local fallback optimizer so the user still sees an optimized resume
@@ -225,7 +227,7 @@ const ResumeBuilder: React.FC = () => {
         }
       }))
       setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimizedFallback }))
-      try { (window as any).updateResumeCompletion?.('ai_optimize', fileName, 10) } catch (e) { }
+      trackCompletion('ai_optimize', fileName, 10)
     }
   }
 
@@ -291,7 +293,7 @@ const ResumeBuilder: React.FC = () => {
       setTimeout(() => {
         setIsSaving(false)
         alert('✓ Draft saved successfully!')
-        try { (window as any).updateResumeCompletion?.('save_draft', undefined, 5) } catch (e) { }
+        trackCompletion('save_draft', undefined, 5)
       }, 500)
     } catch (error) {
       console.error('Error saving draft:', error)
@@ -375,7 +377,7 @@ const ResumeBuilder: React.FC = () => {
       setTimeout(() => {
         setIsDownloading(false)
         alert('✓ Resume downloaded successfully!')
-    try { (window as any).updateResumeCompletion?.('download_pdf', undefined, 15) } catch (e) { }
+    trackCompletion('download_pdf', undefined, 15)
       }, 500)
     } catch (error) {
       console.error('Error downloading PDF:', error)
@@ -519,7 +521,7 @@ const ResumeBuilder: React.FC = () => {
                                     optimized: pdfData[file.name].optimized
                                   }
                                   try { sessionStorage.setItem('selectedResume', JSON.stringify(payload)) } catch (err) { }
-                                      try { (window as any).updateResumeCompletion?.('job_search_from_resume', file.name, 10) } catch (e) { }
+                                      trackCompletion('job_search_from_resume', file.name, 10)
                                       navigate('/job-search')
                                 }}
                                 className='text-xs bg-indigo-600/90 text-white px-3 py-1 rounded hover:bg-indigo-700/95 transition-colors'

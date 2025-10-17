@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import type { SelectedResume } from '../types/resume'
-// images used in ResumeBuilder-style selector
-// @ts-ignore
+import { useResumeCompletionStore } from '../stores/resumeCompletionStore'
 import modernPreview from './assets/modern-preview.png'
-// @ts-ignore
 import classicPreview from './assets/classic-preview.png'
-// @ts-ignore - module './templates/ModernTemplate' has no declaration file; provide a typed fallback where used
 import ModernTemplate from './templates/ModernTemplate'
-// template pdfs used for preview + merging
-// @ts-ignore
 import modernPDF from './assets/pdfs/modern-template.pdf'
-// @ts-ignore
 import classicPDF from './assets/pdfs/classic-template.pdf'
 import { mergePDFWithText } from '../utils/pdfUtils'
 
@@ -48,6 +42,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
     const [mode, setMode] = useState<'scratch' | 'template'>('scratch')
     const [templateType, setTemplateType] = useState<'modern' | 'classic'>('modern')
     const [templateData, setTemplateData] = useState({ header: '', sidebar: '', mainContent: '' })
+    const { trackCompletion } = useResumeCompletionStore()
 
     useEffect(() => {
         const base = resume?.text || ''
@@ -75,7 +70,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
         // when in template mode, serialize templateData into text
         const finalText = mode === 'template' ? `${templateData.header}\n\n${templateData.sidebar}\n\n${templateData.mainContent}` : text
         onSave({ ...resume, text: finalText })
-        try { (window as any).updateResumeCompletion?.('editor_save', resume.fileName, 3) } catch (e) { }
+        trackCompletion('editor_save', resume.fileName, 3)
     }
 
     const handleDownload = () => {
@@ -163,7 +158,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
             const draft = { ...templateData, savedAt: new Date().toISOString(), template: templateType }
             localStorage.setItem(key, JSON.stringify(draft))
             alert('✓ Draft saved successfully!')
-            try { (window as any).updateResumeCompletion?.('editor_save_draft', resume.fileName, 5) } catch (e) { }
+            trackCompletion('editor_save_draft', resume.fileName, 5)
         } catch (e) {
             console.error('Failed to save draft', e)
             alert('Failed to save draft')
@@ -180,7 +175,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
             const data = await res.json()
             alert('Resume submitted for AI formatting!')
             console.log('format result', data)
-            try { (window as any).updateResumeCompletion?.('editor_submit_ai', resume.fileName, 20) } catch (e) { }
+            trackCompletion('editor_submit_ai', resume.fileName, 20)
         } catch (err) {
             console.warn('format submit failed', err)
             alert('Failed to submit for formatting. Saved draft locally.')

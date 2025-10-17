@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-// @ts-ignore - no type declarations for papaparse in this project
 import Papa from 'papaparse'
 
 const AdminImportJobs: React.FC = () => {
