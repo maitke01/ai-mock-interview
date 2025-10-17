@@ -30,8 +30,9 @@ const ResumeBuilder: React.FC = () => {
   // File handling
   const [resumeFiles, setResumeFiles] = useState<File[]>([])
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
-  const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any } }>({})
+  const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any; optimized?: string } }>({})
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
+  const [expandedOptimized, setExpandedOptimized] = useState<{ [key: string]: boolean }>({})
 
   // PDF template state
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
@@ -100,7 +101,8 @@ const ResumeBuilder: React.FC = () => {
     }
 
     const imageUrls = images.map(img => {
-      const blob = new Blob([img.data], { type: `image/${img.key}` })
+      // cast to ArrayBuffer for Blob compatibility with TypeScript
+      const blob = new Blob([img.data.buffer as ArrayBuffer], { type: `image/${img.key}` })
       return URL.createObjectURL(blob)
     })
 
@@ -194,11 +196,64 @@ const ResumeBuilder: React.FC = () => {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const result = await response.json()
-      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: result.optimizedResume }))
+      // If API returned an optimized resume, use it. Otherwise fallback to local optimizer
+      const optimized = (result && result.optimizedResume) ? result.optimizedResume : aiFallbackOptimize(data.text)
+      setPdfData(prev => ({
+        ...prev,
+        [fileName]: {
+          ...prev[fileName],
+          optimized
+        }
+      }))
+      // also keep a quick lookup map for optimized resumes
+      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
     } catch (error) {
       console.error('Error optimizing resume:', error)
-      alert('Failed to optimize resume. Please try again.')
+      // On error, run a local fallback optimizer so the user still sees an optimized resume
+      const optimizedFallback = aiFallbackOptimize(data.text)
+      setPdfData(prev => ({
+        ...prev,
+        [fileName]: {
+          ...prev[fileName],
+          optimized: optimizedFallback
+        }
+      }))
+      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimizedFallback }))
     }
+  }
+
+  // Local fallback optimizer: lightweight transformations to simulate AI improvements
+  const aiFallbackOptimize = (rawText: string) => {
+    // Simple heuristics: move SUMMARY to top, compact multiple blank lines, bulletify lines that look like achievements
+    let text = rawText.replace(/\r/g, '')
+
+    // Normalize spacing
+    text = text.split('\n').map(l => l.trim()).filter((l, i, arr) => {
+      // remove excessive blank lines
+      if (!l && !arr[i-1]) return false
+      return true
+    }).join('\n')
+
+    // If there's a PROFESSIONAL SUMMARY section, move it to the top
+    const summaryMatch = text.match(/PROFESSIONAL SUMMARY[\s\S]*?(?=\n[A-Z ]{3,}|$)/i)
+    let summary = ''
+    if (summaryMatch) {
+      summary = summaryMatch[0]
+      // remove from original
+      text = text.replace(summaryMatch[0], '')
+    }
+
+    // Bulletify lines that start with numbers or '•' or have '•' in them
+    const lines = text.split('\n').map(l => l.trim())
+    const transformed = lines.map(l => {
+      if (/^\d+\.|^\*|^•/.test(l)) return `• ${l.replace(/^\d+\.|^\*|^•/, '').trim()}`
+      if (l.length > 80 && l.split(' ').length > 8) return `• ${l}`
+      return l
+    }).join('\n')
+
+    const final = (summary ? summary + '\n\n' : '') + transformed
+    // add a small 'Optimized by local fallback' note so user can see difference
+    return final + '\n\n(Optimized locally)'
   }
 
   // --- SAVE DRAFT FUNCTIONALITY ---
@@ -334,10 +389,32 @@ const ResumeBuilder: React.FC = () => {
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='flex justify-between items-center py-4'>
             <h1 className='text-2xl font-bold text-white'>Resume Builder</h1>
-            <nav className='flex space-x-8'>
-              <button className='text-white font-medium hover:text-blue-200 transition-colors' onClick={() => navigate('/dashboard')}>Dashboard</button>
-              <button className='text-white font-medium hover:text-blue-200 transition-colors' onClick={() => navigate('/resume')}>Resume Builder</button>
-              <button className='text-white font-medium hover:text-blue-200 transition-colors' onClick={() => navigate('/interview')}>Mock Interview</button>
+            <nav className='flex space-x-4 items-center'>
+              <button style={{ backgroundColor: 'transparent', boxShadow: 'none' }} className='border border-white/10 text-white px-4 py-2 rounded-md hover:bg-blue-800/20 transition-colors' onClick={() => navigate('/dashboard')}>Dashboard</button>
+              <button style={{ backgroundColor: 'transparent', boxShadow: 'none' }} className='border border-white/10 text-white px-4 py-2 rounded-md hover:bg-blue-800/20 transition-colors' onClick={() => navigate('/resume')}>Resume Builder</button>
+              <button style={{ backgroundColor: 'transparent', boxShadow: 'none' }} className='border border-white/10 text-white px-4 py-2 rounded-md hover:bg-blue-800/20 transition-colors' onClick={() => navigate('/interview')}>Mock Interview</button>
+              <button
+                style={{ backgroundColor: 'transparent', boxShadow: 'none' }}
+                className='border border-white/10 text-white px-4 py-2 rounded-md hover:bg-blue-800/20 transition-colors'
+                onClick={() => {
+                  // store the first selected resume (or null) and navigate to Job Search
+                  const firstSelected = selectedFiles.length > 0 ? selectedFiles[0] : null
+                  if (firstSelected && pdfData[firstSelected]) {
+                    const payload = {
+                      fileName: firstSelected,
+                      text: pdfData[firstSelected].text,
+                      images: pdfData[firstSelected].images,
+                      optimized: pdfData[firstSelected].optimized
+                    }
+                    try { sessionStorage.setItem('selectedResume', JSON.stringify(payload)) } catch (err) { /* ignore */ }
+                  } else {
+                    try { sessionStorage.removeItem('selectedResume') } catch (err) { /* ignore */ }
+                  }
+                  navigate('/job-search')
+                }}
+              >
+                Job Search
+              </button>
             </nav>
           </div>
         </div>
@@ -412,18 +489,58 @@ const ResumeBuilder: React.FC = () => {
                           {(file.size / 1024).toFixed(2)} KB
                         </p>
                         {pdfData[file.name]?.text && (
-                          <div className='flex items-center gap-2 mt-2'>
-                            <button
-                              onClick={e => { e.stopPropagation(); optimizeResumeWithAI(file.name) }}
-                              className='text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors'
-                            >
-                              🤖 AI Optimize
-                            </button>
-                            {pdfData[file.name]?.images?.length > 0 && (
-                              <span className='text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900 px-2 py-1 rounded'>
-                                📷 {pdfData[file.name].images.length} image(s)
-                              </span>
-                            )}
+                          <div className='mt-2'>
+                            <div className='flex items-center gap-2'>
+                              <button
+                                onClick={e => { e.stopPropagation(); optimizeResumeWithAI(file.name) }}
+                                className='text-xs bg-blue-600/90 text-white px-3 py-1 rounded hover:bg-blue-700/95 transition-colors'
+                                style={{ boxShadow: 'none' }}
+                              >
+                                🤖 AI Optimize
+                              </button>
+                              <button
+                                onClick={e => { e.stopPropagation();
+                                  // store this file as selected resume and go to job search
+                                  const payload = {
+                                    fileName: file.name,
+                                    text: pdfData[file.name].text,
+                                    images: pdfData[file.name].images,
+                                    optimized: pdfData[file.name].optimized
+                                  }
+                                  try { sessionStorage.setItem('selectedResume', JSON.stringify(payload)) } catch (err) { }
+                                  navigate('/job-search')
+                                }}
+                                className='text-xs bg-indigo-600/90 text-white px-3 py-1 rounded hover:bg-indigo-700/95 transition-colors'
+                                title='Job Search with this resume'
+                              >
+                                🔍 Job Search
+                              </button>
+                              {aiOptimizedResumes[file.name] && (
+                                <span className='text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900 px-2 py-1 rounded'>Optimized (full)</span>
+                              )}
+                              {pdfData[file.name]?.images?.length > 0 && (
+                                <span className='text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900 px-2 py-1 rounded'>
+                                  📷 {pdfData[file.name].images.length} image(s)
+                                </span>
+                              )}
+                            </div>
+                            {pdfData[file.name]?.optimized && (() => {
+                              const opt = pdfData[file.name].optimized
+                              if (typeof opt !== 'string') return null
+                              const expanded = !!expandedOptimized[file.name]
+                              return (
+                                <div className='mt-2'>
+                                  <div className='mt-2 p-2 bg-gray-50 dark:bg-gray-900 text-sm rounded text-gray-900 dark:text-gray-100'>
+                                    {expanded ? opt : (opt.length > 400 ? opt.slice(0,400) + '…' : opt)}
+                                  </div>
+                                  {opt.length > 400 && (
+                                    <button onClick={(e) => { e.stopPropagation(); setExpandedOptimized(prev => ({ ...prev, [file.name]: !prev[file.name] })) }} className='mt-2 text-xs underline text-blue-600 dark:text-blue-300'>
+                                      {expanded ? 'Hide full' : 'View full'}
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>
@@ -442,13 +559,13 @@ const ResumeBuilder: React.FC = () => {
               {selectedFiles.length > 0 && (
                 <div className='flex justify-center gap-4 mt-6'>
                   <button 
-                    className='bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-md font-medium transition-colors shadow-md' 
+                    className='bg-red-600/90 hover:bg-red-700/95 text-white px-6 py-2 rounded-md font-medium transition-colors' 
                     onClick={deleteSelected}
                   >
                     🗑️ Delete Selected ({selectedFiles.length})
                   </button>
                   <button 
-                    className='bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors shadow-md' 
+                    className='bg-blue-600/90 hover:bg-blue-700/95 text-white px-6 py-2 rounded-md font-medium transition-colors' 
                     onClick={extractSelected}
                   >
                     📄 Extract Text

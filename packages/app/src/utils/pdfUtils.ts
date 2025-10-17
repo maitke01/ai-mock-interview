@@ -45,7 +45,7 @@ export async function mergePDFWithText(
       const lines = text.split('\n')
       let y = startY
       
-      lines.forEach((line, index) => {
+      lines.forEach((line) => {
         if (line.trim()) {
           // Check if line is a heading (ALL CAPS or first line)
           const isHeading = line === line.toUpperCase() && line.length < 30
@@ -125,7 +125,8 @@ export async function mergePDFWithText(
  * @param fileName - Name for the downloaded file
  */
 export function downloadPDF(pdfBytes: Uint8Array, fileName: string): void {
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+  // Use the underlying ArrayBuffer to satisfy Blob typing
+  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
