@@ -52,6 +52,7 @@ const ResumeBuilder: React.FC = () => {
 
   // Loading states
   const [isSaving, setIsSaving] = useState(false)
+  const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({})
   const [isDownloading, setIsDownloading] = useState(false)
 
   // Template default content
@@ -169,6 +170,26 @@ const ResumeBuilder: React.FC = () => {
 
   const handleTemplateChange = (section: 'header' | 'sidebar' | 'mainContent', value: string) => {
     setResumeTemplate(prev => ({ ...prev, [section]: value }))
+  }
+
+  const formatSection = async (section: 'header' | 'sidebar' | 'mainContent') => {
+    const content = resumeTemplate[section]
+    setLoadingStates(prev => ({ ...prev, [section]: true }))
+    try {
+      const response = await fetch('/api/format-resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionType: section, content })
+      })
+      if (!response.ok) throw new Error(`Status ${response.status}`)
+      const data = await response.json()
+      setResumeTemplate(prev => ({ ...prev, [section]: data.formattedContent || content }))
+    } catch (error) {
+      console.error('Format failed:', error)
+      alert('Failed to format section. Please try again.')
+    } finally {
+      setLoadingStates(prev => ({ ...prev, [section]: false }))
+    }
   }
 
   const handleTemplateSubmit = async () => {
@@ -626,32 +647,53 @@ const ResumeBuilder: React.FC = () => {
                   <div className='max-w-4xl mx-auto mt-8'>
                     <div className='bg-white dark:bg-gray-100 shadow-2xl border border-gray-300 dark:border-gray-400 min-h-[800px] p-8 relative' style={{aspectRatio: '8.5/11'}}>
                       <div className='w-full h-full flex flex-col'>
-                        <div className='border-b-2 border-gray-300 pb-6 mb-6'>
+                        <div className='border-b-2 border-gray-300 pb-6 mb-6 relative'>
+                          <button
+                            onClick={() => formatSection('header')}
+                            disabled={loadingStates.header}
+                            className="absolute top-0 right-0 text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                          >
+                            {loadingStates.header ? 'Formatting...' : 'Format'}
+                          </button>
                           <textarea
                             value={resumeTemplate.header}
                             onChange={e => handleTemplateChange('header', e.target.value)}
                             placeholder="Your Name&#10;your.email@example.com&#10;(123) 456-7890&#10;LinkedIn Profile"
-                            className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400'
+                            className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 pt-8'
                             rows={4}
                             style={{lineHeight: '1.3'}}
                           />
                         </div>
                         <div className='flex-1 flex gap-6'>
-                          <div className='w-1/3 border-r-2 border-gray-300 pr-6'>
+                          <div className='w-1/3 border-r-2 border-gray-300 pr-6 relative'>
+                            <button
+                              onClick={() => formatSection('sidebar')}
+                              disabled={loadingStates.sidebar}
+                              className="absolute top-0 right-2 text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                            >
+                              {loadingStates.sidebar ? 'Formatting...' : 'Format'}
+                            </button>
                             <textarea
                               value={resumeTemplate.sidebar}
                               onChange={e => handleTemplateChange('sidebar', e.target.value)}
                               placeholder="SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS"
-                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
+                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm pt-8'
                               style={{lineHeight: '1.5', minHeight: '500px'}}
                             />
                           </div>
-                          <div className='flex-1'>
+                          <div className='flex-1 relative'>
+                            <button
+                              onClick={() => formatSection('mainContent')}
+                              disabled={loadingStates.mainContent}
+                              className="absolute top-0 right-0 text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                            >
+                              {loadingStates.mainContent ? 'Formatting...' : 'Format'}
+                            </button>
                             <textarea
                               value={resumeTemplate.mainContent}
                               onChange={e => handleTemplateChange('mainContent', e.target.value)}
                               placeholder="PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS"
-                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
+                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm pt-8'
                               style={{lineHeight: '1.5', minHeight: '500px'}}
                             />
                           </div>
@@ -708,32 +750,53 @@ const ResumeBuilder: React.FC = () => {
                   <div className='max-w-4xl mx-auto mt-8'>
                     <div className='bg-white dark:bg-gray-100 shadow-2xl border border-gray-300 dark:border-gray-400 min-h-[800px] p-8 relative' style={{aspectRatio: '8.5/11'}}>
                       <div className='w-full h-full flex flex-col'>
-                        <div className='border-b-2 border-gray-300 pb-6 mb-6'>
+                        <div className='border-b-2 border-gray-300 pb-6 mb-6 relative'>
+                          <button
+                            onClick={() => formatSection('header')}
+                            disabled={loadingStates.header}
+                            className="absolute top-0 right-0 text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                          >
+                            {loadingStates.header ? 'Formatting...' : 'Format'}
+                          </button>
                           <textarea
                             value={resumeTemplate.header}
                             onChange={e => handleTemplateChange('header', e.target.value)}
                             placeholder="Your Name&#10;Email | Phone | LinkedIn"
-                            className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-300 rounded p-2'
+                            className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-300 rounded p-2 pt-10'
                             rows={4}
                             style={{lineHeight: '1.3'}}
                           />
                         </div>
                         <div className='flex-1 flex gap-6'>
-                          <div className='w-1/3 border-r-2 border-gray-300 pr-6'>
+                          <div className='w-1/3 border-r-2 border-gray-300 pr-6 relative'>
+                            <button
+                              onClick={() => formatSection('sidebar')}
+                              disabled={loadingStates.sidebar}
+                              className="absolute top-0 right-2 text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                            >
+                              {loadingStates.sidebar ? 'Formatting...' : 'Format'}
+                            </button>
                             <textarea
                               value={resumeTemplate.sidebar}
                               onChange={e => handleTemplateChange('sidebar', e.target.value)}
                               placeholder="SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS"
-                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded p-2'
+                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded p-2 pt-10'
                               style={{lineHeight: '1.5', minHeight: '500px'}}
                             />
                           </div>
-                          <div className='flex-1'>
+                          <div className='flex-1 relative'>
+                            <button
+                              onClick={() => formatSection('mainContent')}
+                              disabled={loadingStates.mainContent}
+                              className="absolute top-0 right-0 text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                            >
+                              {loadingStates.mainContent ? 'Formatting...' : 'Format'}
+                            </button>
                             <textarea
                               value={resumeTemplate.mainContent}
                               onChange={e => handleTemplateChange('mainContent', e.target.value)}
                               placeholder="PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS"
-                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded p-2'
+                              className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded p-2 pt-10'
                               style={{lineHeight: '1.5', minHeight: '500px'}}
                             />
                           </div>
