@@ -52,6 +52,7 @@ const ResumeBuilder: React.FC = () => {
       }
     }
   }
+  
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(e.target.files)
