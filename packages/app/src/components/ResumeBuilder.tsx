@@ -30,7 +30,7 @@ const ResumeBuilder: React.FC = () => {
   // File handling
   const [resumeFiles, setResumeFiles] = useState<File[]>([])
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
-  const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any; optimized?: string } }>({})
+  const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any; optimized?: string; previewUrl?: string } }>({})
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
   const [expandedOptimized, setExpandedOptimized] = useState<{ [key: string]: boolean }>({})
 
@@ -106,10 +106,14 @@ const ResumeBuilder: React.FC = () => {
       return URL.createObjectURL(blob)
     })
 
+    // create a preview URL for the original PDF file so we can display it later
+    const pdfBlobUrl = URL.createObjectURL(new Blob([await file.arrayBuffer()], { type: file.type }))
+
     return {
       text: text.text.join('\n'),
       images: imageUrls,
-      metadata: { totalPages: text.totalPages }
+      metadata: { totalPages: text.totalPages },
+      previewUrl: pdfBlobUrl
     }
   }
 
@@ -207,6 +211,8 @@ const ResumeBuilder: React.FC = () => {
       }))
       // also keep a quick lookup map for optimized resumes
       setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
+      // notify dashboard to increase resume completion for this file
+      try { (window as any).updateResumeCompletion?.('ai_optimize', fileName, 20) } catch (e) { /* ignore */ }
     } catch (error) {
       console.error('Error optimizing resume:', error)
       // On error, run a local fallback optimizer so the user still sees an optimized resume
@@ -219,6 +225,7 @@ const ResumeBuilder: React.FC = () => {
         }
       }))
       setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimizedFallback }))
+      try { (window as any).updateResumeCompletion?.('ai_optimize', fileName, 10) } catch (e) { }
     }
   }
 
@@ -284,6 +291,7 @@ const ResumeBuilder: React.FC = () => {
       setTimeout(() => {
         setIsSaving(false)
         alert('✓ Draft saved successfully!')
+        try { (window as any).updateResumeCompletion?.('save_draft', undefined, 5) } catch (e) { }
       }, 500)
     } catch (error) {
       console.error('Error saving draft:', error)
@@ -367,6 +375,7 @@ const ResumeBuilder: React.FC = () => {
       setTimeout(() => {
         setIsDownloading(false)
         alert('✓ Resume downloaded successfully!')
+    try { (window as any).updateResumeCompletion?.('download_pdf', undefined, 15) } catch (e) { }
       }, 500)
     } catch (error) {
       console.error('Error downloading PDF:', error)
@@ -404,7 +413,9 @@ const ResumeBuilder: React.FC = () => {
                       fileName: firstSelected,
                       text: pdfData[firstSelected].text,
                       images: pdfData[firstSelected].images,
-                      optimized: pdfData[firstSelected].optimized
+                      optimized: pdfData[firstSelected].optimized,
+                      // if there are images we can reuse the first page image; otherwise undefined
+                      previewUrl: pdfData[firstSelected]?.previewUrl || null
                     }
                     try { sessionStorage.setItem('selectedResume', JSON.stringify(payload)) } catch (err) { /* ignore */ }
                   } else {
@@ -508,7 +519,8 @@ const ResumeBuilder: React.FC = () => {
                                     optimized: pdfData[file.name].optimized
                                   }
                                   try { sessionStorage.setItem('selectedResume', JSON.stringify(payload)) } catch (err) { }
-                                  navigate('/job-search')
+                                      try { (window as any).updateResumeCompletion?.('job_search_from_resume', file.name, 10) } catch (e) { }
+                                      navigate('/job-search')
                                 }}
                                 className='text-xs bg-indigo-600/90 text-white px-3 py-1 rounded hover:bg-indigo-700/95 transition-colors'
                                 title='Job Search with this resume'

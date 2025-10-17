@@ -14,12 +14,16 @@ interface ScheduledInterview {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const [atsScore, setAtsScore] = useState<number | null>(null)
+  const [resumeCompletion, setResumeCompletion] = useState<number>(0)
   const [scheduledInterviews, setScheduledInterviews] = useState<ScheduledInterview[]>([])
   const [interviewToCancel, setInterviewToCancel] = useState<string | null>(null)
 
   useEffect(() => {
     const s = localStorage.getItem("atsScore")
     if (s !== null) setAtsScore(Number(s))
+
+    const rc = localStorage.getItem('resumeCompletion')
+    if (rc !== null) setResumeCompletion(Number(rc))
 
     const interviews = localStorage.getItem("scheduledInterviews")
     if (interviews) {
@@ -31,6 +35,29 @@ const Dashboard: React.FC = () => {
     ;(window as any).updateAtsScore = (n: number) => {
       setAtsScore(n)
       localStorage.setItem("atsScore", String(n))
+    }
+
+    // updater for resume completion. Usage: window.updateResumeCompletion(action, fileName?, amount?)
+    ;(window as any).updateResumeCompletion = (action: string, fileName?: string, amount: number = 10) => {
+      try {
+        const actionsRaw = localStorage.getItem('resumeActions')
+        const actions = actionsRaw ? JSON.parse(actionsRaw) : {}
+        const key = fileName || '__global__'
+        // ensure we only count the same action once per file/template
+        if (!actions[key]) actions[key] = []
+        if (actions[key].includes(action)) return
+        actions[key].push(action)
+        localStorage.setItem('resumeActions', JSON.stringify(actions))
+
+        const currentRaw = localStorage.getItem('resumeCompletion')
+        const current = currentRaw ? Number(currentRaw) : 0
+        const updated = Math.min(100, current + amount)
+        localStorage.setItem('resumeCompletion', String(updated))
+        setResumeCompletion(updated)
+      } catch (e) {
+        // fail silently
+        console.warn('updateResumeCompletion failed', e)
+      }
     }
   }, [])
 
@@ -119,10 +146,10 @@ const Dashboard: React.FC = () => {
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Resume Completion</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">0%</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{resumeCompletion}%</span>
                   </div>
                   <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
-                    <div className="bg-blue-600 dark:bg-blue-500 h-3 rounded-full" style={{ width: "0%" }}></div>
+                    <div className="bg-blue-600 dark:bg-blue-500 h-3 rounded-full" style={{ width: `${resumeCompletion}%` }}></div>
                   </div>
                 </div>
                 <div>

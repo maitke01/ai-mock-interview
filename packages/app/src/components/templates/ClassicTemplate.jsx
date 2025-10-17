@@ -18,7 +18,7 @@ export default function ClassicTemplate() {
         contentEditable
         suppressContentEditableWarning
         onInput={(e) => handleEdit("name", e)}
-        className="text-2xl font-bold mb-2"
+        className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-900"
       >
         {resume.name}
       </h1>
@@ -26,7 +26,7 @@ export default function ClassicTemplate() {
         contentEditable
         suppressContentEditableWarning
         onInput={(e) => handleEdit("title", e)}
-        className="text-md text-gray-800 mb-4"
+        className="text-md text-gray-800 dark:text-gray-900 mb-4"
       >
         {resume.title}
       </h3>
@@ -34,7 +34,7 @@ export default function ClassicTemplate() {
         contentEditable
         suppressContentEditableWarning
         onInput={(e) => handleEdit("summary", e)}
-        className="text-gray-700"
+        className="text-gray-700 dark:text-gray-900"
       >
         {resume.summary}
       </p>

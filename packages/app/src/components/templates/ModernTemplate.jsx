@@ -9,7 +9,7 @@ const ModernTemplate = ({ data, onChange }) => {
           contentEditable
           suppressContentEditableWarning
           onInput={(e) => onChange('header', e.currentTarget.textContent || '')}
-          className="text-3xl font-bold"
+          className="text-3xl font-bold text-gray-900 dark:text-gray-900"
         >
           {data.header}
         </h1>
@@ -22,7 +22,7 @@ const ModernTemplate = ({ data, onChange }) => {
             contentEditable
             suppressContentEditableWarning
             onInput={(e) => onChange('sidebar', e.currentTarget.textContent || '')}
-            className="text-sm min-h-[500px]"
+            className="text-sm min-h-[500px] text-gray-800 dark:text-gray-900"
           >
             {data.sidebar}
           </div>
@@ -34,7 +34,7 @@ const ModernTemplate = ({ data, onChange }) => {
             contentEditable
             suppressContentEditableWarning
             onInput={(e) => onChange('mainContent', e.currentTarget.textContent || '')}
-            className="text-sm min-h-[500px]"
+            className="text-sm min-h-[500px] text-gray-800 dark:text-gray-900"
           >
             {data.mainContent}
           </div>
