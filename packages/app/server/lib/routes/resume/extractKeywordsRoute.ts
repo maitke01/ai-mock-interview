@@ -38,7 +38,9 @@ ${jobDescription}
       // If parsing fails, attempt to extract JSON substring
       const m = aiResponse.response.match(/\{[\s\S]*\}/)
       if (m) {
-        try { parsed = JSON.parse(m[0]) } catch (_) { /* ignore */ }
+        try {
+          parsed = JSON.parse(m[0])
+        } catch (_) { /* ignore */ }
       }
     }
 
@@ -52,6 +54,9 @@ ${jobDescription}
     return ctx.json({ success: true, keywords, resumeSuggestion, model: '@cf/meta/llama-3.1-8b-instruct' })
   } catch (error) {
     console.error('Error in extractKeywordsRoute:', error)
-    return ctx.json({ error: 'Failed to extract keywords', details: error instanceof Error ? error.message : 'Unknown error' }, 500)
+    return ctx.json({
+      error: 'Failed to extract keywords',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
   }
 }

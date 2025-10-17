@@ -12,7 +12,8 @@ export const formatResumeRoute: Route = async (ctx) => {
 
     switch (sectionType) {
       case 'header':
-        prompt = `Format this resume header. Return ONLY the final formatted text. No explanations, no choices, no "or" options:
+        prompt =
+          `Format this resume header. Return ONLY the final formatted text. No explanations, no choices, no "or" options:
 
 ${typeof content === 'object' ? JSON.stringify(content, null, 2) : content}`
         break
