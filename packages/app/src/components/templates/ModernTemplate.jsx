@@ -1,43 +1,47 @@
-// src/components/templates/ModernTemplate.jsx
-import React, { useState } from "react";
+import React from "react";
 
-export default function ModernTemplate() {
-  const [resume, setResume] = useState({
-    name: "John Doe",
-    title: "Software Engineer",
-    summary: "Write a brief summary about yourself here...",
-  });
-
-  const handleEdit = (field, e) => {
-    setResume({ ...resume, [field]: e.target.innerText });
-  };
-
+const ModernTemplate = ({ data, onChange }) => {
   return (
-    <div className="bg-white p-8 rounded-lg shadow-lg max-w-[600px] mx-auto">
-      <h1
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleEdit("name", e)}
-        className="text-3xl font-bold mb-2"
-      >
-        {resume.name}
-      </h1>
-      <h3
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleEdit("title", e)}
-        className="text-lg text-gray-600 mb-4"
-      >
-        {resume.title}
-      </h3>
-      <p
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleEdit("summary", e)}
-        className="text-gray-700"
-      >
-        {resume.summary}
-      </p>
+    <div className="max-w-4xl mx-auto bg-white p-8 shadow-lg min-h-[800px]">
+      {/* Header */}
+      <div className="text-center mb-6">
+        <h1
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(e) => onChange('header', e.currentTarget.textContent || '')}
+          className="text-3xl font-bold"
+        >
+          {data.header}
+        </h1>
+      </div>
+
+      <div className="flex gap-6">
+        {/* Sidebar */}
+        <div className="w-1/3 border-r pr-6">
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => onChange('sidebar', e.currentTarget.textContent || '')}
+            className="text-sm min-h-[500px]"
+          >
+            {data.sidebar}
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1">
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => onChange('mainContent', e.currentTarget.textContent || '')}
+            className="text-sm min-h-[500px]"
+          >
+            {data.mainContent}
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default ModernTemplate;
