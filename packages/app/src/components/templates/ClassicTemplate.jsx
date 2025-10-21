@@ -1,43 +1,41 @@
-// src/components/templates/ClassicTemplate.jsx
-import React, { useState } from "react";
+import React from 'react'
 
-export default function ClassicTemplate() {
-  const [resume, setResume] = useState({
-    name: "Jane Smith",
-    title: "Frontend Developer",
-    summary: "Write a brief summary about yourself here...",
-  });
-
-  const handleEdit = (field, e) => {
-    setResume({ ...resume, [field]: e.target.innerText });
-  };
+// Minimal ClassicTemplate component used by EditableTemplateEditor
+// Props: data { header, sidebar, mainContent } and onChange(key, value)
+export default function ClassicTemplate({ data = {}, onChange = () => {} }) {
+  const handleChange = (key) => (e) => onChange(key, e.target.value)
 
   return (
-    <div className="bg-gray-50 p-8 rounded-lg shadow-md max-w-[600px] mx-auto border border-gray-300">
-      <h1
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleEdit("name", e)}
-        className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-900"
-      >
-        {resume.name}
-      </h1>
-      <h3
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleEdit("title", e)}
-        className="text-md text-gray-800 dark:text-gray-900 mb-4"
-      >
-        {resume.title}
-      </h3>
-      <p
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => handleEdit("summary", e)}
-        className="text-gray-700 dark:text-gray-900"
-      >
-        {resume.summary}
-      </p>
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-gray-700">Header</label>
+        <textarea
+          className="w-full border rounded px-2 py-1 text-sm"
+          rows={3}
+          value={data.header || ''}
+          onChange={handleChange('header')}
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-gray-700">Sidebar</label>
+        <textarea
+          className="w-full border rounded px-2 py-1 text-sm"
+          rows={6}
+          value={data.sidebar || ''}
+          onChange={handleChange('sidebar')}
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-gray-700">Main Content</label>
+        <textarea
+          className="w-full border rounded px-2 py-1 text-sm"
+          rows={10}
+          value={data.mainContent || ''}
+          onChange={handleChange('mainContent')}
+        />
+      </div>
     </div>
-  );
+  )
 }

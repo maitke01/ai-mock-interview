@@ -7,6 +7,8 @@ import modernPreview from './assets/modern-preview.png'
 import classicPreview from './assets/classic-preview.png'
 // @ts-ignore - module './templates/ModernTemplate' has no declaration file; provide a typed fallback where used
 import ModernTemplate from './templates/ModernTemplate'
+// @ts-ignore - module './templates/ClassicTemplate' has no declaration file; provide a typed fallback where used
+import ClassicTemplate from './templates/ClassicTemplate'
 // template pdfs used for preview + merging
 // @ts-ignore
 import modernPDF from './assets/pdfs/modern-template.pdf'
@@ -20,28 +22,7 @@ interface Props {
     onSave: (updated: SelectedResume) => void
 }
 
-const ClassicPreview: React.FC<{ data: { header: string; sidebar: string; mainContent: string }; onChange: (k: string, v: string) => void }> = ({ data, onChange }) => {
-    return (
-        <div className="bg-gray-50 p-6 rounded shadow max-w-[680px] mx-auto border border-gray-200">
-            <h1
-                contentEditable
-                suppressContentEditableWarning
-                onInput={(e) => onChange('header', e.currentTarget.textContent || '')}
-                className="text-2xl font-bold mb-1 text-center text-gray-900 dark:text-gray-900"
-            >
-                {data.header}
-            </h1>
-            <div className="flex gap-6 mt-4">
-                <div className="w-1/3 text-sm border-r pr-4 text-gray-800 dark:text-gray-900" contentEditable suppressContentEditableWarning onInput={(e) => onChange('sidebar', e.currentTarget.textContent || '')}>
-                    {data.sidebar}
-                </div>
-                <div className="flex-1 text-sm text-gray-800 dark:text-gray-900" contentEditable suppressContentEditableWarning onInput={(e) => onChange('mainContent', e.currentTarget.textContent || '')}>
-                    {data.mainContent}
-                </div>
-            </div>
-        </div>
-    )
-}
+// ClassicTemplate component is imported from templates and used below
 
 const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave }) => {
     const [text, setText] = useState<string>('')
@@ -312,7 +293,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
                             {templateType === 'modern' ? (
                                 <ModernTemplate data={templateData} onChange={handleTemplateChange} />
                             ) : (
-                                <ClassicPreview data={templateData} onChange={handleTemplateChange} />
+                                <ClassicTemplate data={templateData} onChange={handleTemplateChange} />
                             )}
                         </div>
                         <div className="w-1/3 bg-white border rounded p-2">

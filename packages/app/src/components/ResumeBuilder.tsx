@@ -237,7 +237,7 @@ const ResumeBuilder: React.FC = () => {
     // Normalize spacing
     text = text.split('\n').map(l => l.trim()).filter((l, i, arr) => {
       // remove excessive blank lines
-      if (!l && !arr[i-1]) return false
+      if (!l && !arr[i - 1]) return false
       return true
     }).join('\n')
 
@@ -271,12 +271,12 @@ const ResumeBuilder: React.FC = () => {
     }
 
     setIsSaving(true)
-    
+
     try {
-      const draftKey = selectedTemplate 
-        ? `resume-draft-${selectedTemplate}` 
+      const draftKey = selectedTemplate
+        ? `resume-draft-${selectedTemplate}`
         : 'resume-draft-scratch'
-      
+
       const draftData = {
         header: resumeTemplate.header,
         sidebar: resumeTemplate.sidebar,
@@ -285,9 +285,9 @@ const ResumeBuilder: React.FC = () => {
         mode: resumeMode,
         template: selectedTemplate
       }
-      
+
       localStorage.setItem(draftKey, JSON.stringify(draftData))
-      
+
       setTimeout(() => {
         setIsSaving(false)
         alert('✓ Draft saved successfully!')
@@ -303,12 +303,12 @@ const ResumeBuilder: React.FC = () => {
   // --- LOAD DRAFT FUNCTIONALITY ---
   const loadDraft = (templateId: 'modern' | 'classic' | 'scratch') => {
     try {
-      const draftKey = templateId === 'scratch' 
-        ? 'resume-draft-scratch' 
+      const draftKey = templateId === 'scratch'
+        ? 'resume-draft-scratch'
         : `resume-draft-${templateId}`
-      
+
       const savedDraft = localStorage.getItem(draftKey)
-      
+
       if (savedDraft) {
         const draftData = JSON.parse(savedDraft)
         setResumeTemplate({
@@ -328,7 +328,7 @@ const ResumeBuilder: React.FC = () => {
     // First, check if there's a saved draft
     const draftKey = `resume-draft-${id}`
     const savedDraft = localStorage.getItem(draftKey)
-    
+
     if (savedDraft) {
       try {
         // Load saved draft
@@ -348,9 +348,9 @@ const ResumeBuilder: React.FC = () => {
       // Use default template data
       setResumeTemplate(templatesData[id])
     }
-    
+
     setSelectedTemplate(id)
-    
+
     // Set the PDF URL for this template
     const templateData = templates.find(t => t.name === id)
     if (templateData) {
@@ -371,11 +371,11 @@ const ResumeBuilder: React.FC = () => {
       const pdfBytes = await mergePDFWithText(currentPdfUrl, resumeTemplate)
       const fileName = `resume-${selectedTemplate || 'scratch'}-${Date.now()}.pdf`
       downloadPDF(pdfBytes, fileName)
-      
+
       setTimeout(() => {
         setIsDownloading(false)
         alert('✓ Resume downloaded successfully!')
-    try { (window as any).updateResumeCompletion?.('download_pdf', undefined, 15) } catch (e) { }
+        try { (window as any).updateResumeCompletion?.('download_pdf', undefined, 15) } catch (e) { }
       }, 500)
     } catch (error) {
       console.error('Error downloading PDF:', error)
@@ -435,7 +435,7 @@ const ResumeBuilder: React.FC = () => {
         <div className='px-4 py-6 sm:px-0'>
           <div className='bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg'>
             <div className='px-4 py-5 sm:p-6'>
-              
+
               {/* Upload Section */}
               <h2 className='text-lg font-medium text-gray-900 dark:text-white mb-1'>Upload Your Resumes</h2>
               <div
@@ -479,11 +479,10 @@ const ResumeBuilder: React.FC = () => {
                 {resumeFiles.map(file => (
                   <div
                     key={file.name}
-                    className={`flex items-center justify-between p-3 rounded-md transition-all cursor-pointer ${
-                      selectedFiles.includes(file.name) 
-                        ? 'bg-blue-50 dark:bg-blue-900 border-2 border-blue-500' 
+                    className={`flex items-center justify-between p-3 rounded-md transition-all cursor-pointer ${selectedFiles.includes(file.name)
+                        ? 'bg-blue-50 dark:bg-blue-900 border-2 border-blue-500'
                         : 'bg-gray-100 dark:bg-gray-700 border-2 border-transparent hover:border-gray-300'
-                    }`}
+                      }`}
                     onClick={() => toggleSelect(file.name)}
                   >
                     <div className='flex items-center flex-1'>
@@ -510,7 +509,8 @@ const ResumeBuilder: React.FC = () => {
                                 🤖 AI Optimize
                               </button>
                               <button
-                                onClick={e => { e.stopPropagation();
+                                onClick={e => {
+                                  e.stopPropagation();
                                   // store this file as selected resume and go to job search
                                   const payload = {
                                     fileName: file.name,
@@ -519,8 +519,8 @@ const ResumeBuilder: React.FC = () => {
                                     optimized: pdfData[file.name].optimized
                                   }
                                   try { sessionStorage.setItem('selectedResume', JSON.stringify(payload)) } catch (err) { }
-                                      try { (window as any).updateResumeCompletion?.('job_search_from_resume', file.name, 10) } catch (e) { }
-                                      navigate('/job-search')
+                                  try { (window as any).updateResumeCompletion?.('job_search_from_resume', file.name, 10) } catch (e) { }
+                                  navigate('/job-search')
                                 }}
                                 className='text-xs bg-indigo-600/90 text-white px-3 py-1 rounded hover:bg-indigo-700/95 transition-colors'
                                 title='Job Search with this resume'
@@ -543,7 +543,7 @@ const ResumeBuilder: React.FC = () => {
                               return (
                                 <div className='mt-2'>
                                   <div className='mt-2 p-2 bg-gray-50 dark:bg-gray-900 text-sm rounded text-gray-900 dark:text-gray-100'>
-                                    {expanded ? opt : (opt.length > 400 ? opt.slice(0,400) + '…' : opt)}
+                                    {expanded ? opt : (opt.length > 400 ? opt.slice(0, 400) + '…' : opt)}
                                   </div>
                                   {opt.length > 400 && (
                                     <button onClick={(e) => { e.stopPropagation(); setExpandedOptimized(prev => ({ ...prev, [file.name]: !prev[file.name] })) }} className='mt-2 text-xs underline text-blue-600 dark:text-blue-300'>
@@ -570,14 +570,14 @@ const ResumeBuilder: React.FC = () => {
 
               {selectedFiles.length > 0 && (
                 <div className='flex justify-center gap-4 mt-6'>
-                  <button 
-                    className='bg-red-600/90 hover:bg-red-700/95 text-white px-6 py-2 rounded-md font-medium transition-colors' 
+                  <button
+                    className='bg-red-600/90 hover:bg-red-700/95 text-white px-6 py-2 rounded-md font-medium transition-colors'
                     onClick={deleteSelected}
                   >
                     🗑️ Delete Selected ({selectedFiles.length})
                   </button>
-                  <button 
-                    className='bg-blue-600/90 hover:bg-blue-700/95 text-white px-6 py-2 rounded-md font-medium transition-colors' 
+                  <button
+                    className='bg-blue-600/90 hover:bg-blue-700/95 text-white px-6 py-2 rounded-md font-medium transition-colors'
                     onClick={extractSelected}
                   >
                     📄 Extract Text
@@ -590,30 +590,28 @@ const ResumeBuilder: React.FC = () => {
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Choose Your Resume Mode</h3>
                 <div className="flex justify-center gap-4">
                   <button
-                    onClick={() => { 
+                    onClick={() => {
                       setResumeMode("scratch")
                       setSelectedTemplate(null)
                       setCurrentPdfUrl(null)
                       setHasSelectedMode(true)
                     }}
-                    className={`px-8 py-3 rounded-lg font-medium transition-all shadow-md ${
-                      resumeMode === "scratch" 
-                        ? "bg-blue-600 text-white scale-105" 
+                    className={`px-8 py-3 rounded-lg font-medium transition-all shadow-md ${resumeMode === "scratch"
+                        ? "bg-blue-600 text-white scale-105"
                         : "bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400"
-                    }`}
+                      }`}
                   >
                     ✏️ Scratch Resume
                   </button>
                   <button
-                    onClick={() => { 
+                    onClick={() => {
                       setResumeMode("template")
                       setHasSelectedMode(true)
                     }}
-                    className={`px-8 py-3 rounded-lg font-medium transition-all shadow-md ${
-                      resumeMode === "template" 
-                        ? "bg-blue-600 text-white scale-105" 
+                    className={`px-8 py-3 rounded-lg font-medium transition-all shadow-md ${resumeMode === "template"
+                        ? "bg-blue-600 text-white scale-105"
                         : "bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400"
-                    }`}
+                      }`}
                   >
                     📄 Template Resume
                   </button>
@@ -622,7 +620,7 @@ const ResumeBuilder: React.FC = () => {
                 {/* Scratch Editor */}
                 {hasSelectedMode && resumeMode === "scratch" && (
                   <div className='max-w-4xl mx-auto mt-8'>
-                    <div className='bg-white dark:bg-gray-100 shadow-2xl border border-gray-300 dark:border-gray-400 min-h-[800px] p-8 relative' style={{aspectRatio: '8.5/11'}}>
+                    <div className='bg-white dark:bg-gray-100 shadow-2xl border border-gray-300 dark:border-gray-400 min-h-[800px] p-8 relative' style={{ aspectRatio: '8.5/11' }}>
                       <div className='w-full h-full flex flex-col'>
                         <div className='border-b-2 border-gray-300 pb-6 mb-6'>
                           <textarea
@@ -631,7 +629,7 @@ const ResumeBuilder: React.FC = () => {
                             placeholder="Your Name&#10;your.email@example.com&#10;(123) 456-7890&#10;LinkedIn Profile"
                             className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400'
                             rows={4}
-                            style={{lineHeight: '1.3'}}
+                            style={{ lineHeight: '1.3' }}
                           />
                         </div>
                         <div className='flex-1 flex gap-6'>
@@ -641,7 +639,7 @@ const ResumeBuilder: React.FC = () => {
                               onChange={e => handleTemplateChange('sidebar', e.target.value)}
                               placeholder="SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS"
                               className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
-                              style={{lineHeight: '1.5', minHeight: '500px'}}
+                              style={{ lineHeight: '1.5', minHeight: '500px' }}
                             />
                           </div>
                           <div className='flex-1'>
@@ -650,7 +648,7 @@ const ResumeBuilder: React.FC = () => {
                               onChange={e => handleTemplateChange('mainContent', e.target.value)}
                               placeholder="PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS"
                               className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
-                              style={{lineHeight: '1.5', minHeight: '500px'}}
+                              style={{ lineHeight: '1.5', minHeight: '500px' }}
                             />
                           </div>
                         </div>
@@ -680,14 +678,14 @@ const ResumeBuilder: React.FC = () => {
                     <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-6">Select a Template</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 justify-items-center">
                       {templates.map((template, index) => (
-                        <div 
-                          key={index} 
-                          onClick={() => selectTemplate(template.name as 'modern' | 'classic')} 
+                        <div
+                          key={index}
+                          onClick={() => selectTemplate(template.name as 'modern' | 'classic')}
                           className="cursor-pointer border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden hover:scale-105 hover:border-blue-500 transform transition-all shadow-lg hover:shadow-2xl"
                         >
-                          <img 
-                            src={template.preview} 
-                            alt={`${template.name} template`} 
+                          <img
+                            src={template.preview}
+                            alt={`${template.name} template`}
                             className="w-64 h-80 object-cover"
                           />
                           <div className="p-3 bg-gray-100 dark:bg-gray-700 text-center">
@@ -704,7 +702,7 @@ const ResumeBuilder: React.FC = () => {
                 {/* Editable Template */}
                 {hasSelectedMode && resumeMode === "template" && selectedTemplate && (
                   <div className='max-w-4xl mx-auto mt-8'>
-                    <div className='bg-white dark:bg-gray-100 shadow-2xl border border-gray-300 dark:border-gray-400 min-h-[800px] p-8 relative' style={{aspectRatio: '8.5/11'}}>
+                    <div className='bg-white dark:bg-gray-100 shadow-2xl border border-gray-300 dark:border-gray-400 min-h-[800px] p-8 relative' style={{ aspectRatio: '8.5/11' }}>
                       <div className='w-full h-full flex flex-col'>
                         <div className='border-b-2 border-gray-300 pb-6 mb-6'>
                           <textarea
@@ -713,7 +711,7 @@ const ResumeBuilder: React.FC = () => {
                             placeholder="Your Name&#10;Email | Phone | LinkedIn"
                             className='w-full text-center text-2xl font-bold bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-300 rounded p-2'
                             rows={4}
-                            style={{lineHeight: '1.3'}}
+                            style={{ lineHeight: '1.3' }}
                           />
                         </div>
                         <div className='flex-1 flex gap-6'>
@@ -723,7 +721,7 @@ const ResumeBuilder: React.FC = () => {
                               onChange={e => handleTemplateChange('sidebar', e.target.value)}
                               placeholder="SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS"
                               className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded p-2'
-                              style={{lineHeight: '1.5', minHeight: '500px'}}
+                              style={{ lineHeight: '1.5', minHeight: '500px' }}
                             />
                           </div>
                           <div className='flex-1'>
@@ -732,13 +730,13 @@ const ResumeBuilder: React.FC = () => {
                               onChange={e => handleTemplateChange('mainContent', e.target.value)}
                               placeholder="PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS"
                               className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded p-2'
-                              style={{lineHeight: '1.5', minHeight: '500px'}}
+                              style={{ lineHeight: '1.5', minHeight: '500px' }}
                             />
                           </div>
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Action Buttons */}
                     <div className='text-center mt-6 flex justify-center gap-4 flex-wrap'>
                       <button
@@ -762,7 +760,7 @@ const ResumeBuilder: React.FC = () => {
                         🤖 AI Format
                       </button>
                       <button
-                        onClick={() => { 
+                        onClick={() => {
                           setSelectedTemplate(null)
                           setCurrentPdfUrl(null)
                         }}
