@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { SelectedResume } from '../types/resume'
 import { extractImages, extractText } from 'unpdf'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
@@ -1194,6 +1195,26 @@ const ResumeBuilder: React.FC = () => {
                                   className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium'
                                 >
                                   AI Optimize
+                                </button>
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    const selected: SelectedResume = {
+                                      fileName: file.name,
+                                      text: pdfData[file.name]?.text || '',
+                                      images: pdfData[file.name]?.images || [],
+                                      optimized: aiOptimizedResumes[file.name] || false
+                                    }
+                                    try {
+                                      sessionStorage.setItem('selectedResume', JSON.stringify(selected))
+                                    } catch (err) {
+                                      console.warn('Failed to persist selected resume to sessionStorage', err)
+                                    }
+                                    navigate('/job-search')
+                                  }}
+                                  className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium ml-2'
+                                >
+                                  Job Search
                                 </button>
                                 {pdfData[file.name]?.images?.length > 0 && (
                                   <span className='text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded-md font-medium'>
