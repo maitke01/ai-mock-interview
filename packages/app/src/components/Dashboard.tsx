@@ -156,7 +156,7 @@ const Dashboard: React.FC = () => {
                 <div>
                   <div className='flex justify-between items-center mb-2'>
                     <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                      Software Engineer Match
+                      Job Role Match
                     </span>
                     <span className='text-sm font-medium text-gray-900 dark:text-white'>0%</span>
                   </div>
