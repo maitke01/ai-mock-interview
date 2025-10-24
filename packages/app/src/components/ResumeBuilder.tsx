@@ -310,7 +310,32 @@ const ResumeBuilder: React.FC = () => {
         mainContentQuill.current = null
       }
     }
-  }, [hasSelectedMode])
+  }, [hasSelectedMode, selectedTemplate])
+
+  // Update Quill editors when template content changes (but not from user typing)
+  useEffect(() => {
+    if (headerQuill.current && resumeTemplate.header) {
+      const currentText = headerQuill.current.getText().trim()
+      const templateText = resumeTemplate.header.replace(/<[^>]*>/g, '').trim() // Strip HTML tags
+      if (currentText !== templateText) {
+        headerQuill.current.setText(resumeTemplate.header)
+      }
+    }
+    if (sidebarQuill.current && resumeTemplate.sidebar) {
+      const currentText = sidebarQuill.current.getText().trim()
+      const templateText = resumeTemplate.sidebar.replace(/<[^>]*>/g, '').trim()
+      if (currentText !== templateText) {
+        sidebarQuill.current.setText(resumeTemplate.sidebar)
+      }
+    }
+    if (mainContentQuill.current && resumeTemplate.mainContent) {
+      const currentText = mainContentQuill.current.getText().trim()
+      const templateText = resumeTemplate.mainContent.replace(/<[^>]*>/g, '').trim()
+      if (currentText !== templateText) {
+        mainContentQuill.current.setText(resumeTemplate.mainContent)
+      }
+    }
+  }, [selectedTemplate]) // Only run when template changes, not on every text change
 
   // Rich Text Editor Functions
   const getActiveQuill = () => {
