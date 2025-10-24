@@ -1,35 +1,35 @@
 {
-    "name": "ai-mock-interview",
-    "version": "0.0.0",
-    "private": true,
-    "type": "module",
-    "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-    },
-    "scripts": {
-        "lint": "npx oxlint --type-aware",
-        "format": "dprint fmt",
-        "dev-full": "concurrently 'npm run dev --w argon2-cloudflare' 'npm run dev --w auth' 'npm run dev --w app'",
-        "dev": "concurrently \"npm run dev --w auth\" \"npm run dev --w app\""
-    },
-    "dependencies": {
-        "pdfjs-dist": "^5.4.149",
-        "zod": "^4.1.8"
-    },
-    "devDependencies": {
-        "@types/node": "^22.16.5",
-        "concurrently": "^9.2.1",
-        "dprint": "^0.50.2",
-        "install": "^0.13.0",
-        "npm": "^11.6.0",
-        "oxlint": "^1.15.0",
-        "oxlint-tsgolint": "^0.2.0",
-        "typescript": "~5.8.0",
-        "wrangler": "^4.36.0"
-    },
-    "workspaces": [
-        "packages/app",
-        "packages/argon2-cloudflare",
-        "packages/auth"
-    ]
+  "name": "ai-mock-interview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "lint": "npx oxlint --type-aware",
+    "format": "dprint fmt",
+    "dev-full": "concurrently 'npm run dev --w argon2-cloudflare' 'npm run dev --w auth' 'npm run dev --w app'",
+    "dev": "concurrently \"npm run dev --w auth\" \"npm run dev --w app\""
+  },
+  "dependencies": {
+    "pdfjs-dist": "^5.4.149",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "concurrently": "^9.2.1",
+    "dprint": "^0.50.2",
+    "install": "^0.13.0",
+    "npm": "^11.6.0",
+    "oxlint": "^1.15.0",
+    "oxlint-tsgolint": "^0.2.0",
+    "typescript": "~5.8.0",
+    "wrangler": "^4.36.0"
+  },
+  "workspaces": [
+    "packages/app",
+    "packages/argon2-cloudflare",
+    "packages/auth"
+  ]
 }
