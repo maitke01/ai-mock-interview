@@ -1,41 +1,53 @@
-import React from 'react'
+import React from "react";
 
-// Minimal ClassicTemplate component used by EditableTemplateEditor
-// Props: data { header, sidebar, mainContent } and onChange(key, value)
-export default function ClassicTemplate({ data = {}, onChange = () => {} }) {
-  const handleChange = (key) => (e) => onChange(key, e.target.value)
-
+// Classic template follows the same data shape as ResumeBuilder.templatesData:
+// { header: string, sidebar: string, mainContent: string }
+// Props:
+// - data: { header, sidebar, mainContent }
+// - onChange: (section, value) => void
+const ClassicTemplate = ({ data = {}, onChange = () => {} }) => {
   return (
-    <div className="space-y-3">
-      <div>
-        <label className="block text-xs font-medium text-gray-700">Header</label>
-        <textarea
-          className="w-full border rounded px-2 py-1 text-sm"
-          rows={3}
-          value={data.header || ''}
-          onChange={handleChange('header')}
-        />
+    <div className="bg-gray-50 p-8 rounded-lg shadow-md max-w-[700px] mx-auto border border-gray-300">
+      {/* Header - editable block (name + contact lines) */}
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onInput={(e) => onChange('header', e.currentTarget.textContent || '')}
+        className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-900 whitespace-pre-line"
+        aria-label="Resume header (name and contact)"
+      >
+        {data.header}
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-gray-700">Sidebar</label>
-        <textarea
-          className="w-full border rounded px-2 py-1 text-sm"
-          rows={6}
-          value={data.sidebar || ''}
-          onChange={handleChange('sidebar')}
-        />
-      </div>
+      <div className="flex gap-6 mt-4">
+        {/* Sidebar */}
+        <div className="w-1/3 border-r pr-6">
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => onChange('sidebar', e.currentTarget.textContent || '')}
+            className="text-sm min-h-[400px] text-gray-800 dark:text-gray-900 whitespace-pre-line"
+            aria-label="Resume sidebar (skills, education, etc)"
+          >
+            {data.sidebar}
+          </div>
+        </div>
 
-      <div>
-        <label className="block text-xs font-medium text-gray-700">Main Content</label>
-        <textarea
-          className="w-full border rounded px-2 py-1 text-sm"
-          rows={10}
-          value={data.mainContent || ''}
-          onChange={handleChange('mainContent')}
-        />
+        {/* Main Content */}
+        <div className="flex-1">
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => onChange('mainContent', e.currentTarget.textContent || '')}
+            className="text-sm min-h-[400px] text-gray-800 dark:text-gray-900 whitespace-pre-line"
+            aria-label="Resume main content (summary, experience, projects)"
+          >
+            {data.mainContent}
+          </div>
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
+
+export default ClassicTemplate;
