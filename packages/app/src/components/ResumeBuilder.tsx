@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { extractImages, extractText } from 'unpdf'
+import Quill from 'quill'
+import 'quill/dist/quill.snow.css'
 import modernPreview from "./assets/modern-preview.png"
 import classicPreview from "./assets/classic-preview.png"
 import modernPDF from "./assets/pdfs/modern-template.pdf"
@@ -28,10 +30,12 @@ const ResumeBuilder: React.FC = () => {
   const colorInputRef = useRef<HTMLInputElement>(null)
   const highlightInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
-  const linkInputRef = useRef<HTMLInputElement>(null)
-  const headerRef = useRef<HTMLTextAreaElement>(null)
-  const sidebarRef = useRef<HTMLTextAreaElement>(null)
-  const mainContentRef = useRef<HTMLTextAreaElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const mainContentRef = useRef<HTMLDivElement>(null)
+  const headerQuill = useRef<Quill | null>(null)
+  const sidebarQuill = useRef<Quill | null>(null)
+  const mainContentQuill = useRef<Quill | null>(null)
 
   // File handling states
   const [resumeFiles, setResumeFiles] = useState<File[]>([])
@@ -55,7 +59,6 @@ const ResumeBuilder: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false)
 
   // Formatting states
-  const [activeSection, setActiveSection] = useState<'header' | 'sidebar' | 'mainContent'>('header')
   const [fontSize, setFontSize] = useState('12')
   const [fontFamily, setFontFamily] = useState('Arial')
   const [isBold, setIsBold] = useState(false)
@@ -66,6 +69,15 @@ const ResumeBuilder: React.FC = () => {
   const [lineHeight, setLineHeight] = useState('1.5')
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left')
   const [showMoreTools, setShowMoreTools] = useState(false)
+  const [lastFocusedEditor, setLastFocusedEditor] = useState<'header' | 'sidebar' | 'mainContent'>('header')
+
+  const quillFormats = [
+    'bold', 'italic', 'underline', 'strike',
+    'color', 'background',
+    'script',
+    'list', 'indent',
+    'link', 'image'
+  ]
 
   const templatesData = {
     modern: {
@@ -216,69 +228,160 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  // Rich Text Editor Functions
-  const getActiveTextarea = () => {
-    switch (activeSection) {
-      case 'header': return headerRef.current
-      case 'sidebar': return sidebarRef.current
-      case 'mainContent': return mainContentRef.current
-      default: return null
+  // Initialize Quill editors
+  useEffect(() => {
+    if (headerRef.current && !headerQuill.current) {
+      headerQuill.current = new Quill(headerRef.current, {
+        theme: 'snow',
+        modules: { toolbar: false },
+        formats: quillFormats,
+        placeholder: 'Your Name\nyour.email@example.com\n(123) 456-7890\nLinkedIn Profile'
+      })
+      
+      headerQuill.current.on('text-change', () => {
+        if (headerQuill.current) {
+          handleTemplateChange('header', headerQuill.current.root.innerHTML)
+        }
+      })
+
+      headerQuill.current.on('selection-change', (range) => {
+        if (range) {
+          setLastFocusedEditor('header')
+        }
+      })
     }
-  }
 
-  const wrapSelectedText = (prefix: string, suffix: string) => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    if (sidebarRef.current && !sidebarQuill.current) {
+      sidebarQuill.current = new Quill(sidebarRef.current, {
+        theme: 'snow',
+        modules: { toolbar: false },
+        formats: quillFormats,
+        placeholder: 'SKILLS\n\nEDUCATION\n\nCERTIFICATIONS'
+      })
+      
+      sidebarQuill.current.on('text-change', () => {
+        if (sidebarQuill.current) {
+          handleTemplateChange('sidebar', sidebarQuill.current.root.innerHTML)
+        }
+      })
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = textarea.value.substring(start, end)
-    
-    if (selectedText) {
-      const newText = 
-        textarea.value.substring(0, start) +
-        prefix + selectedText + suffix +
-        textarea.value.substring(end)
+      sidebarQuill.current.on('selection-change', (range) => {
+        if (range) {
+          setLastFocusedEditor('sidebar')
+        }
+      })
+    }
+
+    if (mainContentRef.current && !mainContentQuill.current) {
+      mainContentQuill.current = new Quill(mainContentRef.current, {
+        theme: 'snow',
+        modules: { toolbar: false },
+        formats: quillFormats,
+        placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
+      })
       
-      handleTemplateChange(activeSection, newText)
-      
-      setTimeout(() => {
-        textarea.focus()
-        textarea.setSelectionRange(start + prefix.length, end + prefix.length)
-      }, 0)
+      mainContentQuill.current.on('text-change', () => {
+        if (mainContentQuill.current) {
+          handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
+        }
+      })
+
+      mainContentQuill.current.on('selection-change', (range) => {
+        if (range) {
+          setLastFocusedEditor('mainContent')
+        }
+      })
+    }
+
+    return () => {
+      if (headerQuill.current) {
+        headerQuill.current.off('text-change')
+        headerQuill.current.off('selection-change')
+        headerQuill.current = null
+      }
+      if (sidebarQuill.current) {
+        sidebarQuill.current.off('text-change')
+        sidebarQuill.current.off('selection-change')
+        sidebarQuill.current = null
+      }
+      if (mainContentQuill.current) {
+        mainContentQuill.current.off('text-change')
+        mainContentQuill.current.off('selection-change')
+        mainContentQuill.current = null
+      }
+    }
+  }, [hasSelectedMode])
+
+  // Rich Text Editor Functions
+  const getActiveQuill = () => {
+    // Use the last focused editor since clicking toolbar buttons takes focus away
+    switch (lastFocusedEditor) {
+      case 'header': return headerQuill.current
+      case 'sidebar': return sidebarQuill.current
+      case 'mainContent': return mainContentQuill.current
+      default: return headerQuill.current
     }
   }
 
   const applyBold = () => {
-    wrapSelectedText('**', '**')
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      const currentFormat = quill.getFormat(range)
+      quill.format('bold', !currentFormat.bold)
+    }
     setIsBold(!isBold)
   }
 
   const applyItalic = () => {
-    wrapSelectedText('*', '*')
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      const currentFormat = quill.getFormat(range)
+      quill.format('italic', !currentFormat.italic)
+    }
     setIsItalic(!isItalic)
   }
 
   const applyUnderline = () => {
-    wrapSelectedText('<u>', '</u>')
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      const currentFormat = quill.getFormat(range)
+      quill.format('underline', !currentFormat.underline)
+    }
     setIsUnderline(!isUnderline)
   }
 
-  const applyStrikethrough = () => wrapSelectedText('~~', '~~')
+  const applyStrikethrough = () => {
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      const currentFormat = quill.getFormat(range)
+      quill.format('strike', !currentFormat.strike)
+    }
+  }
   
   const insertLink = () => {
     const url = prompt('Enter URL:')
     if (url) {
       const text = prompt('Enter link text (or leave blank to use URL):') || url
-      const textarea = getActiveTextarea()
-      if (textarea) {
-        const start = textarea.selectionStart
-        const linkMarkdown = `[${text}](${url})`
-        const newText = 
-          textarea.value.substring(0, start) +
-          linkMarkdown +
-          textarea.value.substring(start)
-        handleTemplateChange(activeSection, newText)
+      const quill = getActiveQuill()
+      if (quill) {
+        const range = quill.getSelection()
+        if (range) {
+          quill.insertText(range.index, text)
+          quill.setSelection(range.index, text.length)
+          quill.format('link', url)
+        }
       }
     }
   }
@@ -289,15 +392,12 @@ const ResumeBuilder: React.FC = () => {
       const reader = new FileReader()
       reader.onload = (event) => {
         const imageUrl = event.target?.result as string
-        const textarea = getActiveTextarea()
-        if (textarea) {
-          const start = textarea.selectionStart
-          const imageMarkdown = `\n![Image](${imageUrl})\n`
-          const newText = 
-            textarea.value.substring(0, start) +
-            imageMarkdown +
-            textarea.value.substring(start)
-          handleTemplateChange(activeSection, newText)
+        const quill = getActiveQuill()
+        if (quill) {
+          const range = quill.getSelection()
+          if (range) {
+            quill.insertEmbed(range.index, 'image', imageUrl)
+          }
         }
       }
       reader.readAsDataURL(file)
@@ -306,168 +406,146 @@ const ResumeBuilder: React.FC = () => {
   }
 
   const insertBulletList = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
     
-    const start = textarea.selectionStart
-    const bulletPoint = '\n• '
-    const newText = 
-      textarea.value.substring(0, start) +
-      bulletPoint +
-      textarea.value.substring(start)
-    
-    handleTemplateChange(activeSection, newText)
-    
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + bulletPoint.length, start + bulletPoint.length)
-    }, 0)
+    const range = quill.getSelection()
+    if (range) {
+      quill.format('list', 'bullet')
+    }
   }
 
   const insertNumberedList = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
     
-    const start = textarea.selectionStart
-    const numberPoint = '\n1. '
-    const newText = 
-      textarea.value.substring(0, start) +
-      numberPoint +
-      textarea.value.substring(start)
-    
-    handleTemplateChange(activeSection, newText)
-    
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + numberPoint.length, start + numberPoint.length)
-    }, 0)
+    const range = quill.getSelection()
+    if (range) {
+      quill.format('list', 'ordered')
+    }
   }
 
   const insertCheckbox = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
     
-    const start = textarea.selectionStart
-    const checkbox = '\n☐ '
-    const newText = 
-      textarea.value.substring(0, start) +
-      checkbox +
-      textarea.value.substring(start)
-    
-    handleTemplateChange(activeSection, newText)
-    
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + checkbox.length, start + checkbox.length)
-    }, 0)
+    const range = quill.getSelection()
+    if (range) {
+      quill.insertText(range.index, '☐ ')
+    }
   }
 
-  const applySuperscript = () => wrapSelectedText('<sup>', '</sup>')
-  const applySubscript = () => wrapSelectedText('<sub>', '</sub>')
+  const applySuperscript = () => {
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      const currentFormat = quill.getFormat(range)
+      quill.format('script', currentFormat.script === 'super' ? false : 'super')
+    }
+  }
+
+  const applySubscript = () => {
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      const currentFormat = quill.getFormat(range)
+      quill.format('script', currentFormat.script === 'sub' ? false : 'sub')
+    }
+  }
 
   const changeTextColor = () => colorInputRef.current?.click()
   const applyTextColor = (color: string) => {
-    wrapSelectedText(`<span style="color:${color}">`, '</span>')
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      quill.format('color', color)
+    }
     setTextColor(color)
   }
 
   const changeHighlight = () => highlightInputRef.current?.click()
   const applyHighlight = (color: string) => {
-    wrapSelectedText(`<mark style="background-color:${color}">`, '</mark>')
+    const quill = getActiveQuill()
+    if (!quill) return
+    
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      quill.format('background', color)
+    }
     setHighlightColor(color)
   }
 
   const increaseIndent = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
     
-    const start = textarea.selectionStart
-    const indent = '    '
-    const newText = 
-      textarea.value.substring(0, start) +
-      indent +
-      textarea.value.substring(start)
-    
-    handleTemplateChange(activeSection, newText)
-    
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + indent.length, start + indent.length)
-    }, 0)
+    const range = quill.getSelection()
+    if (range) {
+      quill.format('indent', '+1')
+    }
   }
 
   const decreaseIndent = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
     
-    const start = textarea.selectionStart
-    const beforeCursor = textarea.value.substring(0, start)
-    
-    if (beforeCursor.endsWith('    ')) {
-      const newText = 
-        textarea.value.substring(0, start - 4) +
-        textarea.value.substring(start)
-      handleTemplateChange(activeSection, newText)
-      
-      setTimeout(() => {
-        textarea.focus()
-        textarea.setSelectionRange(start - 4, start - 4)
-      }, 0)
+    const range = quill.getSelection()
+    if (range) {
+      quill.format('indent', '-1')
     }
   }
 
   const insertHorizontalLine = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
     
-    const start = textarea.selectionStart
-    const line = '\n───────────────────────────────\n'
-    const newText = 
-      textarea.value.substring(0, start) +
-      line +
-      textarea.value.substring(start)
-    
-    handleTemplateChange(activeSection, newText)
+    const range = quill.getSelection()
+    if (range) {
+      quill.insertText(range.index, '\n───────────────────────────────\n')
+    }
   }
 
   const clearFormatting = () => {
-    const textarea = getActiveTextarea()
-    if (!textarea) return
+    const quill = getActiveQuill()
+    if (!quill) return
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = textarea.value.substring(start, end)
-    
-    if (selectedText) {
-      const cleanText = selectedText
-        .replace(/\*\*/g, '')
-        .replace(/\*/g, '')
-        .replace(/_/g, '')
-        .replace(/~~/g, '')
-        .replace(/<[^>]*>/g, '')
-      
-      const newText = 
-        textarea.value.substring(0, start) +
-        cleanText +
-        textarea.value.substring(end)
-      
-      handleTemplateChange(activeSection, newText)
+    const range = quill.getSelection()
+    if (range && range.length > 0) {
+      quill.removeFormat(range.index, range.length)
     }
   }
 
   const insertComment = () => {
     const comment = prompt('Enter your comment:')
     if (comment) {
-      wrapSelectedText(`<!-- ${comment}: `, ' -->')
+      const quill = getActiveQuill()
+      if (quill) {
+        const range = quill.getSelection()
+        if (range) {
+          quill.insertText(range.index, `<!-- ${comment}: -->`)
+        }
+      }
     }
   }
 
   const undoAction = () => {
-    document.execCommand('undo')
+    const quill = getActiveQuill()
+    if (quill) {
+      quill.history.undo()
+    }
   }
 
   const redoAction = () => {
-    document.execCommand('redo')
+    const quill = getActiveQuill()
+    if (quill) {
+      quill.history.redo()
+    }
   }
 
   // Draft operations
@@ -952,7 +1030,7 @@ const ResumeBuilder: React.FC = () => {
       {/* Secondary Info Bar */}
       <div className="px-4 py-1 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
         <div className="flex items-center gap-4">
-          <span>Editing: <span className="font-medium capitalize">{activeSection.replace('Content', ' Content')}</span></span>
+          <span>Editing: <span className="font-medium capitalize">{lastFocusedEditor}</span></span>
           <span>•</span>
           <span>Font: {fontFamily}</span>
           <span>•</span>
@@ -1219,32 +1297,22 @@ const ResumeBuilder: React.FC = () => {
                 <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{aspectRatio: '8.5/11'}}>
                   <div className='w-full h-full flex flex-col p-12'>
                     <div className='border-b-2 border-gray-300 pb-8 mb-8'>
-                      <textarea
+                      <div
                         ref={headerRef}
-                        value={resumeTemplate.header}
-                        onChange={e => handleTemplateChange('header', e.target.value)}
-                        onFocus={() => setActiveSection('header')}
-                        placeholder="Your Name&#10;your.email@example.com&#10;(123) 456-7890&#10;LinkedIn Profile"
-                        className='w-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400'
-                        rows={4}
                         style={{
                           fontFamily,
                           fontSize: `${fontSize}px`,
                           lineHeight,
                           textAlign,
-                          color: textColor
+                          color: textColor,
+                          minHeight: '100px'
                         }}
                       />
                     </div>
                     <div className='flex-1 flex gap-8'>
                       <div className='w-1/3 border-r-2 border-gray-300 pr-8'>
-                        <textarea
+                        <div
                           ref={sidebarRef}
-                          value={resumeTemplate.sidebar}
-                          onChange={e => handleTemplateChange('sidebar', e.target.value)}
-                          onFocus={() => setActiveSection('sidebar')}
-                          placeholder="SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS"
-                          className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
                           style={{
                             fontFamily,
                             fontSize: `${fontSize}px`,
@@ -1256,13 +1324,8 @@ const ResumeBuilder: React.FC = () => {
                         />
                       </div>
                       <div className='flex-1'>
-                        <textarea
+                        <div
                           ref={mainContentRef}
-                          value={resumeTemplate.mainContent}
-                          onChange={e => handleTemplateChange('mainContent', e.target.value)}
-                          onFocus={() => setActiveSection('mainContent')}
-                          placeholder="PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS"
-                          className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm'
                           style={{
                             fontFamily,
                             fontSize: `${fontSize}px`,
@@ -1356,32 +1419,24 @@ const ResumeBuilder: React.FC = () => {
                 <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{aspectRatio: '8.5/11'}}>
                   <div className='w-full h-full flex flex-col p-12'>
                     <div className='border-b-2 border-gray-300 pb-8 mb-8'>
-                      <textarea
+                      <div
                         ref={headerRef}
-                        value={resumeTemplate.header}
-                        onChange={e => handleTemplateChange('header', e.target.value)}
-                        onFocus={() => setActiveSection('header')}
-                        placeholder="Your Name&#10;Email | Phone | LinkedIn"
-                        className='w-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-300 rounded-lg p-2'
-                        rows={4}
+                        className='focus:ring-2 focus:ring-blue-300 rounded-lg'
                         style={{
                           fontFamily,
                           fontSize: `${fontSize}px`,
                           lineHeight,
                           textAlign,
-                          color: textColor
+                          color: textColor,
+                          minHeight: '100px'
                         }}
                       />
                     </div>
                     <div className='flex-1 flex gap-8'>
                       <div className='w-1/3 border-r-2 border-gray-300 pr-8'>
-                        <textarea
+                        <div
                           ref={sidebarRef}
-                          value={resumeTemplate.sidebar}
-                          onChange={e => handleTemplateChange('sidebar', e.target.value)}
-                          onFocus={() => setActiveSection('sidebar')}
-                          placeholder="SKILLS&#10;&#10;EDUCATION&#10;&#10;CERTIFICATIONS"
-                          className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded-lg p-2'
+                          className='focus:ring-2 focus:ring-blue-300 rounded-lg'
                           style={{
                             fontFamily,
                             fontSize: `${fontSize}px`,
@@ -1393,13 +1448,9 @@ const ResumeBuilder: React.FC = () => {
                         />
                       </div>
                       <div className='flex-1'>
-                        <textarea
+                        <div
                           ref={mainContentRef}
-                          value={resumeTemplate.mainContent}
-                          onChange={e => handleTemplateChange('mainContent', e.target.value)}
-                          onFocus={() => setActiveSection('mainContent')}
-                          placeholder="PROFESSIONAL SUMMARY&#10;&#10;WORK EXPERIENCE&#10;&#10;PROJECTS"
-                          className='w-full h-full bg-transparent border-none outline-none resize-none text-gray-900 placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-300 rounded-lg p-2'
+                          className='focus:ring-2 focus:ring-blue-300 rounded-lg'
                           style={{
                             fontFamily,
                             fontSize: `${fontSize}px`,
