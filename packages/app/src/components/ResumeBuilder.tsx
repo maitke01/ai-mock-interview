@@ -43,6 +43,8 @@ const ResumeBuilder: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
   const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any } }>({})
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
+  const [optimizingFiles, setOptimizingFiles] = useState<string[]>([])
+  const [lastOptimizedFile, setLastOptimizedFile] = useState<string | null>(null)
 
   // Template states
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
@@ -213,6 +215,7 @@ const ResumeBuilder: React.FC = () => {
     const data = pdfData[fileName]
     if (!data || !data.text.trim()) return alert('No text content found to optimize')
 
+    setOptimizingFiles(prev => [...prev, fileName])
     try {
       const response = await fetch('/api/optimize-resume', {
         method: 'POST',
@@ -222,10 +225,15 @@ const ResumeBuilder: React.FC = () => {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const result = await response.json()
-      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: result.optimizedResume }))
+      const optimized = result && result.optimizedResume ? result.optimizedResume : String(data.text)
+      // store optimized version and set preview target
+      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
+      setLastOptimizedFile(fileName)
     } catch (error) {
       console.error('Error optimizing resume:', error)
       alert('Failed to optimize resume. Please try again.')
+    } finally {
+      setOptimizingFiles(prev => prev.filter(n => n !== fileName))
     }
   }
 
@@ -1193,8 +1201,9 @@ const ResumeBuilder: React.FC = () => {
                                 <button
                                   onClick={e => { e.stopPropagation(); optimizeResumeWithAI(file.name) }}
                                   className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium'
+                                  disabled={optimizingFiles.includes(file.name)}
                                 >
-                                  AI Optimize
+                                  {optimizingFiles.includes(file.name) ? 'Optimizing...' : 'AI Optimize'}
                                 </button>
                                 <button
                                   onClick={e => {
@@ -1263,6 +1272,47 @@ const ResumeBuilder: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Optimized Resume Preview (appears after optimization) */}
+          {lastOptimizedFile && aiOptimizedResumes[lastOptimizedFile] && (
+            <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8'>
+              <div className='px-6 py-5 border-b border-gray-200 dark:border-gray-700'>
+                <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Optimized Resume Preview</h2>
+                <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>Review the AI-optimized resume below. You can apply it to the editor or dismiss.</p>
+              </div>
+              <div className='p-6'>
+                <div className='max-w-7xl mx-auto'>
+                  <div className='bg-gray-50 dark:bg-gray-900 p-4 rounded-md border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 overflow-auto' style={{maxHeight: '280px'}}>
+                    <pre className='whitespace-pre-wrap break-words'>{aiOptimizedResumes[lastOptimizedFile]}</pre>
+                  </div>
+                  <div className='flex justify-center gap-3 mt-4'>
+                    <button
+                      onClick={() => {
+                        const optimized = aiOptimizedResumes[lastOptimizedFile!]
+                        if (!optimized) return
+                        // Apply into editor
+                        setHasSelectedMode(true)
+                        setResumeMode('scratch')
+                        setSelectedTemplate(null)
+                        setResumeTemplate(prev => ({ ...prev, mainContent: optimized }))
+                        if (mainContentQuill.current) mainContentQuill.current.setText(optimized)
+                        // keep preview visible in case user wants to dismiss later
+                      }}
+                      className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-all shadow-md'
+                    >
+                      Apply to Editor
+                    </button>
+                    <button
+                      onClick={() => setLastOptimizedFile(null)}
+                      className='bg-gray-500 text-white px-6 py-2 rounded-lg font-medium transition-all shadow-md'
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Mode Selection */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8">
