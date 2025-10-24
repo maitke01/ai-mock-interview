@@ -1,6 +1,6 @@
 import type { Route } from '../../../index'
 
-function clamp(n: number, min = 0, max = 100) {
+function clamp (n: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, n))
 }
 
@@ -15,7 +15,7 @@ export const atsScoreRoute: Route = async (ctx) => {
     const text = resumeText.toLowerCase()
     const wordMatches = text.match(/\b[\w'-]+\b/g) || []
     const wordCount = wordMatches.length
-    const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(Boolean)
+    const sentences = text.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean)
     const sentenceCount = sentences.length || 1
     const avgWordsPerSentence = wordCount / sentenceCount
 
@@ -67,6 +67,9 @@ export const atsScoreRoute: Route = async (ctx) => {
     })
   } catch (error) {
     console.error('Error in atsScoreRoute:', error)
-    return ctx.json({ error: 'Failed to calculate ATS score', details: error instanceof Error ? error.message : 'Unknown error' }, 500)
+    return ctx.json({
+      error: 'Failed to calculate ATS score',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
   }
 }
