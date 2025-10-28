@@ -2,22 +2,19 @@ import { X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-interface ScheduledInterview {
-  id: string
-  date: string
-  time: string
-  type: string
-  scheduledAt: string
-}
+import { useDeleteInterview, useInterviews } from '../hooks/useInterviews'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [resumeCompletion, setResumeCompletion] = useState<number>(0)
   const [keywordMatch, setKeywordMatch] = useState<number | null>(null)
-  const [scheduledInterviews, setScheduledInterviews] = useState<ScheduledInterview[]>([])
-  const [interviewToCancel, setInterviewToCancel] = useState<string | null>(null)
+  const [interviewToCancel, setInterviewToCancel] = useState<number | null>(null)
+
+  const { data: interviewsData, isLoading: interviewsLoading } = useInterviews({ upcoming: true })
+  const deleteInterviewMutation = useDeleteInterview()
+
+  const scheduledInterviews = interviewsData?.interviews || []
 
   useEffect(() => {
     const s = localStorage.getItem('atsScore')
@@ -28,11 +25,6 @@ const Dashboard: React.FC = () => {
 
     const km = localStorage.getItem('keywordMatch')
     if (km !== null) setKeywordMatch(Number(km))
-
-    const interviews = localStorage.getItem('scheduledInterviews')
-    if (interviews) {
-      setScheduledInterviews(JSON.parse(interviews))
-    }
   }, [])
 
   useEffect(() => {
@@ -42,10 +34,8 @@ const Dashboard: React.FC = () => {
     }
   }, [])
 
-  const formatDateTime = (date: string, time: string) => {
-    // Treat date as local (not UTC)
-    const [year, month, day] = date.split('-').map(Number)
-    const dateObj = new Date(year, month - 1, day)
+  const formatDateTime = (scheduledDate: number) => {
+    const dateObj = new Date(scheduledDate * 1000)
 
     const today = new Date()
     const tomorrow = new Date(today)
@@ -59,19 +49,21 @@ const Dashboard: React.FC = () => {
       dateStr = 'Tomorrow'
     }
 
-    const [hours, minutes] = time.split(':')
-    const hour = Number.parseInt(hours)
+    const hour = dateObj.getHours()
+    const minutes = dateObj.getMinutes()
     const ampm = hour >= 12 ? 'PM' : 'AM'
     const displayHour = hour % 12 || 12
+    const displayMinutes = minutes.toString().padStart(2, '0')
 
-    return `${dateStr}, ${displayHour}:${minutes} ${ampm}`
+    return `${dateStr}, ${displayHour}:${displayMinutes} ${ampm}`
   }
 
-  const cancelInterview = (id: string) => {
-    const updatedInterviews = scheduledInterviews.filter((interview) => interview.id !== id)
-    setScheduledInterviews(updatedInterviews)
-    localStorage.setItem('scheduledInterviews', JSON.stringify(updatedInterviews))
-    setInterviewToCancel(null)
+  const cancelInterview = (id: number) => {
+    deleteInterviewMutation.mutate(id, {
+      onSuccess: () => {
+        setInterviewToCancel(null)
+      }
+    })
   }
 
   return (
@@ -176,7 +168,13 @@ const Dashboard: React.FC = () => {
                 <h3 className='text-xl font-semibold text-gray-900 dark:text-white'>Upcoming Mock Interviews</h3>
               </div>
               <div className='px-6 py-4'>
-                {scheduledInterviews.length > 0
+                {interviewsLoading
+                  ? (
+                    <div className='text-center py-8 text-gray-500 dark:text-gray-400'>
+                      <p>Loading interviews...</p>
+                    </div>
+                  )
+                  : scheduledInterviews.length > 0
                   ? (
                     <>
                       {scheduledInterviews.map((interview) => (
@@ -185,9 +183,9 @@ const Dashboard: React.FC = () => {
                             <div className='flex items-center space-x-3 flex-1'>
                               <div className='w-1 h-12 bg-blue-500 dark:bg-blue-400 rounded'></div>
                               <div>
-                                <h4 className='font-semibold text-gray-900 dark:text-white'>{interview.type}</h4>
+                                <h4 className='font-semibold text-gray-900 dark:text-white'>{interview.title}</h4>
                                 <p className='text-sm text-gray-600 dark:text-gray-400'>
-                                  {formatDateTime(interview.date, interview.time)}
+                                  {formatDateTime(interview.scheduled_date)}
                                 </p>
                               </div>
                             </div>
