@@ -85,9 +85,7 @@ export const useAddResume = () => {
 
       return response.json()
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resumes'] })
-    }
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resumes'] })
   })
 }
 
@@ -128,8 +126,6 @@ export const useDeleteResume = () => {
 
       return response.json()
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resumes'] })
-    }
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resumes'] })
   })
 }

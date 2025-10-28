@@ -42,7 +42,7 @@ const JobSearch: React.FC = () => {
       const data = await response.json() as ResumeSuggestion
       setKeywords(data.keywords || [])
       setResumeSuggestion(data.resumeSuggestion || '')
-    } catch (err) {
+    } catch {
       setKeywords([])
       setResumeSuggestion('Error extracting keywords.')
     }

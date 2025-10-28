@@ -87,7 +87,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
     const title = resume.fileName || `Resume Draft ${new Date().toISOString().split('T')[0]}`
     const blob = new Blob([finalText], { type: 'text/plain' })
     const file = new File([blob], title, { type: 'text/plain' })
-    uploadResume(file, title)
+    void uploadResume(file, title)
   }
 
   const handleDownload = () => {
@@ -181,7 +181,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
         : text
       const blob = new Blob([draftContent], { type: 'text/plain' })
       const file = new File([blob], draftTitle, { type: 'text/plain' })
-      uploadResume(file, draftTitle)
+      void uploadResume(file, draftTitle)
     } catch (e) {
       console.error('Failed to save draft', e)
       alert('Failed to save draft')
@@ -206,7 +206,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
       const submitContent = `${templateData.header}\n\n${templateData.sidebar}\n\n${templateData.mainContent}`
       const blob = new Blob([submitContent], { type: 'text/plain' })
       const file = new File([blob], submitTitle, { type: 'text/plain' })
-      uploadResume(file, submitTitle)
+      void uploadResume(file, submitTitle)
     } catch (err) {
       console.warn('format submit failed', err)
       alert('Failed to submit for formatting. Saved draft locally.')

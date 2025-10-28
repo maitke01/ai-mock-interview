@@ -1,4 +1,10 @@
 import { type Context, Hono } from 'hono'
+import { cancelMockInterviewRoute } from './lib/routes/interview/cancelMockInterviewRoute'
+import { deleteMockInterviewRoute } from './lib/routes/interview/deleteMockInterviewRoute'
+import { getMockInterviewRoute } from './lib/routes/interview/getMockInterviewRoute'
+import { listMockInterviewsRoute } from './lib/routes/interview/listMockInterviewsRoute'
+import { scheduleMockInterviewRoute } from './lib/routes/interview/scheduleMockInterviewRoute'
+import { updateMockInterviewRoute } from './lib/routes/interview/updateMockInterviewRoute'
 import { loginRoute } from './lib/routes/login/loginRoute'
 import { registerRoute } from './lib/routes/login/registerRoute'
 import { addResumeRoute } from './lib/routes/resume/addResumeRoute'
@@ -25,6 +31,12 @@ const app = new Hono({ strict: false })
   .post('/api/extract-keywords', extractKeywordsRoute)
   .post('/api/ats-score', atsScoreRoute)
   .post('/api/format-resume', formatResumeRoute)
+  .post('/api/schedule-mock-interview', scheduleMockInterviewRoute)
+  .get('/api/list-mock-interviews', listMockInterviewsRoute)
+  .get('/api/get-mock-interview/:id', getMockInterviewRoute)
+  .patch('/api/update-mock-interview/:id', updateMockInterviewRoute)
+  .post('/api/cancel-mock-interview/:id', cancelMockInterviewRoute)
+  .delete('/api/delete-mock-interview/:id', deleteMockInterviewRoute)
 
 export default {
   fetch: app.fetch

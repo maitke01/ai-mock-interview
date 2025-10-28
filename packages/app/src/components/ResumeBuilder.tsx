@@ -127,13 +127,13 @@ const ResumeBuilder: React.FC = () => {
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) addFiles(e.target.files)
+    if (e.target.files) void addFiles(e.target.files)
     e.target.value = ''
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
-    if (e.dataTransfer.files) addFiles(e.dataTransfer.files)
+    if (e.dataTransfer.files) void addFiles(e.dataTransfer.files)
   }
 
   const extractPdfContent = async (file: File) => {
@@ -754,7 +754,7 @@ const ResumeBuilder: React.FC = () => {
 
   useEffect(() => {
     if (hasSelectedMode && resumeMode === 'scratch') {
-      loadDraft('scratch')
+      void loadDraft('scratch')
     }
   }, [hasSelectedMode, resumeMode])
 
@@ -1416,7 +1416,7 @@ const ResumeBuilder: React.FC = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    optimizeResumeWithAI(file.name)
+                                    void optimizeResumeWithAI(file.name)
                                   }}
                                   className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium'
                                   disabled={optimizingFiles.includes(file.name)}
@@ -1437,7 +1437,7 @@ const ResumeBuilder: React.FC = () => {
                                     } catch (err) {
                                       console.warn('Failed to persist selected resume to sessionStorage', err)
                                     }
-                                    navigate('/job-search')
+                                    void navigate('/job-search')
                                   }}
                                   className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium ml-2'
                                 >

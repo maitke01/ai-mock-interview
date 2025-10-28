@@ -40,9 +40,27 @@ export class DurableAccount extends DurableObject<Env> {
         FOREIGN KEY (resume_id) REFERENCES uploaded_resumes(id) ON DELETE CASCADE
       ) strict;
 
+      CREATE TABLE IF NOT EXISTS mock_interviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        scheduled_date INTEGER NOT NULL,
+        duration_minutes INTEGER DEFAULT 60,
+        interview_type TEXT DEFAULT 'technical',
+        status TEXT DEFAULT 'scheduled',
+        resume_id INTEGER,
+        notes TEXT,
+        feedback TEXT,
+        created_date INTEGER DEFAULT (strftime('%s', 'now')),
+        updated_date INTEGER DEFAULT (strftime('%s', 'now')),
+        FOREIGN KEY (resume_id) REFERENCES uploaded_resumes(id) ON DELETE SET NULL
+      ) strict;
+
       CREATE INDEX IF NOT EXISTS idx_uploaded_resumes_upload_date ON uploaded_resumes(upload_date);
       CREATE INDEX IF NOT EXISTS idx_resume_sections_resume_id ON resume_sections(resume_id);
       CREATE INDEX IF NOT EXISTS idx_ai_results_resume_type ON ai_results(resume_id, result_type);
+      CREATE INDEX IF NOT EXISTS idx_mock_interviews_scheduled_date ON mock_interviews(scheduled_date);
+      CREATE INDEX IF NOT EXISTS idx_mock_interviews_status ON mock_interviews(status);
   `)
   }
 
@@ -58,10 +76,10 @@ export class DurableAccount extends DurableObject<Env> {
 
     const result = this.ctx.storage.sql.exec<{ id: number }>(
       `
-            INSERT INTO uploaded_resumes (file_name, original_file_name, file_size, mime_type, file_data, total_pages)
-            VALUES (?, ?, ?, ?, ?, ?)
-            returning id
-        `,
+        INSERT INTO uploaded_resumes (file_name, original_file_name, file_size, mime_type, file_data, total_pages)
+        VALUES (?, ?, ?, ?, ?, ?)
+        returning id
+      `,
       fileName,
       originalFileName,
       fileSize,
@@ -85,7 +103,7 @@ export class DurableAccount extends DurableObject<Env> {
         DELETE FROM uploaded_resumes
         WHERE id = ?
         RETURNING id, file_name
-    `,
+      `,
       resumeId
     ).one()
 
@@ -141,6 +159,231 @@ export class DurableAccount extends DurableObject<Env> {
     return {
       success: true,
       resume
+    }
+  }
+
+  scheduleMockInterview (data: {
+    title: string
+    description?: string
+    scheduledDate: number
+    durationMinutes?: number
+    interviewType?: string
+    resumeId?: number
+    notes?: string
+  }) {
+    const {
+      title,
+      description,
+      scheduledDate,
+      durationMinutes = 60,
+      interviewType = 'technical',
+      resumeId,
+      notes
+    } = data
+
+    const result = this.ctx.storage.sql.exec<{ id: number }>(
+      `
+        INSERT INTO mock_interviews (title, description, scheduled_date, duration_minutes, interview_type, resume_id, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING id
+      `,
+      title,
+      description ?? null,
+      scheduledDate,
+      durationMinutes,
+      interviewType,
+      resumeId ?? null,
+      notes ?? null
+    ).one()
+
+    return {
+      success: true,
+      interviewId: result.id
+    }
+  }
+
+  listMockInterviews (filters?: { status?: string; upcoming?: boolean }) {
+    let query = `
+      SELECT id, title, description, scheduled_date, duration_minutes, interview_type, status, resume_id, notes, feedback, created_date, updated_date
+      FROM mock_interviews
+    `
+    const conditions: string[] = []
+    const params: any[] = []
+
+    if (filters?.status) {
+      conditions.push('status = ?')
+      params.push(filters.status)
+    }
+
+    if (filters?.upcoming) {
+      conditions.push('scheduled_date >= ?')
+      params.push(Math.floor(Date.now() / 1000))
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ')
+    }
+
+    query += ' ORDER BY scheduled_date ASC'
+
+    const interviews = this.ctx.storage.sql.exec<{
+      id: number
+      title: string
+      description: string | null
+      scheduled_date: number
+      duration_minutes: number
+      interview_type: string
+      status: string
+      resume_id: number | null
+      notes: string | null
+      feedback: string | null
+      created_date: number
+      updated_date: number
+    }>(query, ...params).toArray()
+
+    return {
+      success: true,
+      interviews
+    }
+  }
+
+  getMockInterview (interviewId: number) {
+    const interview = this.ctx.storage.sql.exec<{
+      id: number
+      title: string
+      description: string | null
+      scheduled_date: number
+      duration_minutes: number
+      interview_type: string
+      status: string
+      resume_id: number | null
+      notes: string | null
+      feedback: string | null
+      created_date: number
+      updated_date: number
+    }>(
+      `
+      SELECT id, title, description, scheduled_date, duration_minutes, interview_type, status, resume_id, notes, feedback, created_date, updated_date
+      FROM mock_interviews
+      WHERE id = ?
+    `,
+      interviewId
+    ).one()
+
+    return {
+      success: true,
+      interview
+    }
+  }
+
+  updateMockInterview (interviewId: number, data: {
+    title?: string
+    description?: string
+    scheduledDate?: number
+    durationMinutes?: number
+    interviewType?: string
+    status?: string
+    resumeId?: number
+    notes?: string
+    feedback?: string
+  }) {
+    const updates: string[] = []
+    const params: any[] = []
+
+    if (data.title !== undefined) {
+      updates.push('title = ?')
+      params.push(data.title)
+    }
+    if (data.description !== undefined) {
+      updates.push('description = ?')
+      params.push(data.description)
+    }
+    if (data.scheduledDate !== undefined) {
+      updates.push('scheduled_date = ?')
+      params.push(data.scheduledDate)
+    }
+    if (data.durationMinutes !== undefined) {
+      updates.push('duration_minutes = ?')
+      params.push(data.durationMinutes)
+    }
+    if (data.interviewType !== undefined) {
+      updates.push('interview_type = ?')
+      params.push(data.interviewType)
+    }
+    if (data.status !== undefined) {
+      updates.push('status = ?')
+      params.push(data.status)
+    }
+    if (data.resumeId !== undefined) {
+      updates.push('resume_id = ?')
+      params.push(data.resumeId)
+    }
+    if (data.notes !== undefined) {
+      updates.push('notes = ?')
+      params.push(data.notes)
+    }
+    if (data.feedback !== undefined) {
+      updates.push('feedback = ?')
+      params.push(data.feedback)
+    }
+
+    if (updates.length === 0) {
+      return {
+        success: false,
+        error: 'No updates provided'
+      }
+    }
+
+    updates.push('updated_date = strftime(\'%s\', \'now\')')
+    params.push(interviewId)
+
+    const result = this.ctx.storage.sql.exec<{ id: number }>(
+      `
+        UPDATE mock_interviews
+        SET ${updates.join(', ')}
+        WHERE id = ?
+        RETURNING id
+      `,
+      ...params
+    ).one()
+
+    return {
+      success: true,
+      interviewId: result.id
+    }
+  }
+
+  cancelMockInterview (interviewId: number) {
+    const result = this.ctx.storage.sql.exec<{ id: number }>(
+      `
+        UPDATE mock_interviews
+        SET status = 'cancelled', updated_date = strftime('%s', 'now')
+        WHERE id = ?
+        RETURNING id
+      `,
+      interviewId
+    ).one()
+
+    return {
+      success: true,
+      interviewId: result.id
+    }
+  }
+
+  deleteMockInterview (interviewId: number) {
+    const result = this.ctx.storage.sql.exec<{ id: number; title: string }>(
+      `
+        DELETE FROM mock_interviews
+        WHERE id = ?
+        RETURNING id, title
+      `,
+      interviewId
+    ).one()
+
+    return {
+      success: true,
+      interviewId: result.id,
+      title: result.title
     }
   }
 }
