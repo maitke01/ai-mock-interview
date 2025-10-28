@@ -1,11 +1,14 @@
 import { type Context, Hono } from 'hono'
 import { loginRoute } from './lib/routes/login/loginRoute'
 import { registerRoute } from './lib/routes/login/registerRoute'
+import { addResumeRoute } from './lib/routes/resume/addResumeRoute'
 import { atsScoreRoute } from './lib/routes/resume/atsScoreRoute'
+import { deleteResumeRoute } from './lib/routes/resume/deleteResumeRoute'
 import { extractKeywordsRoute } from './lib/routes/resume/extractKeywordsRoute'
 import { formatResumeRoute } from './lib/routes/resume/formatResumeRoute'
+import { getResumeRoute } from './lib/routes/resume/getResumeRoute'
+import { listResumesRoute } from './lib/routes/resume/listResumesRoute'
 import { optimizeResumeRoute } from './lib/routes/resume/optimizeResumeRoute'
-import { resumeUploadRoute } from './lib/routes/resume/resumeUploadRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -14,12 +17,17 @@ export type Route<R extends string = string> = (ctx: Context<Bindings, R>) => Pr
 const app = new Hono({ strict: false })
   .post('/login', loginRoute)
   .post('/register', registerRoute)
+  .post('/api/add-resume', addResumeRoute)
+  .delete('/api/delete-resume', deleteResumeRoute)
+  .get('/api/get-resume/:id', getResumeRoute)
+  .get('/api/list-resumes', listResumesRoute)
   .post('/api/optimize-resume', optimizeResumeRoute)
   .post('/api/extract-keywords', extractKeywordsRoute)
   .post('/api/ats-score', atsScoreRoute)
   .post('/api/format-resume', formatResumeRoute)
-  .post('/api/resume-upload', resumeUploadRoute)
 
 export default {
   fetch: app.fetch
 } satisfies ExportedHandler<Env>
+
+export { DurableAccount } from './lib/account/DurableAccount'

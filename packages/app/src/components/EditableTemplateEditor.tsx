@@ -54,7 +54,7 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
   const [mode, setMode] = useState<'scratch' | 'template'>('scratch')
   const [templateType, setTemplateType] = useState<'modern' | 'classic'>('modern')
   const [templateData, setTemplateData] = useState({ header: '', sidebar: '', mainContent: '' })
-  const { saveResumeDraft } = useResumeStore()
+  const { uploadResume } = useResumeStore()
 
   useEffect(() => {
     const base = resume?.text || ''
@@ -85,7 +85,9 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
       : text
     onSave({ ...resume, text: finalText })
     const title = resume.fileName || `Resume Draft ${new Date().toISOString().split('T')[0]}`
-    saveResumeDraft(title, finalText, templateType)
+    const blob = new Blob([finalText], { type: 'text/plain' })
+    const file = new File([blob], title, { type: 'text/plain' })
+    uploadResume(file, title)
   }
 
   const handleDownload = () => {
@@ -173,14 +175,13 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
   const saveDraft = () => {
     if (!resume) return alert('No resume loaded to save draft')
     try {
-      const key = `resume-draft-${templateType}`
-      const draft = { ...templateData, savedAt: new Date().toISOString(), template: templateType }
-      localStorage.setItem(key, JSON.stringify(draft))
       const draftTitle = `${resume.fileName || 'Resume'} - Draft`
       const draftContent = mode === 'template'
         ? `${templateData.header}\n\n${templateData.sidebar}\n\n${templateData.mainContent}`
         : text
-      saveResumeDraft(draftTitle, draftContent, templateType)
+      const blob = new Blob([draftContent], { type: 'text/plain' })
+      const file = new File([blob], draftTitle, { type: 'text/plain' })
+      uploadResume(file, draftTitle)
     } catch (e) {
       console.error('Failed to save draft', e)
       alert('Failed to save draft')
@@ -203,7 +204,9 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
       console.log('format result', data)
       const submitTitle = `${resume.fileName || 'Resume'} - AI Formatted`
       const submitContent = `${templateData.header}\n\n${templateData.sidebar}\n\n${templateData.mainContent}`
-      saveResumeDraft(submitTitle, submitContent, templateType)
+      const blob = new Blob([submitContent], { type: 'text/plain' })
+      const file = new File([blob], submitTitle, { type: 'text/plain' })
+      uploadResume(file, submitTitle)
     } catch (err) {
       console.warn('format submit failed', err)
       alert('Failed to submit for formatting. Saved draft locally.')

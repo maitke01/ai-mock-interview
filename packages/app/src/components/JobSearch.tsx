@@ -53,8 +53,9 @@ const JobSearch: React.FC = () => {
     if (!selectedResume) return alert('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
     if (!keywords || keywords.length === 0) return alert('No keywords extracted. Please extract keywords first.')
 
-  const resumeTextSource = selectedResume.text ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
-  const resumeText = String(resumeTextSource).toLowerCase()
+    const resumeTextSource = selectedResume.text
+      ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
+    const resumeText = String(resumeTextSource).toLowerCase()
     const matched: string[] = []
     const missing: string[] = []
 
@@ -186,11 +187,12 @@ const JobSearch: React.FC = () => {
                         <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
                         <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
                         <div className='flex flex-wrap gap-2 mt-2'>
-                          {matchedSkillsState.length === 0 ? (
-                            <span className='text-xs text-gray-300'>None</span>
-                          ) : (
+                          {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
                             matchedSkillsState.map((m, i) => (
-                              <span key={i} className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'>
+                              <span
+                                key={i}
+                                className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'
+                              >
                                 {m}
                               </span>
                             ))
@@ -198,11 +200,12 @@ const JobSearch: React.FC = () => {
                         </div>
                         <p className='text-xs text-gray-300 mt-3'>Missing Skills</p>
                         <div className='flex flex-wrap gap-2 mt-2'>
-                          {missingSkillsState.length === 0 ? (
-                            <span className='text-xs text-gray-300'>None</span>
-                          ) : (
+                          {missingSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
                             missingSkillsState.map((m, i) => (
-                              <span key={i} className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'>
+                              <span
+                                key={i}
+                                className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'
+                              >
                                 {m}
                               </span>
                             ))
