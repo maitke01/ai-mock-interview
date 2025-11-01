@@ -126,8 +126,41 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) void addFiles(e.target.files)
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await addFiles(e.target.files)
+      
+      const file = e.target.files[0]
+      if (file) {
+        try {
+          // Read file content
+          const text = await file.text()
+          console.log('File text length:', text.length)
+          
+          // Call readability API
+          const response = await fetch('/api/readability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resumeText: text })
+          })
+          
+          console.log('Response status:', response.status)
+          const data = await response.json()
+          console.log('Readability data:', data)
+          
+          // Update dashboard
+          if (data.readabilityScore !== undefined) {
+            console.log('Updating readability score to:', data.readabilityScore)
+            ;(window as any).updateReadabilityScore?.(data.readabilityScore)
+            console.log('LocalStorage after update:', localStorage.getItem('readabilityScore'))
+          } else {
+            console.log('No readabilityScore in response')
+          }
+        } catch (error) {
+          console.error('Readability analysis failed:', error)
+        }
+      }
+    }
     e.target.value = ''
   }
 

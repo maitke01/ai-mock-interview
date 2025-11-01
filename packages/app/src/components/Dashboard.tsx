@@ -9,6 +9,7 @@ const Dashboard: React.FC = () => {
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [resumeCompletion, setResumeCompletion] = useState<number>(0)
   const [keywordMatch, setKeywordMatch] = useState<number | null>(null)
+  const [readabilityScore, setReadabilityScore] = useState<number | null>(null)
   const [interviewToCancel, setInterviewToCancel] = useState<number | null>(null)
 
   const { data: interviewsData, isLoading: interviewsLoading } = useInterviews({ upcoming: true })
@@ -19,12 +20,15 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const s = localStorage.getItem('atsScore')
     if (s !== null) setAtsScore(Number(s))
-
+  
     const rc = localStorage.getItem('resumeCompletion')
     if (rc !== null) setResumeCompletion(Number(rc))
-
+  
     const km = localStorage.getItem('keywordMatch')
     if (km !== null) setKeywordMatch(Number(km))
+  
+    const rs = localStorage.getItem('readabilityScore')
+    if (rs !== null) setReadabilityScore(Number(rs))
   }, [])
 
   useEffect(() => {
@@ -32,7 +36,13 @@ const Dashboard: React.FC = () => {
       setAtsScore(n)
       localStorage.setItem('atsScore', String(n))
     }
+    
+    ;(window as any).updateReadabilityScore = (n: number) => {
+      setReadabilityScore(n)
+      localStorage.setItem('readabilityScore', String(n))
+    }
   }, [])
+
 
   const formatDateTime = (scheduledDate: number) => {
     const dateObj = new Date(scheduledDate * 1000)
@@ -244,7 +254,7 @@ const Dashboard: React.FC = () => {
                     <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Keyword Match</div>
                   </div>
                   <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
-                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>0</div>
+                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{readabilityScore ?? 0}</div>
                     <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
                     <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Readability</div>
                   </div>

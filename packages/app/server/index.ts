@@ -15,6 +15,7 @@ import { formatResumeRoute } from './lib/routes/resume/formatResumeRoute'
 import { getResumeRoute } from './lib/routes/resume/getResumeRoute'
 import { listResumesRoute } from './lib/routes/resume/listResumesRoute'
 import { optimizeResumeRoute } from './lib/routes/resume/optimizeResumeRoute'
+import { readabilityRoute } from './lib/routes/resume/readabilityRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -37,6 +38,7 @@ const app = new Hono({ strict: false })
   .patch('/api/update-mock-interview/:id', updateMockInterviewRoute)
   .post('/api/cancel-mock-interview/:id', cancelMockInterviewRoute)
   .delete('/api/delete-mock-interview/:id', deleteMockInterviewRoute)
+  .post('/api/readability', readabilityRoute)
 
 export default {
   fetch: app.fetch
