@@ -21,7 +21,7 @@ const MockInterview: React.FC = () => {
   } = useSpeechRecognition()
 
   useEffect(() => {
-    initialize()
+    void initialize()
   }, [initialize])
 
   useEffect(() => {
@@ -34,7 +34,7 @@ const MockInterview: React.FC = () => {
     if (isRecording) {
       stopRecording()
     } else {
-      startRecording()
+      void startRecording()
     }
   }
 
