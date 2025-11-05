@@ -76,6 +76,13 @@ const JobSearch: React.FC = () => {
       console.warn('Failed to persist skill gap results', e)
     }
 
+    // Notify dashboard (and other listeners) that keyword match changed so resume completion can update
+    try {
+      window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } }))
+    } catch (e) {
+      console.warn('Failed to dispatch resumeScoresUpdated from JobSearch', e)
+    }
+
     // show results inline instead of navigating away
     setMatchedSkillsState(matched)
     setMissingSkillsState(missing)
@@ -278,16 +285,36 @@ const JobSearch: React.FC = () => {
                   <div className='space-y-3'>
                     <div>
                       <div className='font-medium text-gray-800 dark:text-gray-200'>{selectedResume.fileName}</div>
-                      {selectedResume.optimized && (
+                      {/* Prefer showing the optimized text when available; fall back to the raw text */}
+                      {(typeof selectedResume.optimized === 'string' && selectedResume.optimized.trim()) ? (
                         <div className='mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-sm text-green-900 dark:text-green-100'>
-                          {String(selectedResume.optimized)}
+                          {selectedResume.optimized}
                         </div>
-                      )}
+                      ) : selectedResume.text ? (
+                        <div className='mt-2 bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2 text-sm text-gray-900 dark:text-gray-100'>
+                          {selectedResume.text}
+                        </div>
+                      ) : null}
                     </div>
                     <EditableTemplateEditor
-                      resume={selectedResume}
+                      resume={{
+                        fileName: selectedResume.fileName,
+                        text: selectedResume.text,
+                        images: selectedResume.images,
+                        // ensure the minimal type expects a string or null for optimized
+                        optimized: typeof selectedResume.optimized === 'string' ? selectedResume.optimized : null
+                      }}
                       suggestion={resumeSuggestion}
-                      onSave={handleSaveEditedResume}
+                      onSave={(updated) => {
+                        // Convert MinimalSelectedResume back into the full SelectedResume shape
+                        const merged: SelectedResume = {
+                          fileName: updated.fileName ?? selectedResume.fileName,
+                          text: updated.optimized ?? updated.text ?? selectedResume.text,
+                          images: updated.images ?? selectedResume.images,
+                          optimized: updated.optimized ?? updated.text ?? selectedResume.optimized
+                        }
+                        handleSaveEditedResume(merged)
+                      }}
                     />
                     {selectedResume.images && selectedResume.images.length > 0 && (
                       <div>
