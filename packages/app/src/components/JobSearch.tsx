@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
-import EditableTemplateEditor from './EditableTemplateEditor'
+import EditableTemplateEditor from './EditableTemplateEditor.tsx'
 
 const JobSearch: React.FC = () => {
   const [query, setQuery] = useState('')

@@ -4,8 +4,8 @@ import type { SelectedResume } from '../types/resume'
 import { extractImages, extractText } from 'unpdf'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
-import modernPreview from "./assets/modern-preview.png"
-import classicPreview from "./assets/classic-preview.png"
+import modernPreview from "./assets/modern-preview.svg"
+import classicPreview from "./assets/classic-preview.svg"
 import modernPDF from "./assets/pdfs/modern-template.pdf"
 import classicPDF from "./assets/pdfs/classic-template.pdf"
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'

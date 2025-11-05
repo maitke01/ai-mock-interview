@@ -1,64 +1,24 @@
 import type { Route } from '../../../index'
 
 export const resumeUploadRoute: Route = async (ctx) => {
-  const account = await ctx.env.AUTH.getAccount(ctx.req.header('Cookie')).catch(() => null)
-
-  if (account === null) {
-    return ctx.json({ error: 'Unauthorized' }, 401)
-  }
-
   try {
-    const { title, content, templateType } = await ctx.req.json()
+    // Expect a multipart/form-data request with a file field named 'file'
+    const req = ctx.req
+    // formData is supported in the Cloudflare-like worker environment
+    const formData = await req.formData()
+    const file = formData.get('file') as unknown as File | null
 
-    if (!title || typeof title !== 'string') {
-      return ctx.json({ error: 'Missing or invalid title' }, 400)
+    if (!file || typeof (file as any).name !== 'string') {
+      return ctx.json({ error: 'No file uploaded or invalid file field' }, 400)
     }
 
-    if (!content || typeof content !== 'string') {
-      return ctx.json({ error: 'Missing or invalid content' }, 400)
-    }
+    const fileName = (file as any).name || 'upload'
+    // We don't persist the file in this minimal implementation. For production,
+    // you'd store it in durable storage (R2, D1, or external storage) or process it.
 
-    // Check if draft already exists for this user with this title
-    const existingDraft = await ctx.env.DB.prepare(`
-      SELECT id FROM resume_drafts WHERE title = ? AND account_id = ?
-    `).bind(title, account.accountId).first()
-
-    let result
-    if (existingDraft) {
-      // Update existing draft
-      result = await ctx.env.DB.prepare(`
-        UPDATE resume_drafts 
-        SET content = ?, template_type = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(content, templateType || 'modern', existingDraft.id).run()
-    } else {
-      // Create new draft
-      result = await ctx.env.DB.prepare(`
-        INSERT INTO resume_drafts (title, content, template_type, account_id)
-        VALUES (?, ?, ?, ?)
-      `).bind(title, content, templateType || 'modern', account.accountId).run()
-    }
-
-    if (!result.success) {
-      throw new Error('Failed to save resume draft')
-    }
-
-    return ctx.json({
-      success: true,
-      message: existingDraft ? 'Resume draft updated successfully' : 'Resume draft saved successfully',
-      data: {
-        id: existingDraft ? existingDraft.id : result.meta.last_row_id,
-        title,
-        templateType: templateType || 'modern',
-        accountId: account.accountId
-      }
-    })
+    return ctx.json({ success: true, fileName, size: (file as any).size ?? null })
   } catch (error) {
     console.error('Error in resumeUploadRoute:', error)
-
-    return ctx.json({
-      error: 'Failed to save resume draft',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, 500)
+    return ctx.json({ error: 'Failed to handle resume upload', details: error instanceof Error ? error.message : String(error) }, 500)
   }
 }
