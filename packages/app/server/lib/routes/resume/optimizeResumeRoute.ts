@@ -35,53 +35,17 @@ Please provide an improved version of this resume with the following improvement
 
 Provide the optimized resume content followed by a detailed summary of the key improvements made.`
 
-    // Ensure AI binding exists
-    if (!ctx.env || !(ctx as any).env || !(ctx.env as any).AI) {
-      console.error('AI binding not available in environment')
-      return ctx.json({ error: 'AI service not available in server environment' }, 501)
-    }
-
-    let aiResponse: any
-    try {
-      aiResponse = await ctx.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-        prompt: prompt,
-        // moderately creative (more creative & varied)
-        temperature: 0.7,
-        // vocabulary diversity
-        top_p: 0.9
-      })
-    } catch (aiError) {
-      console.error('AI.run failed:', aiError)
-      return ctx.json({ error: 'AI service error', details: aiError instanceof Error ? aiError.message : String(aiError) }, 502)
-    }
+    const aiResponse = await ctx.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      prompt: prompt,
+      // moderately creative (more creative & varied)
+      temperature: 0.7,
+      // vocabulary diversity
+      top_p: 0.9
+    })
 
     if (!aiResponse || !aiResponse.response) {
-      console.error('AI returned no response', aiResponse)
-      return ctx.json({ error: 'No response from AI service', details: aiResponse }, 502)
+      throw new Error('No response from AI service')
     }
-
-    // Compute a simple readability score to return with the optimized resume
-    // (same approach as readabilityRoute)
-    const resumeText = String(aiResponse.response).trim()
-    const sentences = resumeText.split(/[.!?]+/).filter(Boolean)
-    const words = resumeText.split(/\s+/).filter(Boolean)
-
-    function countSyllables(word: string): number {
-      word = word.toLowerCase()
-      if (word.length <= 3) return 1
-      const matches = word.match(/[aeiouy]{1,2}/g)
-      return matches ? matches.length : 1
-    }
-
-    const totalWords = words.length
-    const totalSentences = sentences.length
-    const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
-
-    const fleschScore = totalSentences > 0 && totalWords > 0
-      ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
-      : 0
-
-    const normalizedScore = Math.max(0, Math.min(100, Math.round(fleschScore)))
 
     return ctx.json({
       success: true,
@@ -89,9 +53,7 @@ Provide the optimized resume content followed by a detailed summary of the key i
       fileName: fileName,
       originalLength: text.length,
       optimizedLength: aiResponse.response.length,
-      model: '@cf/meta/llama-3.1-8b-instruct',
-      readabilityScore: normalizedScore,
-      score: normalizedScore
+      model: '@cf/meta/llama-3.1-8b-instruct'
     })
   } catch (error) {
     console.error('Error in optimizeResumeRoute:', error)

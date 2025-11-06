@@ -1,27 +1,19 @@
 import { create } from 'zustand'
 
 interface ResumeStore {
-  uploadResume: (file: File, fileName?: string, totalPages?: number) => Promise<void>
+  saveResumeDraft: (title: string, content: string, templateType?: string) => Promise<void>
 }
 
 export const useResumeStore = create<ResumeStore>(() => ({
-  uploadResume: async (file: File, fileName?: string, totalPages?: number) => {
+  saveResumeDraft: async (title: string, content: string, templateType: string = 'modern') => {
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      if (fileName) {
-        formData.append('fileName', fileName)
-      }
-      if (totalPages) {
-        formData.append('totalPages', totalPages.toString())
-      }
-
-      await fetch('/api/add-resume', {
+      await fetch('/api/resume-upload', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, templateType })
       })
     } catch (error) {
-      console.warn('Resume upload failed', error)
+      console.warn('Resume draft save failed', error)
     }
   }
 }))
