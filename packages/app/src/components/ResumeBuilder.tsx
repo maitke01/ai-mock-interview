@@ -4,8 +4,8 @@ import type { SelectedResume } from '../types/resume'
 import { extractImages, extractText } from 'unpdf'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
-import modernPreview from "./assets/modern-preview.svg"
-import classicPreview from "./assets/classic-preview.svg"
+import modernPreview from "./assets/modern-preview.png"
+import classicPreview from "./assets/classic-preview.png"
 import modernPDF from "./assets/pdfs/modern-template.pdf"
 import classicPDF from "./assets/pdfs/classic-template.pdf"
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
@@ -49,9 +49,9 @@ const ResumeBuilder: React.FC = () => {
   // Template states
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
   const [resumeTemplate, setResumeTemplate] = useState({
-    header: 'Your Name\nEmail | Phone',
-    sidebar: 'EDUCATION\nUniversity Name\nDegree, Year\n\nSKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nLANGUAGES\n• English\n• Spanish',
-    mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your background.\n\nWORK HISTORY\n\nJob Title | Company\nDates\n• Responsibility 1\n• Responsibility 2\n\nPROJECTS\n\nProject Name\n• Key achievement\n\nAWARDS\n• Award 1\n• Award 2'
+    header: 'Your Name\nyour.email@example.com\n(123) 456-7890\nLinkedIn Profile',
+    sidebar: 'SKILLS\n\nEDUCATION\n\nCERTIFICATIONS\n\nLANGUAGES',
+    mainContent: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS\n\nACHIEVEMENTS'
   })
   const [resumeMode, setResumeMode] = useState<'scratch' | 'template'>('scratch')
   const [selectedTemplate, setSelectedTemplate] = useState<'modern' | 'classic' | null>(null)
@@ -229,146 +229,9 @@ const ResumeBuilder: React.FC = () => {
       // store optimized version and set preview target
       setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
       setLastOptimizedFile(fileName)
-
-      // persist optimized resume for the Job Search flow so selecting it immediately works
-      try {
-        const selected: SelectedResume = {
-          fileName,
-          text: optimized,
-          images: pdfData[fileName]?.images || [],
-          // store the optimized text (string) so other pages can show the improved resume immediately
-          optimized: optimized
-        }
-        sessionStorage.setItem('selectedResume', JSON.stringify(selected))
-      } catch (err) {
-        console.warn('Failed to persist optimized resume to sessionStorage', err)
-      }
-
-      // prefer readability returned by server; otherwise compute locally and update dashboard
-      const computeReadability = (text: string) => {
-        const countSyllables = (word: string) => {
-          word = word.toLowerCase()
-          if (word.length <= 3) return 1
-          const matches = word.match(/[aeiouy]{1,2}/g)
-          return matches ? matches.length : 1
-        }
-        const t = text.trim()
-        if (!t) return 0
-        const sentences = t.split(/[.!?]+/).filter(Boolean)
-        const words = t.split(/\s+/).filter(Boolean)
-        const totalWords = words.length
-        const totalSentences = sentences.length || 1
-        const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
-        const flesch = totalSentences > 0 && totalWords > 0
-          ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
-          : 0
-        return Math.max(0, Math.min(100, Math.round(flesch)))
-      }
-
-      const returnedRaw = result?.readabilityScore ?? result?.score ?? null
-      const returnedScore = returnedRaw !== null && returnedRaw !== undefined ? Number(returnedRaw) : null
-      let finalReadability: number | null = null
-      if (returnedScore !== null && Number.isFinite(returnedScore)) {
-        finalReadability = Number(returnedScore)
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore with', finalReadability)
-          ;(window as any).updateReadabilityScore(finalReadability)
-        } else {
-          console.debug('ResumeBuilder: updateReadabilityScore not available, writing to localStorage', finalReadability)
-          try { localStorage.setItem('readabilityScore', String(finalReadability)) } catch (e) { /* noop */ }
-        }
-      } else {
-        // compute local fallback
-        const localScore = computeReadability(optimized)
-        finalReadability = localScore
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore with local fallback', localScore)
-          ;(window as any).updateReadabilityScore(localScore)
-        } else {
-          console.debug('ResumeBuilder: updateReadabilityScore not available for local fallback, writing to localStorage', localScore)
-          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
-        }
-      }
-
-  // Also request ATS score for the optimized resume and update dashboard
-  let finalAts: number | null = null
-  try {
-        const ares = await fetch('/api/ats-score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resumeText: optimized })
-        })
-        if (ares.ok) {
-          const ajson: any = await ares.json()
-          const atsRaw = ajson?.atsScore ?? ajson?.score ?? null
-          const ats = atsRaw !== null && atsRaw !== undefined ? Number(atsRaw) : null
-          if (ats !== null && Number.isFinite(ats)) {
-            if (typeof (window as any)?.updateAtsScore === 'function') {
-              console.debug('ResumeBuilder: calling updateAtsScore with', ats)
-              ;(window as any).updateAtsScore(ats)
-            } else {
-              try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
-            }
-            // remember final ATS for event dispatch
-            finalAts = ats
-          }
-        } else {
-          console.warn('/api/ats-score returned non-ok status', ares.status)
-        }
-      } catch (err) {
-        console.warn('Failed to fetch ATS score', err)
-      }
-      // dispatch a custom event so Dashboard will always receive both values
-      try {
-        const detail: any = {}
-        if (typeof finalAts !== 'undefined') detail.atsScore = finalAts
-        if (typeof finalReadability !== 'undefined' && finalReadability !== null) detail.readabilityScore = finalReadability
-        if (Object.keys(detail).length > 0) {
-          window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail }))
-        }
-      } catch (e) {
-        console.warn('Failed to dispatch resumeScoresUpdated event', e)
-      }
     } catch (error) {
       console.error('Error optimizing resume:', error)
-      alert('Network error while optimizing resume. A local readability estimate will be used.')
-      // Apply a local fallback so the dashboard reflects a change
-      try {
-        const fallbackText = data.text || ''
-        const localScore = (function computeReadabilityInline(text: string) {
-          const countSyllables = (word: string) => {
-            word = word.toLowerCase()
-            if (word.length <= 3) return 1
-            const matches = word.match(/[aeiouy]{1,2}/g)
-            return matches ? matches.length : 1
-          }
-          const t = text.trim()
-          if (!t) return 0
-          const sentences = t.split(/[.!?]+/).filter(Boolean)
-          const words = t.split(/\s+/).filter(Boolean)
-          const totalWords = words.length
-          const totalSentences = sentences.length || 1
-          const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
-          const flesch = totalSentences > 0 && totalWords > 0
-            ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
-            : 0
-          return Math.max(0, Math.min(100, Math.round(flesch)))
-        })(fallbackText)
-
-        setAiOptimizedResumes(prev => ({ ...prev, [fileName]: fallbackText }))
-        setLastOptimizedFile(fileName)
-  try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
-
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
-          ;(window as any).updateReadabilityScore(localScore)
-        } else {
-          console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to localStorage', localScore)
-          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
-        }
-      } catch (e) {
-        console.warn('Failed to apply local fallback after optimize error', e)
-      }
+      alert('Failed to optimize resume. Please try again.')
     } finally {
       setOptimizingFiles(prev => prev.filter(n => n !== fileName))
     }
@@ -1219,7 +1082,7 @@ const ResumeBuilder: React.FC = () => {
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
       {/* Header Nav */}
-      <div className='bg-blue-600 dark:bg-blue-800 shadow-sm'>
+      <div className='bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 shadow-lg'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='flex justify-between items-center py-4'>
             <div className="flex items-center gap-3">
@@ -1228,28 +1091,25 @@ const ResumeBuilder: React.FC = () => {
               </svg>
               <h1 className='text-2xl font-bold text-white'>Resume Builder Pro</h1>
             </div>
-            <nav className='flex space-x-8'>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/dashboard')}
-              >
+            <nav className='flex space-x-6'>
+              <button className='text-white font-medium hover:text-blue-100 transition-colors flex items-center gap-2' onClick={() => navigate('/dashboard')}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
                 Dashboard
-              </a>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/resume')}
-              >
+              </button>
+              <button className='text-white font-medium hover:text-blue-100 transition-colors flex items-center gap-2' onClick={() => navigate('/resume')}>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                </svg>
                 Resume Builder
-              </a>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/interview')}
-              >
+              </button>
+              <button className='text-white font-medium hover:text-blue-100 transition-colors flex items-center gap-2' onClick={() => navigate('/interview')}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
                 Mock Interview
-              </a>
+              </button>
             </nav>
           </div>
         </div>

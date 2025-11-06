@@ -1,7 +1,6 @@
 import type React from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useScheduleInterview } from '../hooks/useInterviews'
 
 const ScheduleInterview: React.FC = () => {
   const navigate = useNavigate()
@@ -10,41 +9,30 @@ const ScheduleInterview: React.FC = () => {
   const [interviewType, setInterviewType] = useState('Technical - Algorithms')
   const [showPopup, setShowPopup] = useState(false)
 
-  const scheduleInterviewMutation = useScheduleInterview()
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Combine date and time into a Unix timestamp
-    const dateTimeString = `${date}T${time}:00`
-    const scheduledDate = Math.floor(new Date(dateTimeString).getTime() / 1000)
+    const newInterview = {
+      id: Date.now().toString(),
+      date,
+      time,
+      type: interviewType,
+      scheduledAt: new Date().toISOString()
+    }
 
-    scheduleInterviewMutation.mutate(
-      {
-        title: interviewType,
-        scheduledDate,
-        durationMinutes: 60,
-        interviewType: interviewType.toLowerCase().includes('technical')
-          ? 'technical'
-          : interviewType.toLowerCase().includes('behavioral')
-          ? 'behavioral'
-          : 'systems_design'
-      },
-      {
-        onSuccess: () => {
-          setShowPopup(true)
-        },
-        onError: (error) => {
-          console.error('Failed to schedule interview:', error)
-          alert('Failed to schedule interview. Please try again.')
-        }
-      }
-    )
+    const existingInterviews = localStorage.getItem('scheduledInterviews')
+    const interviews = existingInterviews ? JSON.parse(existingInterviews) : []
+
+    interviews.push(newInterview)
+    localStorage.setItem('scheduledInterviews', JSON.stringify(interviews))
+
+    // Show popup instead of alert
+    setShowPopup(true)
   }
 
   const handleOkClick = () => {
     setShowPopup(false)
-    void navigate('/dashboard')
+    navigate('/dashboard')
   }
 
   return (
@@ -93,12 +81,8 @@ const ScheduleInterview: React.FC = () => {
           </div>
 
           <div className='text-center'>
-            <button
-              type='submit'
-              disabled={scheduleInterviewMutation.isPending}
-              className='ml-3 text-sm font-bold text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed'
-            >
-              {scheduleInterviewMutation.isPending ? 'Scheduling...' : 'Schedule'}
+            <button type='submit' className='ml-3 text-sm font-bold text-gray-600 dark:text-gray-300'>
+              Schedule
             </button>
             <button
               type='button'

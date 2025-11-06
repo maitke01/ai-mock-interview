@@ -34,13 +34,13 @@ ${jobDescription}
     let parsed: any = { keywords: [], resumeSuggestion: '' }
     try {
       parsed = JSON.parse(aiResponse.response)
-    } catch {
+    } catch (err) {
       // If parsing fails, attempt to extract JSON substring
       const m = aiResponse.response.match(/\{[\s\S]*\}/)
       if (m) {
         try {
           parsed = JSON.parse(m[0])
-        } catch { /* ignore */ }
+        } catch (_) { /* ignore */ }
       }
     }
 

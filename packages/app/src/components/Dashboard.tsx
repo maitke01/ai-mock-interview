@@ -2,54 +2,22 @@ import { X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDeleteInterview, useInterviews } from '../hooks/useInterviews'
+
+interface ScheduledInterview {
+  id: string
+  date: string
+  time: string
+  type: string
+  scheduledAt: string
+}
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [resumeCompletion, setResumeCompletion] = useState<number>(0)
   const [keywordMatch, setKeywordMatch] = useState<number | null>(null)
-  const [readabilityScore, setReadabilityScore] = useState<number | null>(null)
-  const [interviewToCancel, setInterviewToCancel] = useState<number | null>(null)
-
-  const { data: interviewsData, isLoading: interviewsLoading } = useInterviews({ upcoming: true })
-  const deleteInterviewMutation = useDeleteInterview()
-
-  const scheduledInterviews = interviewsData?.interviews || []
-
-  // Recompute resume completion score using available stored data: selectedResume (sessionStorage) and keywordMatch
-  function recomputeResumeCompletion() {
-    try {
-      const raw = sessionStorage.getItem('selectedResume')
-      let selected: any = null
-      if (raw) selected = JSON.parse(raw)
-
-      // Heuristic weights (kept consistent with ResumeBuilder):
-      // - has resume text: 20
-      // - optimized resume present: 40
-      // - keywordMatch (0-100) contributes up to 40
-      let score = 0
-      const hasText = selected && (selected.text || '').toString().trim().length > 0
-      const hasOptimized = selected && typeof selected.optimized === 'string' && (selected.optimized as string).trim().length > 0
-
-      if (hasText) score += 20
-      if (hasOptimized) score += 40
-
-      const kmRaw = localStorage.getItem('keywordMatch')
-      const km = kmRaw !== null ? Number(kmRaw) : (keywordMatch ?? null)
-      if (km !== null && !Number.isNaN(km)) {
-        const kmContribution = Math.round(Math.max(0, Math.min(100, Number(km))) * 0.4) // scale to 0-40
-        score += kmContribution
-      }
-
-      if (score > 100) score = 100
-      console.debug('Dashboard: recomputeResumeCompletion', { hasText, hasOptimized, km: kmRaw ?? keywordMatch, score })
-      setResumeCompletion(score)
-      try { localStorage.setItem('resumeCompletion', String(score)) } catch (e) { /* noop */ }
-    } catch (e) {
-      console.warn('Failed to recompute resume completion', e)
-    }
-  }
+  const [scheduledInterviews, setScheduledInterviews] = useState<ScheduledInterview[]>([])
+  const [interviewToCancel, setInterviewToCancel] = useState<string | null>(null)
 
   useEffect(() => {
     const s = localStorage.getItem('atsScore')
@@ -61,81 +29,23 @@ const Dashboard: React.FC = () => {
     const km = localStorage.getItem('keywordMatch')
     if (km !== null) setKeywordMatch(Number(km))
 
-    const rs = localStorage.getItem('readabilityScore')
-    if (rs !== null) setReadabilityScore(Number(rs))
-
-    // Ensure derived completion is calculated on mount
-    recomputeResumeCompletion()
+    const interviews = localStorage.getItem('scheduledInterviews')
+    if (interviews) {
+      setScheduledInterviews(JSON.parse(interviews))
+    }
   }, [])
 
   useEffect(() => {
-    ; (window as any).updateAtsScore = (n: number) => {
+    ;(window as any).updateAtsScore = (n: number) => {
       setAtsScore(n)
       localStorage.setItem('atsScore', String(n))
     }
-
-      ; (window as any).updateReadabilityScore = (n: number) => {
-        setReadabilityScore(n)
-        localStorage.setItem('readabilityScore', String(n))
-      }
-
-      ; (window as any).updateResumeCompletion = (n: number) => {
-          setResumeCompletion(n)
-          try { localStorage.setItem('resumeCompletion', String(n)) } catch (e) { /* noop */ }
-          // keep derived state consistent
-          try { recomputeResumeCompletion() } catch (e) { /* noop */ }
-      }
-
-    const onScores = (evt: any) => {
-      try {
-        const d = evt?.detail || {}
-        if (d.atsScore !== undefined && d.atsScore !== null) {
-          const a = Number(d.atsScore)
-          if (Number.isFinite(a)) {
-            setAtsScore(a)
-            localStorage.setItem('atsScore', String(a))
-          }
-        }
-        if (d.readabilityScore !== undefined && d.readabilityScore !== null) {
-          const r = Number(d.readabilityScore)
-          if (Number.isFinite(r)) {
-            setReadabilityScore(r)
-            localStorage.setItem('readabilityScore', String(r))
-          }
-        }
-        if (d.keywordMatch !== undefined && d.keywordMatch !== null) {
-          const k = Number(d.keywordMatch)
-          if (Number.isFinite(k)) {
-            setKeywordMatch(k)
-            localStorage.setItem('keywordMatch', String(k))
-          }
-        }
-        if (d.resumeCompletion !== undefined && d.resumeCompletion !== null) {
-          const rc = Number(d.resumeCompletion)
-          if (Number.isFinite(rc)) {
-            setResumeCompletion(rc)
-            localStorage.setItem('resumeCompletion', String(rc))
-          }
-        }
-        // After applying any direct values, recompute a derived resumeCompletion so the dashboard reflects combined progress
-        recomputeResumeCompletion()
-      } catch (e) {
-        console.warn('resumeScoresUpdated handler error', e)
-      }
-    }
-
-    window.addEventListener('resumeScoresUpdated', onScores)
-
-    return () => {
-      window.removeEventListener('resumeScoresUpdated', onScores)
-    }
   }, [])
 
-  // recomputeResumeCompletion is defined above and hoisted; calling that implementation here when needed
-
-
-  const formatDateTime = (scheduledDate: number) => {
-    const dateObj = new Date(scheduledDate * 1000)
+  const formatDateTime = (date: string, time: string) => {
+    // Treat date as local (not UTC)
+    const [year, month, day] = date.split('-').map(Number)
+    const dateObj = new Date(year, month - 1, day)
 
     const today = new Date()
     const tomorrow = new Date(today)
@@ -149,21 +59,19 @@ const Dashboard: React.FC = () => {
       dateStr = 'Tomorrow'
     }
 
-    const hour = dateObj.getHours()
-    const minutes = dateObj.getMinutes()
+    const [hours, minutes] = time.split(':')
+    const hour = Number.parseInt(hours)
     const ampm = hour >= 12 ? 'PM' : 'AM'
     const displayHour = hour % 12 || 12
-    const displayMinutes = minutes.toString().padStart(2, '0')
 
-    return `${dateStr}, ${displayHour}:${displayMinutes} ${ampm}`
+    return `${dateStr}, ${displayHour}:${minutes} ${ampm}`
   }
 
-  const cancelInterview = (id: number) => {
-    deleteInterviewMutation.mutate(id, {
-      onSuccess: () => {
-        setInterviewToCancel(null)
-      }
-    })
+  const cancelInterview = (id: string) => {
+    const updatedInterviews = scheduledInterviews.filter((interview) => interview.id !== id)
+    setScheduledInterviews(updatedInterviews)
+    localStorage.setItem('scheduledInterviews', JSON.stringify(updatedInterviews))
+    setInterviewToCancel(null)
   }
 
   return (
@@ -268,54 +176,48 @@ const Dashboard: React.FC = () => {
                 <h3 className='text-xl font-semibold text-gray-900 dark:text-white'>Upcoming Mock Interviews</h3>
               </div>
               <div className='px-6 py-4'>
-                {interviewsLoading
+                {scheduledInterviews.length > 0
                   ? (
-                    <div className='text-center py-8 text-gray-500 dark:text-gray-400'>
-                      <p>Loading interviews...</p>
-                    </div>
-                  )
-                  : scheduledInterviews.length > 0
-                    ? (
-                      <>
-                        {scheduledInterviews.map((interview) => (
-                          <div key={interview.id} className='bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4'>
-                            <div className='flex items-center justify-between'>
-                              <div className='flex items-center space-x-3 flex-1'>
-                                <div className='w-1 h-12 bg-blue-500 dark:bg-blue-400 rounded'></div>
-                                <div>
-                                  <h4 className='font-semibold text-gray-900 dark:text-white'>{interview.title}</h4>
-                                  <p className='text-sm text-gray-600 dark:text-gray-400'>
-                                    {formatDateTime(interview.scheduled_date)}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className='flex items-center space-x-2'>
-                                <button
-                                  className='border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent px-6 py-2 rounded-md font-medium transition-colors'
-                                  onClick={() =>
-                                    navigate('/interview')}
-                                >
-                                  Start
-                                </button>
-                                <button
-                                  className='p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
-                                  onClick={() =>
-                                    setInterviewToCancel(interview.id)}
-                                  aria-label='Cancel interview'
-                                >
-                                  <X className='w-5 h-5' />
-                                </button>
+                    <>
+                      {scheduledInterviews.map((interview) => (
+                        <div key={interview.id} className='bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4'>
+                          <div className='flex items-center justify-between'>
+                            <div className='flex items-center space-x-3 flex-1'>
+                              <div className='w-1 h-12 bg-blue-500 dark:bg-blue-400 rounded'></div>
+                              <div>
+                                <h4 className='font-semibold text-gray-900 dark:text-white'>{interview.type}</h4>
+                                <p className='text-sm text-gray-600 dark:text-gray-400'>
+                                  {formatDateTime(interview.date, interview.time)}
+                                </p>
                               </div>
                             </div>
+                            <div className='flex items-center space-x-2'>
+                              <button
+                                className='border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent px-6 py-2 rounded-md font-medium transition-colors'
+                                onClick={() =>
+                                  navigate('/interview')}
+                              >
+                                Start
+                              </button>
+                              <button
+                                className='p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
+                                onClick={() =>
+                                  setInterviewToCancel(interview.id)}
+                                aria-label='Cancel interview'
+                              >
+                                <X className='w-5 h-5' />
+                              </button>
+                            </div>
                           </div>
-                        ))}
-                      </>
-                    )
-                    : (
-                      <div className='text-center py-8 text-gray-500 dark:text-gray-400'>
-                        <p className='mb-4'>No upcoming interviews scheduled</p>
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </>
+                  )
+                  : (
+                    <div className='text-center py-8 text-gray-500 dark:text-gray-400'>
+                      <p className='mb-4'>No upcoming interviews scheduled</p>
+                    </div>
+                  )}
                 <button
                   className='w-full border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent py-2 px-4 rounded-md font-medium transition-colors'
                   onClick={() => navigate('/schedule-interview')}
@@ -344,7 +246,7 @@ const Dashboard: React.FC = () => {
                     <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Keyword Match</div>
                   </div>
                   <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
-                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{readabilityScore ?? 0}</div>
+                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>0</div>
                     <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
                     <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Readability</div>
                   </div>

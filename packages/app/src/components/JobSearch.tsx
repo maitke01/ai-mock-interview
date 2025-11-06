@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
-import EditableTemplateEditor from './EditableTemplateEditor.tsx'
+import EditableTemplateEditor from './EditableTemplateEditor'
 
 const JobSearch: React.FC = () => {
   const [query, setQuery] = useState('')
@@ -42,7 +42,7 @@ const JobSearch: React.FC = () => {
       const data = await response.json() as ResumeSuggestion
       setKeywords(data.keywords || [])
       setResumeSuggestion(data.resumeSuggestion || '')
-    } catch {
+    } catch (err) {
       setKeywords([])
       setResumeSuggestion('Error extracting keywords.')
     }
@@ -53,9 +53,8 @@ const JobSearch: React.FC = () => {
     if (!selectedResume) return alert('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
     if (!keywords || keywords.length === 0) return alert('No keywords extracted. Please extract keywords first.')
 
-    const resumeTextSource = selectedResume.text
-      ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
-    const resumeText = String(resumeTextSource).toLowerCase()
+  const resumeTextSource = selectedResume.text ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
+  const resumeText = String(resumeTextSource).toLowerCase()
     const matched: string[] = []
     const missing: string[] = []
 
@@ -74,13 +73,6 @@ const JobSearch: React.FC = () => {
       localStorage.setItem('missingSkills', JSON.stringify(missing))
     } catch (e) {
       console.warn('Failed to persist skill gap results', e)
-    }
-
-    // Notify dashboard (and other listeners) that keyword match changed so resume completion can update
-    try {
-      window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } }))
-    } catch (e) {
-      console.warn('Failed to dispatch resumeScoresUpdated from JobSearch', e)
     }
 
     // show results inline instead of navigating away
@@ -194,12 +186,11 @@ const JobSearch: React.FC = () => {
                         <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
                         <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
                         <div className='flex flex-wrap gap-2 mt-2'>
-                          {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
+                          {matchedSkillsState.length === 0 ? (
+                            <span className='text-xs text-gray-300'>None</span>
+                          ) : (
                             matchedSkillsState.map((m, i) => (
-                              <span
-                                key={i}
-                                className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'
-                              >
+                              <span key={i} className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'>
                                 {m}
                               </span>
                             ))
@@ -207,12 +198,11 @@ const JobSearch: React.FC = () => {
                         </div>
                         <p className='text-xs text-gray-300 mt-3'>Missing Skills</p>
                         <div className='flex flex-wrap gap-2 mt-2'>
-                          {missingSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
+                          {missingSkillsState.length === 0 ? (
+                            <span className='text-xs text-gray-300'>None</span>
+                          ) : (
                             missingSkillsState.map((m, i) => (
-                              <span
-                                key={i}
-                                className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'
-                              >
+                              <span key={i} className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'>
                                 {m}
                               </span>
                             ))
@@ -285,36 +275,16 @@ const JobSearch: React.FC = () => {
                   <div className='space-y-3'>
                     <div>
                       <div className='font-medium text-gray-800 dark:text-gray-200'>{selectedResume.fileName}</div>
-                      {/* Prefer showing the optimized text when available; fall back to the raw text */}
-                      {(typeof selectedResume.optimized === 'string' && selectedResume.optimized.trim()) ? (
+                      {selectedResume.optimized && (
                         <div className='mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-sm text-green-900 dark:text-green-100'>
-                          {selectedResume.optimized}
+                          {String(selectedResume.optimized)}
                         </div>
-                      ) : selectedResume.text ? (
-                        <div className='mt-2 bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2 text-sm text-gray-900 dark:text-gray-100'>
-                          {selectedResume.text}
-                        </div>
-                      ) : null}
+                      )}
                     </div>
                     <EditableTemplateEditor
-                      resume={{
-                        fileName: selectedResume.fileName,
-                        text: selectedResume.text,
-                        images: selectedResume.images,
-                        // ensure the minimal type expects a string or null for optimized
-                        optimized: typeof selectedResume.optimized === 'string' ? selectedResume.optimized : null
-                      }}
+                      resume={selectedResume}
                       suggestion={resumeSuggestion}
-                      onSave={(updated) => {
-                        // Convert MinimalSelectedResume back into the full SelectedResume shape
-                        const merged: SelectedResume = {
-                          fileName: updated.fileName ?? selectedResume.fileName,
-                          text: updated.optimized ?? updated.text ?? selectedResume.text,
-                          images: updated.images ?? selectedResume.images,
-                          optimized: updated.optimized ?? updated.text ?? selectedResume.optimized
-                        }
-                        handleSaveEditedResume(merged)
-                      }}
+                      onSave={handleSaveEditedResume}
                     />
                     {selectedResume.images && selectedResume.images.length > 0 && (
                       <div>

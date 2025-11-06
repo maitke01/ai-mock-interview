@@ -6,7 +6,6 @@ declare namespace Cloudflare {
     DB: D1Database
     AUTH: Fetcher /* auth */ & InstanceType<typeof import('../auth/src/index').default>
     AI: Ai
-    DURABLE_ACCOUNT: DurableObjectNamespace<import('./server/index').DurableAccount>
   }
 }
 interface Env extends Cloudflare.Env {}
