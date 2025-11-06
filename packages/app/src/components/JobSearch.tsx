@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { usePreferences } from '../hooks/usePreferences'
 import { useNavigate } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
 import EditableTemplateEditor from './EditableTemplateEditor.tsx'
@@ -49,21 +50,80 @@ const JobSearch: React.FC = () => {
     setLoading(false)
   }
 
+  const { savePreference, loading: prefLoading, error: prefError } = usePreferences()
+
+  const handleSavePreference = async () => {
+    if (!jobDescription || !jobDescription.trim()) return alert('Paste a job description first')
+    try {
+      const metadata = { keywords }
+      const name = (jobDescription.split('\n')[0] || 'saved-job').slice(0, 80)
+      const res = await savePreference({ userId: undefined, name, text: jobDescription, metadata })
+      if (res && res.success) {
+        const savedLocally = res?.data?.savedLocally === true
+        if (savedLocally) {
+          alert('Job preference saved locally (dev DB unavailable). It will be synced when the server is reachable.')
+        } else {
+          alert('Job preference saved')
+          // notify other parts of the app that preferences changed
+          try {
+            window.dispatchEvent(new CustomEvent('preferencesUpdated', { detail: { id: res?.data?.id || null } }))
+          } catch (e) {
+            // ignore
+          }
+        }
+      } else {
+        console.warn('Save preference failed', res)
+        const details = res?.error?.details || res?.error?.error || res?.error || res?.status || 'Unknown error'
+        alert('Failed to save preference: ' + (typeof details === 'string' ? details : JSON.stringify(details)))
+      }
+    } catch (e) {
+      console.error('Save preference error', e)
+      alert('Failed to save preference')
+    }
+  }
+
   const handleAnalyzeSkillGap = () => {
     if (!selectedResume) return alert('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
     if (!keywords || keywords.length === 0) return alert('No keywords extracted. Please extract keywords first.')
-
     const resumeTextSource = selectedResume.text
       ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
     const resumeText = String(resumeTextSource).toLowerCase()
     const matched: string[] = []
     const missing: string[] = []
 
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const wordBoundaryMatch = (phrase: string, text: string) => {
+      const p = phrase.trim()
+      if (!p) return false
+      // exact phrase with word boundaries
+      const re = new RegExp('\\b' + escapeRegExp(p) + '\\b', 'i')
+      if (re.test(text)) return true
+      // otherwise check that all words in phrase appear somewhere in text (order-insensitive)
+      const parts = p.split(/\s+/).filter(Boolean)
+      return parts.every(part => {
+        const re2 = new RegExp('\\b' + escapeRegExp(part) + '\\b', 'i')
+        return re2.test(text)
+      })
+    }
+
     for (const kw of keywords) {
-      const k = kw.toLowerCase()
+      const k = normalize(String(kw))
       if (!k) continue
-      if (resumeText.includes(k)) matched.push(kw)
-      else missing.push(kw)
+      // check phrase match first
+      if (wordBoundaryMatch(k, resumeText)) {
+        matched.push(kw)
+        continue
+      }
+      // try simple singular/plural normalization: check without trailing 's'
+      if (k.endsWith('s')) {
+        const sing = k.slice(0, -1)
+        if (wordBoundaryMatch(sing, resumeText)) {
+          matched.push(kw)
+          continue
+        }
+      }
+      missing.push(kw)
     }
 
     const score = keywords.length > 0 ? Math.round((matched.length / keywords.length) * 100) : 0
@@ -152,6 +212,14 @@ const JobSearch: React.FC = () => {
                   disabled={loading}
                 >
                   {loading ? 'Extracting...' : 'Extract Keywords & Suggest Resume Edit'}
+                </button>
+                <button
+                  type='button'
+                  className='mt-2 bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded-md font-medium transition-colors w-full'
+                  onClick={handleSavePreference}
+                  disabled={loading || prefLoading}
+                >
+                  {prefLoading ? 'Saving...' : 'Save Job Preference'}
                 </button>
                 <button
                   type='button'
