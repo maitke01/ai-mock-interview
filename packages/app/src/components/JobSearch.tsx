@@ -50,7 +50,35 @@ const JobSearch: React.FC = () => {
     setLoading(false)
   }
 
-  const { savePreference, loading: prefLoading, error: prefError } = usePreferences()
+  const { savePreference, listPreferences, loading: prefLoading, error: prefError } = usePreferences()
+  const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
+  const [selectedPrefId, setSelectedPrefId] = useState<string | null>(null)
+
+  // Load saved preferences on mount and when preferencesUpdated event fires
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      try {
+        // Prefer server-side auth resolution; don't force 'public' so logged-in users
+        // see their own saved preferences.
+        const res = await listPreferences()
+        if (mounted && res && res.success) setSavedPreferences(res.results || [])
+      } catch (e) {
+        console.warn('Failed to load saved preferences', e)
+      }
+    }
+    load()
+    const handler = () => { load() }
+    window.addEventListener('preferencesUpdated', handler)
+    return () => {
+      mounted = false
+      window.removeEventListener('preferencesUpdated', handler)
+    }
+    // listPreferences is intentionally omitted from deps to avoid re-running
+    // this effect on every render (the hook returns a new function instance
+    // each render). We only want to load once on mount and when the
+    // 'preferencesUpdated' event is dispatched.
+  }, [])
 
   const handleSavePreference = async () => {
     if (!jobDescription || !jobDescription.trim()) return alert('Paste a job description first')
@@ -62,8 +90,38 @@ const JobSearch: React.FC = () => {
         const savedLocally = res?.data?.savedLocally === true
         if (savedLocally) {
           alert('Job preference saved locally (dev DB unavailable). It will be synced when the server is reachable.')
+          // optimistic UI: add the locally-saved preference to the list immediately
+          try {
+            const newPref = {
+              id: res?.data?.id || ('local-' + Math.random().toString(36).slice(2, 9)),
+              userId: 'public',
+              name,
+              text: jobDescription,
+              metadata,
+              createdAt: Date.now()
+            }
+            setSavedPreferences((prev) => [newPref, ...(prev || [])])
+            setSelectedPrefId(newPref.id)
+          } catch (e) {
+            console.warn('Failed to optimistic-insert local pref', e)
+          }
         } else {
           alert('Job preference saved')
+          // optimistic UI: insert the new preference immediately so the user sees it
+          try {
+            const newPref = {
+              id: res?.data?.id || ('temp-' + Math.random().toString(36).slice(2, 9)),
+              userId: undefined,
+              name,
+              text: jobDescription,
+              metadata,
+              createdAt: Date.now()
+            }
+            setSavedPreferences((prev) => [newPref, ...(prev || [])])
+            setSelectedPrefId(newPref.id)
+          } catch (e) {
+            console.warn('Failed to optimistic-insert pref', e)
+          }
           // notify other parts of the app that preferences changed
           try {
             window.dispatchEvent(new CustomEvent('preferencesUpdated', { detail: { id: res?.data?.id || null } }))
@@ -229,6 +287,41 @@ const JobSearch: React.FC = () => {
                 >
                   Analyze Skill Gap against Selected Resume
                 </button>
+                {/* Saved preferences panel - always visible so users can discover saved items */}
+                <div className='mt-4'>
+                  <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Saved Job Preferences</h4>
+                  <div className='flex flex-col gap-2'>
+                    {prefLoading ? (
+                      <div className='text-xs text-gray-500'>Loading saved preferences...</div>
+                    ) : savedPreferences && savedPreferences.length > 0 ? (
+                      savedPreferences.map((p: any) => (
+                        <div key={p.id} className='flex items-center justify-between bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2'>
+                          <div className='text-sm'>
+                            <div className='font-medium text-gray-800 dark:text-gray-200'>{p.name || 'saved-job'}</div>
+                            <div className='text-xs text-gray-500 truncate max-w-xl'>{p.text ? String(p.text).slice(0, 200) : ''}</div>
+                            {p.createdAt && (
+                              <div className='text-xs text-gray-400 mt-1'>Saved {new Date(p.createdAt).toLocaleString()}</div>
+                            )}
+                          </div>
+                          <div className='flex items-center gap-2'>
+                            <button
+                              className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                              onClick={() => {
+                                setJobDescription(p.text || '')
+                                try { setKeywords(Array.isArray(p.metadata?.keywords) ? p.metadata.keywords : []) } catch { setKeywords([]) }
+                                setSelectedPrefId(p.id)
+                              }}
+                            >
+                              Load
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className='text-xs text-gray-500'>No saved job preferences yet. Save a job description to see it here.</div>
+                    )}
+                  </div>
+                </div>
                 {keywords.length > 0 && (
                   <div className='mt-4'>
                     <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Extracted Keywords:</h4>

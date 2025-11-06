@@ -18,6 +18,7 @@ import { optimizeResumeRoute } from './lib/routes/resume/optimizeResumeRoute'
 import { readabilityRoute } from './lib/routes/resume/readabilityRoute'
 import { upsertPreferenceRoute } from './lib/routes/preferences/upsertPreferenceRoute'
 import { searchPreferencesRoute } from './lib/routes/preferences/searchPreferencesRoute'
+import { listPreferencesRoute } from './lib/routes/preferences/listPreferencesRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -33,6 +34,7 @@ const app = new Hono({ strict: false })
   .post('/api/optimize-resume', optimizeResumeRoute)
   .post('/api/preferences/upsert', upsertPreferenceRoute)
   .post('/api/preferences/search', searchPreferencesRoute)
+  .get('/api/preferences/list', listPreferencesRoute)
   // health check for local dev
   .get('/ping', (ctx) => new Response('pong', { status: 200 }))
   .post('/api/extract-keywords', extractKeywordsRoute)

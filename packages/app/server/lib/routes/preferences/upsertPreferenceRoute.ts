@@ -55,8 +55,18 @@ export const upsertPreferenceRoute: Route = async (ctx) => {
     try {
         const body = await ctx.req.json()
         const { id, userId: incomingUserId, name, text, metadata } = body
-        // Allow missing userId for unauthenticated flows; default to 'public'
-        const userId = incomingUserId || 'public'
+        // Try to resolve authenticated user from the AUTH binding (if present).
+        // Many routes use ctx.env.AUTH.getAccount(cookie) which returns { accountId }
+        let resolvedUserId: string | null = null
+        try {
+            const account = (ctx.env as any).AUTH ? await (ctx.env as any).AUTH.getAccount(ctx.req.header('Cookie')).catch(() => null) : null
+            if (account && account.accountId) resolvedUserId = String(account.accountId)
+        } catch (e) {
+            // ignore and fall back to incoming/userless flow
+            resolvedUserId = null
+        }
+        // Prefer the authenticated id, then the incoming userId from the client, otherwise fall back to 'public'
+        const userId = resolvedUserId || incomingUserId || 'public'
         if (!text || typeof text !== 'string') return ctx.json({ error: 'Missing or invalid text' }, 400)
 
         const prefId = id || uuidv4()
@@ -79,7 +89,7 @@ export const upsertPreferenceRoute: Route = async (ctx) => {
 
         const embeddingStr = JSON.stringify(embedding)
         const metadataStr = metadata ? JSON.stringify(metadata) : null
-        console.log('upsertPreferenceRoute: inserting preference', { prefId, userId, name, textLength: String(text).length, embeddingStrPreview: embeddingStr.slice(0, 200), metadataStrPreview: metadataStr ? metadataStr.slice(0,200) : null })
+        console.log('upsertPreferenceRoute: inserting preference', { prefId, userId, name, textLength: String(text).length, embeddingStrPreview: embeddingStr.slice(0, 200), metadataStrPreview: metadataStr ? metadataStr.slice(0, 200) : null })
         try {
             await db.prepare(stmt)
                 .bind(prefId, userId, name || null, text, embeddingStr, metadataStr)

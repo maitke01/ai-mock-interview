@@ -125,7 +125,27 @@ export function usePreferences() {
         }
     }
 
-    return { savePreference, searchPreferences, loading, error }
+    async function listPreferences(opts?: { userId?: string }) {
+        setLoading(true)
+        setError(null)
+        try {
+            const userQuery = opts?.userId ? `?userId=${encodeURIComponent(opts.userId)}` : ''
+            const res = await fetch(`/api/preferences/list${userQuery}`, { method: 'GET' })
+            const j = await res.json()
+            setLoading(false)
+            if (!res.ok) {
+                setError(j?.error || 'List failed')
+                return { success: false, error: j }
+            }
+            return { success: true, results: j.results }
+        } catch (e: any) {
+            setLoading(false)
+            setError(String(e))
+            return { success: false, error: String(e) }
+        }
+    }
+
+    return { savePreference, searchPreferences, listPreferences, loading, error }
 }
 
 export default usePreferences
