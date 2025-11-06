@@ -1,137 +1,78 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
-export interface ResumeTemplateData {
+type ResumeTemplate = {
   header: string
   sidebar: string
   mainContent: string
 }
 
 /**
- * Merges text content into a PDF template
- * @param pdfUrl - URL or path to the PDF template
- * @param templateData - Object containing header, sidebar, and mainContent text
- * @returns PDF bytes ready for download
+ * Fetches a template PDF and overlays simple text blocks from the resume template.
+ * This is intentionally simple: it writes header/sidebar/mainContent to fixed positions
+ * on the first page. For production you may want a templating system or better layout.
  */
-export async function mergePDFWithText (
-  pdfUrl: string,
-  templateData: ResumeTemplateData
-): Promise<Uint8Array> {
-  try {
-    // Fetch the PDF template
-    const existingPdfBytes = await fetch(pdfUrl).then((res) => res.arrayBuffer())
+export async function mergePDFWithText(templateUrl: string, template: ResumeTemplate) {
+  // templateUrl will be a resolved import (string path) when Vite bundles assets
+  const res = await fetch(String(templateUrl))
+  if (!res.ok) throw new Error(`Failed to fetch template PDF: ${res.status}`)
 
-    // Load the PDF
-    const pdfDoc = await PDFDocument.load(existingPdfBytes)
-    const pages = pdfDoc.getPages()
-    const firstPage = pages[0]
+  const arrayBuffer = await res.arrayBuffer()
+  const pdfDoc = await PDFDocument.load(arrayBuffer)
 
-    // Get page dimensions
-    const { height } = firstPage.getSize()
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const pages = pdfDoc.getPages()
+  const firstPage = pages[0]
+  const { width, height } = firstPage.getSize()
 
-    // Embed fonts
-    const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const margin = 40
+  const fontSize = 10
 
-    // Helper function to draw multi-line text
-    const drawMultiLineText = (
-      text: string,
-      x: number,
-      startY: number,
-      fontSize: number,
-      font: any,
-      maxWidth: number,
-      lineHeight: number
-    ) => {
-      const lines = text.split('\n')
-      let y = startY
+  // Header: top-left area
+  firstPage.drawText(stripTags(template.header), {
+    x: margin,
+    y: height - margin - fontSize,
+    size: fontSize,
+    font: helvetica,
+    color: rgb(0, 0, 0),
+    maxWidth: width - margin * 2
+  })
 
-      lines.forEach((line) => {
-        if (line.trim()) {
-          // Check if line is a heading (ALL CAPS or first line)
-          const isHeading = line === line.toUpperCase() && line.length < 30
-          const currentFont = isHeading ? boldFont : font
-          const currentSize = isHeading ? fontSize + 1 : fontSize
+  // Sidebar: left column lower down
+  firstPage.drawText(stripTags(template.sidebar), {
+    x: margin,
+    y: height / 2,
+    size: fontSize,
+    font: helvetica,
+    color: rgb(0, 0, 0),
+    maxWidth: (width / 3) - margin
+  })
 
-          firstPage.drawText(line, {
-            x,
-            y,
-            size: currentSize,
-            font: currentFont,
-            color: rgb(0, 0, 0),
-            maxWidth
-          })
-        }
-        y -= lineHeight
-      })
-    }
+  // Main content: start to the right of sidebar
+  firstPage.drawText(stripTags(template.mainContent), {
+    x: width / 3 + margin / 2,
+    y: height / 2,
+    size: fontSize,
+    font: helvetica,
+    color: rgb(0, 0, 0),
+    maxWidth: width - (width / 3) - margin * 1.5
+  })
 
-    // Draw Header (centered at top)
-    const headerLines = templateData.header.split('\n')
-    let yPosition = height - 60
-
-    headerLines.forEach((line, index) => {
-      if (line.trim()) {
-        const fontSize = index === 0 ? 20 : 11
-        const font = index === 0 ? boldFont : regularFont
-        const textWidth = font.widthOfTextAtSize(line, fontSize)
-        const xCenter = (firstPage.getWidth() - textWidth) / 2
-
-        firstPage.drawText(line, {
-          x: xCenter,
-          y: yPosition,
-          size: fontSize,
-          font,
-          color: rgb(0, 0, 0)
-        })
-        yPosition -= index === 0 ? 25 : 18
-      }
-    })
-
-    // Draw Sidebar (left column)
-    drawMultiLineText(
-      templateData.sidebar,
-      50,
-      height - 180,
-      10,
-      regularFont,
-      180,
-      15
-    )
-
-    // Draw Main Content (right column)
-    drawMultiLineText(
-      templateData.mainContent,
-      250,
-      height - 180,
-      10,
-      regularFont,
-      300,
-      15
-    )
-
-    // Save the modified PDF
-    const pdfBytes = await pdfDoc.save()
-    return pdfBytes
-  } catch (error) {
-    console.error('Error merging PDF:', error)
-    throw new Error('Failed to merge text into PDF template')
-  }
+  const merged = await pdfDoc.save()
+  return merged
 }
 
-/**
- * Triggers download of PDF file
- * @param pdfBytes - PDF data as Uint8Array
- * @param fileName - Name for the downloaded file
- */
-export function downloadPDF (pdfBytes: Uint8Array, fileName: string): void {
-  // Use the underlying ArrayBuffer to satisfy Blob typing
-  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' })
+export function downloadPDF(pdfBytes: Uint8Array | ArrayBuffer, fileName = 'document.pdf') {
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 500)
+}
+
+function stripTags(input: string) {
+  return input.replace(/<[^>]*>/g, '').replace(/\r?\n/g, ' ')
 }

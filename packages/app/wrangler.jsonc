@@ -30,6 +30,22 @@
       "binding": "AUTH",
       "service": "auth"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "DurableAccount",
+        "name": "DURABLE_ACCOUNT"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "DurableAccount"
+      ]
+    }
   ]
   /**
 	 * Smart Placement

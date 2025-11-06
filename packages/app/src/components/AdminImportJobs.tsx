@@ -40,7 +40,7 @@ const AdminImportJobs: React.FC = () => {
       setResult(data)
       // clear preview on success
       setPreviewRows(null)
-    } catch (e) {
+    } catch {
       setResult({ error: 'Import failed' })
     }
     setLoading(false)
@@ -57,7 +57,7 @@ const AdminImportJobs: React.FC = () => {
       })
       const data = await res.json()
       setResult(data)
-    } catch (e) {
+    } catch {
       setResult({ error: 'Import failed' })
     }
     setLoading(false)
@@ -195,7 +195,7 @@ const AdminImportJobs: React.FC = () => {
                 const res = await fetch('/api/import-history')
                 const d = await res.json()
                 setHistory(d.results || [])
-              } catch (e) {
+              } catch {
                 setResult({ error: 'Failed to fetch history' })
               }
             }}
