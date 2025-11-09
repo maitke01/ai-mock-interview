@@ -78,12 +78,11 @@ const Login: React.FC = () => {
           <button
             type='submit'
             disabled={isLoading}
-            className='w-full py-2 font-semibold bg-black dark:bg-blue-600 text-white rounded-lg hover:bg-gray-900 dark:hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+            className='w-full py-2 font-semibold bg-black dark:bg-blue-600 text-black rounded-lg hover:bg-gray-900 dark:hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
           >
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
         <p className='mt-6 text-sm text-center text-gray-600 dark:text-gray-400'>
           Don't have an account?{' '}
           <button
