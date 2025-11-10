@@ -42,7 +42,8 @@ const Login: React.FC = () => {
   return (
     <div className='flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900'>
       <div className='w-full max-w-md p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-md'>
-        <h1 className='mb-6 text-2xl font-bold text-center text-gray-800 dark:text-white'>Login</h1>
+        <h1 className='mb-6 text-2xl font-bold text-center text-grey-800 dark:text-white'>Login</h1>
+       
 
         <form onSubmit={handleSubmit} className='space-y-4'>
           {error && (
@@ -78,16 +79,16 @@ const Login: React.FC = () => {
           <button
             type='submit'
             disabled={isLoading}
-            className='w-full py-2 font-semibold bg-black dark:bg-blue-600 text-black rounded-lg hover:bg-gray-900 dark:hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+            className='mt-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
           >
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        <p className='mt-6 text-sm text-center text-gray-600 dark:text-gray-400'>
+        <p className='font-bold mt-6 text-sm text-center text-gray-600 dark:text-gray-400'>
           Don't have an account?{' '}
           <button
             onClick={() => navigate('/signup')}
-            className='font-semibold text-black dark:text-blue-400 hover:underline'
+            className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent underline'
           >
             Sign up
           </button>

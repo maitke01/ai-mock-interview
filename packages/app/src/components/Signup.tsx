@@ -92,17 +92,17 @@ const Signup: React.FC = () => {
           <button
             type='submit'
             disabled={isLoading}
-            className='w-full py-2 font-semibold bg-black dark:bg-blue-600 text-white rounded-lg hover:bg-gray-900 dark:hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+            className='mt-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
           >
             {isLoading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
 
-        <p className='mt-6 text-sm text-center text-gray-600 dark:text-gray-400'>
+        <p className='mt-6 text-sm font-bold text-center text-gray-600 dark:text-gray-400'>
           Already have an account?{' '}
           <button
             onClick={() => navigate('/login')}
-            className='font-semibold text-black dark:text-blue-400 hover:underline'
+            className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent underline'
           >
             Login
           </button>
