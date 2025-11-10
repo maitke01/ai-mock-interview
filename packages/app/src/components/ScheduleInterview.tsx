@@ -61,7 +61,7 @@ const ScheduleInterview: React.FC = () => {
             <input
               type='date'
               min={new Date().toISOString().split('T')[0]} // prevents selecting old dates
-              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               required
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -72,7 +72,7 @@ const ScheduleInterview: React.FC = () => {
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>Time</label>
             <input
               type='time'
-              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               required
               value={time}
               onChange={(e) => setTime(e.target.value)}
@@ -82,7 +82,7 @@ const ScheduleInterview: React.FC = () => {
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>Interview Type</label>
             <select
-              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               value={interviewType}
               onChange={(e) => setInterviewType(e.target.value)}
             >
