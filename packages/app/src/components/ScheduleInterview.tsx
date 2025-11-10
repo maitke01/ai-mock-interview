@@ -92,18 +92,20 @@ const ScheduleInterview: React.FC = () => {
             </select>
           </div>
 
-          <div className='text-center'>
+          <div className='text-center space-x-4'>
             <button
               type='submit'
               disabled={scheduleInterviewMutation.isPending}
-              className='ml-3 text-sm font-bold text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed'
+              className='ml-3 text-sm bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+
+              
             >
               {scheduleInterviewMutation.isPending ? 'Scheduling...' : 'Schedule'}
             </button>
             <button
               type='button'
               onClick={() => navigate('/dashboard')}
-              className='ml-3 text-sm text-gray-600 dark:text-gray-300 underline'
+              className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent underline'
             >
               Cancel
             </button>
