@@ -194,6 +194,13 @@ const Dashboard: React.FC = () => {
               >
                 Mock Interview
               </a>
+              <a
+                href='#'
+                className='text-white font-bold hover:text-blue-200 font-medium'
+                onClick={() => navigate('/login')}
+              >
+               Log Out
+              </a>
             </nav>
           </div>
         </div>

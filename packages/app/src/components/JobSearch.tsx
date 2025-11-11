@@ -247,7 +247,7 @@ const JobSearch: React.FC = () => {
                 </div>
                 <button
                   type='submit'
-                  className='bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors w-full'
+                  className= 'bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md font-medium transition-colors w-full'
                 >
                   Search on Indeed
                 </button>
@@ -427,7 +427,7 @@ const JobSearch: React.FC = () => {
               <div className='flex items-center justify-between mb-3'>
                 <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Selected Resume</h2>
                 <button
-                  className='text-sm text-gray-500 hover:text-gray-700 dark:text-gray-300'
+                   className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
                   onClick={() => {
                     sessionStorage.removeItem('selectedResume')
                     setSelectedResume(null)
