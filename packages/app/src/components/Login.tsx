@@ -86,12 +86,12 @@ const Login: React.FC = () => {
         </form>
         <p className='font-bold mt-6 text-sm text-center text-gray-600 dark:text-gray-400'>
           Don't have an account?{' '}
-          <button
-            onClick={() => navigate('/signup')}
-            className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent underline'
-          >
-            Sign up
-          </button>
+            <span
+              onClick={() => navigate('/signup')}
+              className='text-bold text-blue-500 decoration-blue-500 cursor-pointer hover:underline'
+            >
+              Sign Up
+            </span>
         </p>
       </div>
     </div>

@@ -105,7 +105,7 @@ const ScheduleInterview: React.FC = () => {
             <button
               type='button'
               onClick={() => navigate('/dashboard')}
-              className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent underline'
+              className='text-gray-900 dark:text-gray-100 underline'
             >
               Cancel
             </button>

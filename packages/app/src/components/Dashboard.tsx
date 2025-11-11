@@ -298,14 +298,16 @@ const Dashboard: React.FC = () => {
                               </div>
                               <div className='flex items-center space-x-2'>
                                 <button
-                                  className='border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 bg-transparent px-6 py-2 rounded-md font-medium transition-colors'
+                                  className='ml-3 text-sm bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+
+                                  
                                   onClick={() =>
                                     navigate('/interview')}
                                 >
                                   Start
                                 </button>
                                 <button
-                                  className='p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
+                                  className='p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
                                   onClick={() =>
                                     setInterviewToCancel(interview.id)}
                                   aria-label='Cancel interview'
