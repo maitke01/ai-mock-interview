@@ -1368,7 +1368,7 @@ const ResumeBuilder: React.FC = () => {
                                     }
                                     navigate('/job-search')
                                   }}
-                                  className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium ml-2'
+                                  className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
                                 >
                                   Job Search
                                 </button>
