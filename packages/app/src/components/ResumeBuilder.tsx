@@ -1228,35 +1228,41 @@ const ResumeBuilder: React.FC = () => {
               </svg>
               <h1 className='text-2xl font-bold text-white'>Resume Builder Pro</h1>
             </div>
-            <nav className='flex space-x-8'>
+            <nav className='flex items-center space-x-8'>
               <a
                 href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
+                className='!text-white font-bold hover:text-blue-200 font-medium'
                 onClick={() => navigate('/dashboard')}
               >
                 Dashboard
               </a>
               <a
                 href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
+                className='!text-white font-bold hover:text-blue-200 font-medium'
                 onClick={() => navigate('/resume')}
               >
                 Resume Builder
               </a>
               <a
                 href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
+                className='!text-white font-bold hover:text-blue-200 font-medium'
+                onClick={() => navigate('/job-search')}
+              >
+                Job Search
+              </a>
+              <a
+                href='#'
+                className='!text-white font-bold hover:text-blue-200 font-medium'
                 onClick={() => navigate('/interview')}
               >
                 Mock Interview
               </a>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
+              <button
                 onClick={() => navigate('/login')}
+                className='bg-red-500 text-white font-semibold hover:bg-red-600 py-2 px-4 rounded-lg shadow-md transition-colors'
               >
-               Log Out
-              </a>
+                Log Out
+              </button>
             </nav>
           </div>
         </div>
