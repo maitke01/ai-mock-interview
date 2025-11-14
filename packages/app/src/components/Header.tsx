@@ -12,20 +12,20 @@ const Header: React.FC<HeaderProps> = ({ title = 'AI Resume & Interview Trainer'
     <div className='bg-blue-600 dark:bg-blue-800 shadow-sm'>
       <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
         <div className='flex justify-between items-center py-4'>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className='text-2xl font-bold text-white'>{title}</h1>
           </div>
-          <nav className='flex items-center space-x-8'>
-            <a href='#' className='font-bold hover:text-blue-200 font-medium' style={{ color: 'white' }} onClick={() => navigate('/dashboard')}>
+          <nav className='flex items-center space-x-4 flex-shrink-0 ml-4'>
+            <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/dashboard')}>
               Dashboard
             </a>
-            <a href='#' className='font-bold hover:text-blue-200 font-medium' style={{ color: 'white' }} onClick={() => navigate('/resume')}>
+            <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/resume')}>
               Resume Builder
             </a>
-            <a href='#' className='font-bold hover:text-blue-200 font-medium' style={{ color: 'white' }} onClick={() => navigate('/job-search')}>
+            <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/job-search')}>
               Job Search
             </a>
-            <a href='#' className='font-bold hover:text-blue-200 font-medium' style={{ color: 'white' }} onClick={() => navigate('/interview')}>
+            <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/interview')}>
               Mock Interview
             </a>
             <button
