@@ -244,55 +244,38 @@ const ResumeBuilder: React.FC = () => {
         console.warn('Failed to persist optimized resume to sessionStorage', err)
       }
 
-      // prefer readability returned by server; otherwise compute locally and update dashboard
+      // Use older ATS-style readability heuristic: prefer ~15 words per sentence.
+      // Normalize to 0-100 so Dashboard displays a familiar scale.
       const computeReadability = (text: string) => {
-        const countSyllables = (word: string) => {
-          word = word.toLowerCase()
-          if (word.length <= 3) return 1
-          const matches = word.match(/[aeiouy]{1,2}/g)
-          return matches ? matches.length : 1
-        }
-        const t = text.trim()
+        const t = String(text || '').trim()
         if (!t) return 0
         const sentences = t.split(/[.!?]+/).filter(Boolean)
         const words = t.split(/\s+/).filter(Boolean)
         const totalWords = words.length
         const totalSentences = sentences.length || 1
-        const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
-        const flesch = totalSentences > 0 && totalWords > 0
-          ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
-          : 0
-        return Math.max(0, Math.min(100, Math.round(flesch)))
+        const avgWordsPerSentence = totalWords / totalSentences
+
+        const ideal = 15
+        const diff = Math.abs(avgWordsPerSentence - ideal)
+        // diff 0 => 100, diff >= 30 => 0 (same mapping used in ATS route but scaled to 0-100)
+        const score = Math.max(0, (1 - Math.min(diff / 30, 1)) * 100)
+        return Math.round(score)
       }
 
-      const returnedRaw = result?.readabilityScore ?? result?.score ?? null
-      const returnedScore = returnedRaw !== null && returnedRaw !== undefined ? Number(returnedRaw) : null
-      let finalReadability: number | null = null
-      if (returnedScore !== null && Number.isFinite(returnedScore)) {
-        finalReadability = Number(returnedScore)
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore with', finalReadability)
-          ;(window as any).updateReadabilityScore(finalReadability)
-        } else {
-          console.debug('ResumeBuilder: updateReadabilityScore not available, writing to localStorage', finalReadability)
-          try { localStorage.setItem('readabilityScore', String(finalReadability)) } catch (e) { /* noop */ }
-        }
+      // Always compute readability locally using ATS-style avg-words-per-sentence heuristic
+      const localScore = computeReadability(optimized)
+      const finalReadability: number | null = localScore
+      if (typeof (window as any)?.updateReadabilityScore === 'function') {
+        console.debug('ResumeBuilder: calling updateReadabilityScore with localScore', localScore)
+          ; (window as any).updateReadabilityScore(localScore)
       } else {
-        // compute local fallback
-        const localScore = computeReadability(optimized)
-        finalReadability = localScore
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore with local fallback', localScore)
-          ;(window as any).updateReadabilityScore(localScore)
-        } else {
-          console.debug('ResumeBuilder: updateReadabilityScore not available for local fallback, writing to localStorage', localScore)
-          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
-        }
+        console.debug('ResumeBuilder: updateReadabilityScore not available, writing localScore to localStorage', localScore)
+        try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
       }
 
-  // Also request ATS score for the optimized resume and update dashboard
-  let finalAts: number | null = null
-  try {
+      // Also request ATS score for the optimized resume and update dashboard
+      let finalAts: number | null = null
+      try {
         const ares = await fetch('/api/ats-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -305,7 +288,7 @@ const ResumeBuilder: React.FC = () => {
           if (ats !== null && Number.isFinite(ats)) {
             if (typeof (window as any)?.updateAtsScore === 'function') {
               console.debug('ResumeBuilder: calling updateAtsScore with', ats)
-              ;(window as any).updateAtsScore(ats)
+                ; (window as any).updateAtsScore(ats)
             } else {
               try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
             }
@@ -336,32 +319,27 @@ const ResumeBuilder: React.FC = () => {
       try {
         const fallbackText = data.text || ''
         const localScore = (function computeReadabilityInline(text: string) {
-          const countSyllables = (word: string) => {
-            word = word.toLowerCase()
-            if (word.length <= 3) return 1
-            const matches = word.match(/[aeiouy]{1,2}/g)
-            return matches ? matches.length : 1
-          }
-          const t = text.trim()
+          const t = String(text || '').trim()
           if (!t) return 0
           const sentences = t.split(/[.!?]+/).filter(Boolean)
           const words = t.split(/\s+/).filter(Boolean)
           const totalWords = words.length
           const totalSentences = sentences.length || 1
-          const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
-          const flesch = totalSentences > 0 && totalWords > 0
-            ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
-            : 0
-          return Math.max(0, Math.min(100, Math.round(flesch)))
+          const avgWordsPerSentence = totalWords / totalSentences
+
+          const ideal = 15
+          const diff = Math.abs(avgWordsPerSentence - ideal)
+          const score = Math.max(0, (1 - Math.min(diff / 30, 1)) * 100)
+          return Math.round(score)
         })(fallbackText)
 
         setAiOptimizedResumes(prev => ({ ...prev, [fileName]: fallbackText }))
         setLastOptimizedFile(fileName)
-  try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
+        try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
 
         if (typeof (window as any)?.updateReadabilityScore === 'function') {
           console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
-          ;(window as any).updateReadabilityScore(localScore)
+            ; (window as any).updateReadabilityScore(localScore)
         } else {
           console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to localStorage', localScore)
           try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
@@ -383,7 +361,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'Your Name\nyour.email@example.com\n(123) 456-7890\nLinkedIn Profile'
       })
-      
+
       headerQuill.current.on('text-change', () => {
         if (headerQuill.current) {
           handleTemplateChange('header', headerQuill.current.root.innerHTML)
@@ -404,7 +382,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'SKILLS\n\nEDUCATION\n\nCERTIFICATIONS'
       })
-      
+
       sidebarQuill.current.on('text-change', () => {
         if (sidebarQuill.current) {
           handleTemplateChange('sidebar', sidebarQuill.current.root.innerHTML)
@@ -425,7 +403,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
       })
-      
+
       mainContentQuill.current.on('text-change', () => {
         if (mainContentQuill.current) {
           handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
@@ -497,7 +475,7 @@ const ResumeBuilder: React.FC = () => {
   const applyBold = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -509,7 +487,7 @@ const ResumeBuilder: React.FC = () => {
   const applyItalic = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -521,7 +499,7 @@ const ResumeBuilder: React.FC = () => {
   const applyUnderline = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -533,14 +511,14 @@ const ResumeBuilder: React.FC = () => {
   const applyStrikethrough = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
       quill.format('strike', !currentFormat.strike)
     }
   }
-  
+
   const insertLink = () => {
     const url = prompt('Enter URL:')
     if (url) {
@@ -579,7 +557,7 @@ const ResumeBuilder: React.FC = () => {
   const insertBulletList = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range) {
       quill.format('list', 'bullet')
@@ -589,7 +567,7 @@ const ResumeBuilder: React.FC = () => {
   const insertNumberedList = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range) {
       quill.format('list', 'ordered')
@@ -599,7 +577,7 @@ const ResumeBuilder: React.FC = () => {
   const insertCheckbox = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range) {
       quill.insertText(range.index, '☐ ')
@@ -609,7 +587,7 @@ const ResumeBuilder: React.FC = () => {
   const applySuperscript = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -620,7 +598,7 @@ const ResumeBuilder: React.FC = () => {
   const applySubscript = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -632,7 +610,7 @@ const ResumeBuilder: React.FC = () => {
   const applyTextColor = (color: string) => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       quill.format('color', color)
@@ -644,7 +622,7 @@ const ResumeBuilder: React.FC = () => {
   const applyHighlight = (color: string) => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range && range.length > 0) {
       quill.format('background', color)
@@ -655,7 +633,7 @@ const ResumeBuilder: React.FC = () => {
   const increaseIndent = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range) {
       quill.format('indent', '+1')
@@ -665,7 +643,7 @@ const ResumeBuilder: React.FC = () => {
   const decreaseIndent = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range) {
       quill.format('indent', '-1')
@@ -675,7 +653,7 @@ const ResumeBuilder: React.FC = () => {
   const insertHorizontalLine = () => {
     const quill = getActiveQuill()
     if (!quill) return
-    
+
     const range = quill.getSelection()
     if (range) {
       quill.insertText(range.index, '\n───────────────────────────────\n')
@@ -727,12 +705,12 @@ const ResumeBuilder: React.FC = () => {
     }
 
     setIsSaving(true)
-    
+
     try {
-      const draftKey = selectedTemplate 
-        ? `resume-draft-${selectedTemplate}` 
+      const draftKey = selectedTemplate
+        ? `resume-draft-${selectedTemplate}`
         : 'resume-draft-scratch'
-      
+
       const draftData = {
         header: resumeTemplate.header,
         sidebar: resumeTemplate.sidebar,
@@ -741,9 +719,9 @@ const ResumeBuilder: React.FC = () => {
         mode: resumeMode,
         template: selectedTemplate
       }
-      
+
       localStorage.setItem(draftKey, JSON.stringify(draftData))
-      
+
       setTimeout(() => {
         setIsSaving(false)
         alert('Draft saved successfully!')
@@ -757,12 +735,12 @@ const ResumeBuilder: React.FC = () => {
 
   const loadDraft = (templateId: 'modern' | 'classic' | 'scratch') => {
     try {
-      const draftKey = templateId === 'scratch' 
-        ? 'resume-draft-scratch' 
+      const draftKey = templateId === 'scratch'
+        ? 'resume-draft-scratch'
         : `resume-draft-${templateId}`
-      
+
       const savedDraft = localStorage.getItem(draftKey)
-      
+
       if (savedDraft) {
         const draftData = JSON.parse(savedDraft)
         setResumeTemplate({
@@ -780,7 +758,7 @@ const ResumeBuilder: React.FC = () => {
   const selectTemplate = (id: 'modern' | 'classic') => {
     const draftKey = `resume-draft-${id}`
     const savedDraft = localStorage.getItem(draftKey)
-    
+
     if (savedDraft) {
       try {
         const draftData = JSON.parse(savedDraft)
@@ -797,9 +775,9 @@ const ResumeBuilder: React.FC = () => {
     } else {
       setResumeTemplate(templatesData[id])
     }
-    
+
     setSelectedTemplate(id)
-    
+
     const templateData = templates.find(t => t.name === id)
     if (templateData) {
       setCurrentPdfUrl(templateData.pdf)
@@ -818,7 +796,7 @@ const ResumeBuilder: React.FC = () => {
       const pdfBytes = await mergePDFWithText(currentPdfUrl, resumeTemplate)
       const fileName = `resume-${selectedTemplate || 'scratch'}-${Date.now()}.pdf`
       downloadPDF(pdfBytes, fileName)
-      
+
       setTimeout(() => {
         setIsDownloading(false)
         alert('Resume downloaded successfully!')
@@ -864,7 +842,7 @@ const ResumeBuilder: React.FC = () => {
         </div>
 
         {/* Font Family */}
-        <select 
+        <select
           value={fontFamily}
           onChange={(e) => setFontFamily(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[120px]"
@@ -881,7 +859,7 @@ const ResumeBuilder: React.FC = () => {
         </select>
 
         {/* Font Size */}
-        <select 
+        <select
           value={fontSize}
           onChange={(e) => setFontSize(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[70px]"
@@ -949,7 +927,7 @@ const ResumeBuilder: React.FC = () => {
             title="Text Color"
           >
             <span className="text-sm font-semibold">A</span>
-            <div className="w-4 h-1 rounded" style={{backgroundColor: textColor}}></div>
+            <div className="w-4 h-1 rounded" style={{ backgroundColor: textColor }}></div>
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
@@ -973,7 +951,7 @@ const ResumeBuilder: React.FC = () => {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
             </svg>
-            <div className="w-4 h-1 rounded" style={{backgroundColor: highlightColor}}></div>
+            <div className="w-4 h-1 rounded" style={{ backgroundColor: highlightColor }}></div>
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
@@ -1034,7 +1012,7 @@ const ResumeBuilder: React.FC = () => {
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
         {/* Line Height */}
-        <select 
+        <select
           value={lineHeight}
           onChange={(e) => setLineHeight(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[80px]"
@@ -1255,7 +1233,7 @@ const ResumeBuilder: React.FC = () => {
                 className='text-white font-bold hover:text-blue-200 font-medium'
                 onClick={() => navigate('/login')}
               >
-               Log Out
+                Log Out
               </a>
             </nav>
           </div>
@@ -1318,11 +1296,10 @@ const ResumeBuilder: React.FC = () => {
                     {resumeFiles.map(file => (
                       <div
                         key={file.name}
-                        className={`flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer ${
-                          selectedFiles.includes(file.name) 
-                            ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 shadow-md' 
+                        className={`flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer ${selectedFiles.includes(file.name)
+                            ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 shadow-md'
                             : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:shadow-md'
-                        }`}
+                          }`}
                         onClick={() => toggleSelect(file.name)}
                       >
                         <div className='flex items-center flex-1 gap-3'>
@@ -1395,8 +1372,8 @@ const ResumeBuilder: React.FC = () => {
 
                   {selectedFiles.length > 0 && (
                     <div className='flex justify-center gap-3 mt-6'>
-                      <button 
-                        className='bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2' 
+                      <button
+                        className='bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2'
                         onClick={deleteSelected}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1404,8 +1381,8 @@ const ResumeBuilder: React.FC = () => {
                         </svg>
                         Delete Selected ({selectedFiles.length})
                       </button>
-                      <button 
-                        className='bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2' 
+                      <button
+                        className='bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2'
                         onClick={extractSelected}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1429,7 +1406,7 @@ const ResumeBuilder: React.FC = () => {
               </div>
               <div className='p-6'>
                 <div className='max-w-7xl mx-auto'>
-                  <div className='bg-gray-50 dark:bg-gray-900 p-4 rounded-md border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 overflow-auto' style={{maxHeight: '280px'}}>
+                  <div className='bg-gray-50 dark:bg-gray-900 p-4 rounded-md border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 overflow-auto' style={{ maxHeight: '280px' }}>
                     <pre className='whitespace-pre-wrap break-words'>{aiOptimizedResumes[lastOptimizedFile]}</pre>
                   </div>
                   <div className='flex justify-center gap-3 mt-4'>
@@ -1475,17 +1452,16 @@ const ResumeBuilder: React.FC = () => {
             <div className='px-6 py-8'>
               <div className="flex flex-col sm:flex-row justify-center gap-6">
                 <button
-                  onClick={() => { 
+                  onClick={() => {
                     setResumeMode("scratch")
                     setSelectedTemplate(null)
                     setCurrentPdfUrl(null)
                     setHasSelectedMode(true)
                   }}
-                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${
-                    resumeMode === "scratch" 
-                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900" 
+                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "scratch"
+                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
                       : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <svg className={`w-12 h-12 ${resumeMode === "scratch" ? "text-white" : "text-blue-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1500,15 +1476,14 @@ const ResumeBuilder: React.FC = () => {
                   </div>
                 </button>
                 <button
-                  onClick={() => { 
+                  onClick={() => {
                     setResumeMode("template")
                     setHasSelectedMode(true)
                   }}
-                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${
-                    resumeMode === "template" 
-                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900" 
+                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "template"
+                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
                       : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <svg className={`w-12 h-12 ${resumeMode === "template" ? "text-white" : "text-blue-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1533,11 +1508,11 @@ const ResumeBuilder: React.FC = () => {
                 <h2 className='text-xl font-semibold text-gray-900 dark:text-white'>Scratch Resume Editor</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create your resume with full creative control</p>
               </div>
-              
+
               <ProfessionalToolbar />
-              
+
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{aspectRatio: '8.5/11'}}>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
                   <div className='w-full h-full flex flex-col p-12'>
                     <div className='border-b-2 border-gray-300 pb-8 mb-8'>
                       <div
@@ -1582,7 +1557,7 @@ const ResumeBuilder: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className='flex justify-center gap-4 mt-8'>
                   <button
                     onClick={saveDraft}
@@ -1618,15 +1593,15 @@ const ResumeBuilder: React.FC = () => {
               <div className='p-8'>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                   {templates.map((template, index) => (
-                    <div 
-                      key={index} 
-                      onClick={() => selectTemplate(template.name as 'modern' | 'classic')} 
+                    <div
+                      key={index}
+                      onClick={() => selectTemplate(template.name as 'modern' | 'classic')}
                       className="group cursor-pointer bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
                     >
                       <div className="relative">
-                        <img 
-                          src={template.preview} 
-                          alt={`${template.name} template`} 
+                        <img
+                          src={template.preview}
+                          alt={`${template.name} template`}
                           className="w-full h-96 object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-6">
@@ -1655,11 +1630,11 @@ const ResumeBuilder: React.FC = () => {
                 <h2 className='text-xl font-semibold text-gray-900 dark:text-white capitalize'>{selectedTemplate} Template Editor</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Customize your professional resume template</p>
               </div>
-              
+
               <ProfessionalToolbar />
-              
+
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{aspectRatio: '8.5/11'}}>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
                   <div className='w-full h-full flex flex-col p-12'>
                     <div className='border-b-2 border-gray-300 pb-8 mb-8'>
                       <div
@@ -1707,7 +1682,7 @@ const ResumeBuilder: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className='flex flex-wrap justify-center gap-4 mt-8'>
                   <button
                     onClick={saveDraft}
@@ -1739,7 +1714,7 @@ const ResumeBuilder: React.FC = () => {
                     AI Format
                   </button>
                   <button
-                    onClick={() => { 
+                    onClick={() => {
                       setSelectedTemplate(null)
                       setCurrentPdfUrl(null)
                     }}
