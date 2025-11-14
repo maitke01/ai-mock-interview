@@ -49,14 +49,16 @@ export function usePreferences() {
         syncPending()
     }, [])
 
-    async function savePreference(opts: { userId?: string; name?: string; text: string; metadata?: any }) {
+    async function savePreference(opts: { id?: string; userId?: string; name?: string; text: string; metadata?: any }) {
         setLoading(true)
         setError(null)
         try {
+            const body: any = { userId: opts.userId, name: opts.name, text: opts.text, metadata: opts.metadata }
+            if (opts.id) body.id = opts.id
             const res = await fetch('/api/preferences/upsert', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: opts.userId, name: opts.name, text: opts.text, metadata: opts.metadata })
+                body: JSON.stringify(body)
             })
             let j: any = null
             let textBody = null
@@ -95,6 +97,23 @@ export function usePreferences() {
             }
             // success: prefer parsed JSON, else return raw text
             return { success: true, data: j || textBody }
+        } catch (e: any) {
+            setLoading(false)
+            setError(String(e))
+            return { success: false, error: String(e) }
+        }
+    }
+
+    async function deletePreference(id: string) {
+        setLoading(true)
+        setError(null)
+        try {
+            const res = await fetch(`/api/preferences/delete/${encodeURIComponent(id)}`, { method: 'DELETE' })
+            let j = null
+            try { j = await res.json() } catch { j = null }
+            setLoading(false)
+            if (!res.ok) return { success: false, error: j || `HTTP ${res.status}` }
+            return { success: true, data: j }
         } catch (e: any) {
             setLoading(false)
             setError(String(e))
@@ -145,7 +164,7 @@ export function usePreferences() {
         }
     }
 
-    return { savePreference, searchPreferences, listPreferences, loading, error }
+    return { savePreference, deletePreference, searchPreferences, listPreferences, loading, error }
 }
 
 export default usePreferences
