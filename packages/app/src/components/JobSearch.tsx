@@ -171,9 +171,14 @@ const JobSearch: React.FC = () => {
   const handleToggleFavorite = async (p: any) => {
     if (!p || !p.id) return
     const newMeta = { ...(p.metadata || {}), favorite: !(p.metadata && p.metadata.favorite) }
-    // optimistic update
+    // optimistic update: set this pref favorite and clear favorites on others locally
     setSavedPreferences((prev) => {
-      const updated = (prev || []).map((it) => (it.id === p.id ? { ...it, metadata: newMeta } : it))
+      const list = prev || []
+      const updated = list.map((it) => {
+        if (String(it.id) === String(p.id)) return { ...it, metadata: newMeta }
+        if (newMeta.favorite) return { ...it, metadata: { ...(it.metadata || {}), favorite: false } }
+        return it
+      })
       console.debug('[JobSearch] handleToggleFavorite: optimistic updated list', updated)
       return updated
     })
@@ -221,6 +226,19 @@ const JobSearch: React.FC = () => {
         }
       } catch (e) {
         console.warn('Failed to cleanup pending preferences after save', e)
+      }
+
+      // If we just set this item as favorite, clear favorite on other server-backed prefs (fire-and-forget)
+      if (newMeta.favorite) {
+        try {
+          const others = (savedPreferences || []).filter((it: any) => String(it.id) !== String(p.id) && it.metadata && it.metadata.favorite)
+          for (const o of others) {
+            try {
+              const metaCleared = { ...(o.metadata || {}), favorite: false }
+              void savePreference({ id: o.id, userId: o.userId, name: o.name, text: o.text, metadata: metaCleared })
+            } catch (e) { /* noop */ }
+          }
+        } catch (e) { console.warn('Failed to clear favorites on other prefs', e) }
       }
       try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
     } catch (e) {
