@@ -10,6 +10,7 @@ import modernPDF from "./assets/pdfs/modern-template.pdf"
 import classicPDF from "./assets/pdfs/classic-template.pdf"
 import Header from './Header'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
+import PdfEditorModal from './PdfEditorModal'
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
@@ -46,6 +47,10 @@ const ResumeBuilder: React.FC = () => {
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
   const [optimizingFiles, setOptimizingFiles] = useState<string[]>([])
   const [lastOptimizedFile, setLastOptimizedFile] = useState<string | null>(null)
+
+  // PDF Editor Modal states
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [fileToEdit, setFileToEdit] = useState<File | null>(null)
 
   // Template states
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
@@ -110,6 +115,20 @@ const ResumeBuilder: React.FC = () => {
       }
     }
   }
+
+  const handleSaveEditedPdf = async (editedFile: File) => {
+    // Replace the old file with the edited one
+    setResumeFiles(prevFiles =>
+      prevFiles.map(f => (f.name === editedFile.name ? editedFile : f))
+    );
+
+    // Re-extract content from the new file to update the preview data
+    if (editedFile.type === 'application/pdf') {
+      const content = await extractPdfContent(editedFile);
+      setPdfData(prev => ({ ...prev, [editedFile.name]: content }));
+    }
+    setIsEditorOpen(false);
+  };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(e.target.files)
@@ -1302,7 +1321,7 @@ const ResumeBuilder: React.FC = () => {
                             <p className='text-sm text-gray-500 dark:text-gray-400'>
                               {(file.size / 1024).toFixed(2)} KB • {file.type.split('/')[1].toUpperCase()}
                             </p>
-                            {pdfData[file.name]?.text && (
+                            {file.type === 'application/pdf' && (
                               <div className='flex items-center gap-2 mt-2'>
                                 <button
                                   onClick={e => { e.stopPropagation(); optimizeResumeWithAI(file.name) }}
@@ -1330,6 +1349,17 @@ const ResumeBuilder: React.FC = () => {
                                   className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
                                 >
                                   Job Search
+                                </button>
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setFileToEdit(file);
+                                    setIsEditorOpen(true);
+                                  }}
+                                  className='text-xs bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-1.5 rounded-md hover:from-green-700 hover:to-green-800 transition-all shadow-sm font-medium ml-2'
+                                  title="Edit this PDF"
+                                >
+                                  Edit PDF
                                 </button>
                                 {pdfData[file.name]?.images?.length > 0 && (
                                   <span className='text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded-md font-medium'>
@@ -1362,15 +1392,6 @@ const ResumeBuilder: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                         Delete Selected ({selectedFiles.length})
-                      </button>
-                      <button 
-                        className='bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2' 
-                        onClick={extractSelected}
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Extract Text
                       </button>
                     </div>
                   )}
@@ -1729,6 +1750,17 @@ const ResumeBuilder: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* PDF Editor Modal */}
+      <PdfEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => {
+        setIsEditorOpen(false)
+        setFileToEdit(null)
+        }}
+  file={fileToEdit}
+  onSave={handleSaveEditedPdf}
+/>
     </div>
   )
 }
