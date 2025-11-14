@@ -174,7 +174,7 @@ const Dashboard: React.FC = () => {
       <div className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
         <div className='px-4 py-6 sm:px-0'>
           <div className='mb-8'>
-            <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome back!</h2>
+            <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome</h2>
             <p className='text-gray-600 dark:text-gray-400'>
               You have {scheduledInterviews.length} scheduled interview{scheduledInterviews.length !== 1 ? 's' : ''}
               {' '}

@@ -219,16 +219,12 @@ const JobSearch: React.FC = () => {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900 py-8'>
-      <div className="mb-8">
-        <Header />
-      </div>
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8'>
-        <div>
-          {/* Job search card on top */}
-          <div>
-            <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-8 w-full'>
-              <h1 className='text-3xl font-bold mb-6 text-gray-900 dark:text-white'>Job Search</h1>
+    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <Header title="Let's find you a job" />
+      <div className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
+        <div className='px-4 py-6 sm:px-0'>
+          <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-8 w-full'>
+            <h1 className='text-3xl font-bold mb-6 text-gray-900 dark:text-white'>Job Search</h1>
               <form
                 className='space-y-4 text-left'
                 onSubmit={(e) => {
@@ -255,18 +251,16 @@ const JobSearch: React.FC = () => {
                 >
                   Search on Indeed
                 </button>
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                    Paste Job Description
-                  </label>
-                  <textarea
-                    value={jobDescription}
-                    onChange={(e) => setJobDescription(e.target.value)}
-                    placeholder='Paste the job description here...'
-                    className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
-                    rows={5}
-                  />
-                </div>
+                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                  Paste Job Description
+                </label>
+                <textarea
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder='Paste the job description here...'
+                  className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
+                  rows={5}
+                />
                 <button
                   type='button'
                   className='mt-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full'
@@ -422,11 +416,9 @@ const JobSearch: React.FC = () => {
                   Back to Dashboard
                 </button>
               </form>
-            </div>
           </div>
 
           {/* Full-width resume/template panel below */}
-          <div className='mt-8'>
             <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-6 w-full'>
               <div className='flex items-center justify-between mb-3'>
                 <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Selected Resume</h2>
@@ -495,7 +487,6 @@ const JobSearch: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>

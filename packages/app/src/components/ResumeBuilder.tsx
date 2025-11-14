@@ -8,6 +8,7 @@ import modernPreview from "./assets/modern-preview.svg"
 import classicPreview from "./assets/classic-preview.svg"
 import modernPDF from "./assets/pdfs/modern-template.pdf"
 import classicPDF from "./assets/pdfs/classic-template.pdf"
+import Header from './Header'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
@@ -1218,55 +1219,7 @@ const ResumeBuilder: React.FC = () => {
 
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      {/* Header Nav */}
-      <div className='bg-blue-600 dark:bg-blue-800 shadow-sm'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
-          <div className='flex justify-between items-center py-4'>
-            <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h1 className='text-2xl font-bold text-white'>Resume Builder Pro</h1>
-            </div>
-            <nav className='flex items-center space-x-8'>
-              <a
-                href='#'
-                className='!text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/dashboard')}
-              >
-                Dashboard
-              </a>
-              <a
-                href='#'
-                className='!text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/resume')}
-              >
-                Resume Builder
-              </a>
-              <a
-                href='#'
-                className='!text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/job-search')}
-              >
-                Job Search
-              </a>
-              <a
-                href='#'
-                className='!text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/interview')}
-              >
-                Mock Interview
-              </a>
-              <button
-                onClick={() => navigate('/login')}
-                className='bg-red-500 text-white font-semibold hover:bg-red-600 py-2 px-4 rounded-lg shadow-md transition-colors'
-              >
-                Log Out
-              </button>
-            </nav>
-          </div>
-        </div>
-      </div>
+      <Header title="Build and check your own resume" />
 
       <div className='max-w-7xl mx-auto py-8 sm:px-6 lg:px-8'>
         <div className='px-4 sm:px-0'>
