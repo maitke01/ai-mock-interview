@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { usePreferences } from '../hooks/usePreferences'
 import { useNavigate } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
@@ -50,9 +50,29 @@ const JobSearch: React.FC = () => {
     setLoading(false)
   }
 
-  const { savePreference, deletePreference, listPreferences, loading: prefLoading, error: prefError } = usePreferences()
+  const { savePreference, deletePreference, listPreferences, loading: prefLoading } = usePreferences()
   const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
   const [selectedPrefId, setSelectedPrefId] = useState<string | null>(null)
+
+  const normalizeText = (t: any) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase()
+
+  const displayPreferences = useMemo(() => {
+    const seen = new Set<string>()
+    const out: any[] = []
+    for (const it of (savedPreferences || [])) {
+      const key = normalizeText(it.text)
+      if (!key || !seen.has(key)) {
+        out.push(it)
+        if (key) seen.add(key)
+      }
+    }
+    return out
+  }, [savedPreferences])
+
+  // Choose which list to render: prefer deduped displayPreferences, but
+  // fall back to the raw savedPreferences to avoid hiding items unexpectedly.
+  const toRender = (displayPreferences && displayPreferences.length > 0) ? displayPreferences : (savedPreferences || [])
+  const canonicalFavoriteId = (toRender || []).find((x: any) => x.metadata && x.metadata.favorite)?.id
 
   // Load saved preferences on mount and when preferencesUpdated event fires
   useEffect(() => {
@@ -79,7 +99,20 @@ const JobSearch: React.FC = () => {
         if (res && res.success) {
           const server = res.results || []
           console.debug('[JobSearch] load: server results', server)
-          const merged = [...pending, ...server.filter((s: any) => !pending.some((p) => String(p.id) === String(s.id)))]
+          // Deduplicate pending vs server results by id OR by normalized text content.
+          // This prevents duplicate entries when a locally-saved (temp) item is
+          // later persisted on the server with a different id.
+          const normalizeText = (t: any) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase()
+          const pendingTexts = (pending || []).map((p) => normalizeText(p.text))
+          const merged = [
+            ...pending,
+            ...server.filter((s: any) => {
+              if ((pending || []).some((p) => String(p.id) === String(s.id))) return false
+              const sText = normalizeText(s.text)
+              if (sText && pendingTexts.includes(sText)) return false
+              return true
+            })
+          ]
           console.debug('[JobSearch] load: merged list', merged)
           setSavedPreferences(merged)
         } else {
@@ -189,16 +222,24 @@ const JobSearch: React.FC = () => {
       const key = 'pendingJobPreferences'
       const raw = localStorage.getItem(key)
       const arr = raw ? (JSON.parse(raw) as any[]) : []
-      const idx = arr.findIndex((it) => String(it.id) === String(p.id))
+
+      // prefer an existing server-backed preference that has the same normalized text
+      const targetText = normalizeText(p.text)
+      const existingServer = (savedPreferences || []).find((it: any) => normalizeText(it.text) === targetText && String(it.id) !== String(p.id))
+      const targetId = existingServer ? existingServer.id : p.id
+
+      // remove any existing pendings with the same normalized text to avoid duplicates
+      const filtered = arr.filter((it) => normalizeText(it.text) !== targetText)
+      const idx = filtered.findIndex((it) => String(it.id) === String(targetId))
       if (idx !== -1) {
-        arr[idx].metadata = { ...(arr[idx].metadata || {}), ...newMeta }
+        filtered[idx].metadata = { ...(filtered[idx].metadata || {}), ...newMeta }
       } else {
         // add a pending entry so the toggled state persists until server confirms
-        const newPending = { id: p.id, userId: p.userId ?? 'public', name: p.name ?? null, text: p.text ?? null, metadata: newMeta, createdAt: Date.now() }
-        arr.unshift(newPending)
+        const newPending = { id: targetId, userId: p.userId ?? 'public', name: p.name ?? null, text: p.text ?? null, metadata: newMeta, createdAt: Date.now() }
+        filtered.unshift(newPending)
       }
-      localStorage.setItem(key, JSON.stringify(arr))
-      console.debug('[JobSearch] handleToggleFavorite: pending now', arr)
+      localStorage.setItem(key, JSON.stringify(filtered))
+      console.debug('[JobSearch] handleToggleFavorite: pending now', filtered)
     } catch (e) {
       console.warn('Failed to update pending preferences for favorite toggle', e)
     }
@@ -214,7 +255,8 @@ const JobSearch: React.FC = () => {
           const raw = localStorage.getItem(key)
           if (raw) {
             const arr = JSON.parse(raw) as any[]
-            const filtered = arr.filter((it) => String(it.id) !== String(p.id))
+            // remove pending entries that match by id OR by normalized text to avoid leftovers
+            const filtered = arr.filter((it) => String(it.id) !== String(p.id) && normalizeText(it.text) !== normalizeText(p.text))
             if (filtered.length) {
               localStorage.setItem(key, JSON.stringify(filtered))
               console.debug('[JobSearch] handleToggleFavorite: removed pending entry after server save, remaining', filtered)
@@ -228,18 +270,45 @@ const JobSearch: React.FC = () => {
         console.warn('Failed to cleanup pending preferences after save', e)
       }
 
-      // If we just set this item as favorite, clear favorite on other server-backed prefs (fire-and-forget)
+      // If we just set this item as favorite, clear favorite on other server-backed prefs.
       if (newMeta.favorite) {
         try {
           const others = (savedPreferences || []).filter((it: any) => String(it.id) !== String(p.id) && it.metadata && it.metadata.favorite)
           for (const o of others) {
             try {
               const metaCleared = { ...(o.metadata || {}), favorite: false }
-              void savePreference({ id: o.id, userId: o.userId, name: o.name, text: o.text, metadata: metaCleared })
+              // await to increase likelihood server-state matches before reloading
+              await savePreference({ id: o.id, userId: o.userId, name: o.name, text: o.text, metadata: metaCleared })
             } catch (e) { /* noop */ }
           }
         } catch (e) { console.warn('Failed to clear favorites on other prefs', e) }
       }
+
+      // Refresh server-side list and merge with any remaining pending entries so UI is consistent.
+      try {
+        const lp = await listPreferences()
+        if (lp && lp.success) {
+          const server = lp.results || []
+          const key = 'pendingJobPreferences'
+          const rawPending = localStorage.getItem(key)
+          const pendingArr = rawPending ? JSON.parse(rawPending) as any[] : []
+          const normalizeText = (t: any) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase()
+          const pendingTexts = (pendingArr || []).map((it) => normalizeText(it.text))
+          const merged = [
+            ...pendingArr,
+            ...server.filter((s: any) => {
+              if ((pendingArr || []).some((pp) => String(pp.id) === String(s.id))) return false
+              const sText = normalizeText(s.text)
+              if (sText && pendingTexts.includes(sText)) return false
+              return true
+            })
+          ]
+          setSavedPreferences(merged)
+        }
+      } catch (e) {
+        console.warn('Failed to refresh preferences after favorite toggle', e)
+      }
+
       try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
     } catch (e) {
       console.warn('Failed to persist favorite toggle', e)
@@ -481,8 +550,8 @@ const JobSearch: React.FC = () => {
                   <div className='flex flex-col gap-2'>
                     {prefLoading ? (
                       <div className='text-xs text-gray-500'>Loading saved preferences...</div>
-                    ) : savedPreferences && savedPreferences.length > 0 ? (
-                      savedPreferences.map((p: any) => (
+                    ) : toRender && toRender.length > 0 ? (
+                      toRender.map((p: any) => (
                         <div key={p.id} className='flex items-center justify-between bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2'>
                           <div className='text-sm'>
                             <div className='font-medium text-gray-800 dark:text-gray-200'>{p.name || 'saved-job'}</div>
@@ -494,11 +563,11 @@ const JobSearch: React.FC = () => {
                           <div className='flex items-center gap-2'>
                             <button
                               type='button'
-                              title={p.metadata && p.metadata.favorite ? 'Unstar preference' : 'Star preference'}
+                              title={(p.metadata && p.metadata.favorite) ? 'Unstar preference' : 'Star preference'}
                               onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleToggleFavorite(p) }}
-                              className={`px-3 py-1 rounded text-sm ${p.metadata && p.metadata.favorite ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
+                              className={`px-3 py-1 rounded text-sm ${(String(p.id) === String(canonicalFavoriteId)) ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
                             >
-                              {p.metadata && p.metadata.favorite ? '★' : '☆'}
+                              {(String(p.id) === String(canonicalFavoriteId)) ? '★' : '☆'}
                             </button>
 
                             <button
