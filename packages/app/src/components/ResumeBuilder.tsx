@@ -46,12 +46,20 @@ const ResumeBuilder: React.FC = () => {
   const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any } }>({})
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
   const [optimizingFiles, setOptimizingFiles] = useState<string[]>([])
+  const [extractingFiles, setExtractingFiles] = useState<string[]>([])
   const [lastOptimizedFile, setLastOptimizedFile] = useState<string | null>(null)
 
   // PDF Editor Modal states
-  const [isEditorOpen, setIsEditorOpen] = useState(false)
-  const [fileToEdit, setFileToEdit] = useState<File | null>(null)
+const [isEditorOpen, setIsEditorOpen] = useState(false)
+const [fileToEdit, setFileToEdit] = useState<File | null>(null)
+const [isOptimizeModalOpen, setIsOptimizeModalOpen] = useState(false)
+const [fileToOptimize, setFileToOptimize] = useState<File | null>(null)
+const [extractedTextForOptimize, setExtractedTextForOptimize] = useState('')
+const [optimizedTextPreview, setOptimizedTextPreview] = useState('')
+const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
 
+  const [isPreOptimizeModalOpen, setIsPreOptimizeModalOpen] = useState(false)
+  const [isExtractingInModal, setIsExtractingInModal] = useState(false)
   // Template states
   const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
   const [resumeTemplate, setResumeTemplate] = useState({
@@ -107,12 +115,12 @@ const ResumeBuilder: React.FC = () => {
     setResumeFiles(prev => [...prev, ...newFiles])
 
     for (const file of newFiles) {
-      if (file.type === 'application/pdf') {
-        const content = await extractPdfContent(file)
-        setPdfData(prev => ({ ...prev, [file.name]: content }))
-      } else {
-        setPdfData(prev => ({ ...prev, [file.name]: { text: '', images: [], metadata: {} } }))
-      }
+      setExtractingFiles(prev => [...prev, file.name])
+      // extractPdfContent now handles all file types and internal errors
+      const content = await extractPdfContent(file)
+      setPdfData(prev => ({ ...prev, [file.name]: content }))
+      // Remove from extracting list once done
+      setExtractingFiles(prev => prev.filter(name => name !== file.name))
     }
   }
 
@@ -141,23 +149,31 @@ const ResumeBuilder: React.FC = () => {
   }
 
   const extractPdfContent = async (file: File) => {
-    const text = await extractText(await file.arrayBuffer())
-    const images: ExtractPromise<ReturnType<typeof extractImages>> = []
+    try {
+      const textResult = await extractText(await file.arrayBuffer())
+      const images: ExtractPromise<ReturnType<typeof extractImages>> = []
 
-    for (let i = 1; i <= text.totalPages; i++) {
-      const img = await extractImages(await file.arrayBuffer(), i)
-      images.push(...img)
-    }
+      // Image extraction is PDF-specific
+      if (file.type === 'application/pdf') {
+        for (let i = 1; i <= textResult.totalPages; i++) {
+          const img = await extractImages(await file.arrayBuffer(), i)
+          images.push(...img)
+        }
+      }
 
-    const imageUrls = images.map(img => {
-      const blob = new Blob([img.data], { type: `image/${img.key}` })
-      return URL.createObjectURL(blob)
-    })
+      const imageUrls = images.map(img => {
+        const blob = new Blob([img.data], { type: `image/${img.key}` })
+        return URL.createObjectURL(blob)
+      })
 
-    return {
-      text: text.text.join('\n'),
-      images: imageUrls,
-      metadata: { totalPages: text.totalPages }
+      return {
+        text: textResult.text.join('\n'),
+        images: imageUrls,
+        metadata: { totalPages: textResult.totalPages }
+      }
+    } catch (error) {
+      console.error(`Failed to extract content from ${file.name}:`, error)
+      return { text: '', images: [], metadata: {} }
     }
   }
 
@@ -264,38 +280,55 @@ const ResumeBuilder: React.FC = () => {
         console.warn('Failed to persist optimized resume to sessionStorage', err)
       }
 
-      // Use older ATS-style readability heuristic: prefer ~15 words per sentence.
-      // Normalize to 0-100 so Dashboard displays a familiar scale.
+      // prefer readability returned by server; otherwise compute locally and update dashboard
       const computeReadability = (text: string) => {
-        const t = String(text || '').trim()
+        const countSyllables = (word: string) => {
+          word = word.toLowerCase()
+          if (word.length <= 3) return 1
+          const matches = word.match(/[aeiouy]{1,2}/g)
+          return matches ? matches.length : 1
+        }
+        const t = text.trim()
         if (!t) return 0
         const sentences = t.split(/[.!?]+/).filter(Boolean)
         const words = t.split(/\s+/).filter(Boolean)
         const totalWords = words.length
         const totalSentences = sentences.length || 1
-        const avgWordsPerSentence = totalWords / totalSentences
-
-        const ideal = 15
-        const diff = Math.abs(avgWordsPerSentence - ideal)
-        // diff 0 => 100, diff >= 30 => 0 (same mapping used in ATS route but scaled to 0-100)
-        const score = Math.max(0, (1 - Math.min(diff / 30, 1)) * 100)
-        return Math.round(score)
+        const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
+        const flesch = totalSentences > 0 && totalWords > 0
+          ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
+          : 0
+        return Math.max(0, Math.min(100, Math.round(flesch)))
       }
 
-      // Always compute readability locally using ATS-style avg-words-per-sentence heuristic
-      const localScore = computeReadability(optimized)
-      const finalReadability: number | null = localScore
-      if (typeof (window as any)?.updateReadabilityScore === 'function') {
-        console.debug('ResumeBuilder: calling updateReadabilityScore with localScore', localScore)
-          ; (window as any).updateReadabilityScore(localScore)
+      const returnedRaw = result?.readabilityScore ?? result?.score ?? null
+      const returnedScore = returnedRaw !== null && returnedRaw !== undefined ? Number(returnedRaw) : null
+      let finalReadability: number | null = null
+      if (returnedScore !== null && isFinite(returnedScore)) {
+        finalReadability = Number(returnedScore)
+        if (typeof (window as any)?.updateReadabilityScore === 'function') {
+          console.debug('ResumeBuilder: calling updateReadabilityScore with', finalReadability)
+          ;(window as any).updateReadabilityScore(finalReadability)
+        } else if (finalReadability !== null) {
+          console.debug('ResumeBuilder: updateReadabilityScore not available, writing to localStorage', finalReadability)
+          try { localStorage.setItem('readabilityScore', String(finalReadability)) } catch (e) { /* noop */ }
+        }
       } else {
-        console.debug('ResumeBuilder: updateReadabilityScore not available, writing localScore to localStorage', localScore)
-        try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
+        // compute local fallback
+        const localScore = computeReadability(optimized)
+        finalReadability = localScore
+        if (typeof (window as any)?.updateReadabilityScore === 'function') {
+          console.debug('ResumeBuilder: calling updateReadabilityScore with local fallback', localScore)
+          ;(window as any).updateReadabilityScore(localScore)
+        } else if (localScore !== null) {
+          console.debug('ResumeBuilder: updateReadabilityScore not available for local fallback, writing to localStorage', localScore)
+          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
+        }
       }
 
-      // Also request ATS score for the optimized resume and update dashboard
-      let finalAts: number | null = null
-      try {
+  // Also request ATS score for the optimized resume and update dashboard
+  let finalAts: number | null = null
+  try {
         const ares = await fetch('/api/ats-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -305,10 +338,10 @@ const ResumeBuilder: React.FC = () => {
           const ajson: any = await ares.json()
           const atsRaw = ajson?.atsScore ?? ajson?.score ?? null
           const ats = atsRaw !== null && atsRaw !== undefined ? Number(atsRaw) : null
-          if (ats !== null && Number.isFinite(ats)) {
+          if (ats !== null && isFinite(ats)) {
             if (typeof (window as any)?.updateAtsScore === 'function') {
               console.debug('ResumeBuilder: calling updateAtsScore with', ats)
-                ; (window as any).updateAtsScore(ats)
+              ;(window as any).updateAtsScore(ats);
             } else {
               try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
             }
@@ -339,28 +372,33 @@ const ResumeBuilder: React.FC = () => {
       try {
         const fallbackText = data.text || ''
         const localScore = (function computeReadabilityInline(text: string) {
-          const t = String(text || '').trim()
+          const countSyllables = (word: string) => {
+            word = word.toLowerCase()
+            if (word.length <= 3) return 1
+            const matches = word.match(/[aeiouy]{1,2}/g)
+            return matches ? matches.length : 1
+          }
+          const t = text.trim()
           if (!t) return 0
           const sentences = t.split(/[.!?]+/).filter(Boolean)
           const words = t.split(/\s+/).filter(Boolean)
           const totalWords = words.length
           const totalSentences = sentences.length || 1
-          const avgWordsPerSentence = totalWords / totalSentences
-
-          const ideal = 15
-          const diff = Math.abs(avgWordsPerSentence - ideal)
-          const score = Math.max(0, (1 - Math.min(diff / 30, 1)) * 100)
-          return Math.round(score)
+          const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
+          const flesch = totalSentences > 0 && totalWords > 0
+            ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
+            : 0
+          return Math.max(0, Math.min(100, Math.round(flesch)))
         })(fallbackText)
 
         setAiOptimizedResumes(prev => ({ ...prev, [fileName]: fallbackText }))
         setLastOptimizedFile(fileName)
-        try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
+  try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
 
         if (typeof (window as any)?.updateReadabilityScore === 'function') {
           console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
-            ; (window as any).updateReadabilityScore(localScore)
-        } else {
+          ;(window as any).updateReadabilityScore(localScore)
+        } else if (localScore !== null) {
           console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to localStorage', localScore)
           try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
         }
@@ -372,6 +410,84 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
+  const handleOptimizeInModal = async () => {
+    if (!fileToOptimize || !extractedTextForOptimize.trim()) {
+      alert('No text content to optimize');
+      return;
+    }
+  
+    setIsOptimizingInModal(true);
+    try {
+      const response = await fetch('/api/optimize-resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: extractedTextForOptimize, 
+          metadata: pdfData[fileToOptimize.name]?.metadata,
+          fileName: fileToOptimize.name 
+        })
+      });
+  
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      const optimized = result?.optimizedResume || extractedTextForOptimize;
+      
+      setOptimizedTextPreview(optimized);
+      
+      // Update the stored data
+      setAiOptimizedResumes(prev => ({ ...prev, [fileToOptimize.name]: optimized }));
+      
+      // Update scores if available
+      const readabilityScore = result?.readabilityScore ?? result?.score;
+      if (readabilityScore !== null && readabilityScore !== undefined) {
+        const finalScore = Number(readabilityScore);
+        if (typeof (window as any)?.updateReadabilityScore === 'function') {
+          (window as any).updateReadabilityScore(finalScore);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error optimizing resume:', error);
+      alert('Failed to optimize resume. Please try again.');
+    } finally {
+      setIsOptimizingInModal(false);
+    }
+  };
+  
+  const applyOptimizedText = () => {
+    if (!fileToOptimize || !optimizedTextPreview) return;
+    
+    // Store the optimized version and set it for the main preview box
+    setAiOptimizedResumes(prev => ({ ...prev, [fileToOptimize.name]: optimizedTextPreview }));
+    setLastOptimizedFile(fileToOptimize.name);
+        
+    // Close modal
+    setIsOptimizeModalOpen(false);
+  };
+
+  const handleExtractAndOptimize = async () => {
+    if (!fileToOptimize) {
+      alert('No file selected for optimization.');
+      return;
+    }
+    setIsExtractingInModal(true);
+    try {
+      const content = await extractPdfContent(fileToOptimize);
+      if (!content || !content.text.trim()) {
+        throw new Error('Failed to extract any text from the document.');
+      }
+      setExtractedTextForOptimize(content.text);
+      setOptimizedTextPreview('');
+      setIsPreOptimizeModalOpen(false); // Close pre-modal
+      setIsOptimizeModalOpen(true);    // Open main optimize modal
+    } catch (error) {
+      console.error('Error during extraction in modal:', error);
+      alert((error as Error).message || 'Could not extract text. The file might be image-based or corrupted.');
+    } finally {
+      setIsExtractingInModal(false);
+    }
+  };
+
   // Initialize Quill editors
   useEffect(() => {
     if (headerRef.current && !headerQuill.current) {
@@ -381,7 +497,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'Your Name\nyour.email@example.com\n(123) 456-7890\nLinkedIn Profile'
       })
-
+      
       headerQuill.current.on('text-change', () => {
         if (headerQuill.current) {
           handleTemplateChange('header', headerQuill.current.root.innerHTML)
@@ -402,7 +518,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'SKILLS\n\nEDUCATION\n\nCERTIFICATIONS'
       })
-
+      
       sidebarQuill.current.on('text-change', () => {
         if (sidebarQuill.current) {
           handleTemplateChange('sidebar', sidebarQuill.current.root.innerHTML)
@@ -423,7 +539,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
       })
-
+      
       mainContentQuill.current.on('text-change', () => {
         if (mainContentQuill.current) {
           handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
@@ -495,7 +611,7 @@ const ResumeBuilder: React.FC = () => {
   const applyBold = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -507,7 +623,7 @@ const ResumeBuilder: React.FC = () => {
   const applyItalic = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -519,7 +635,7 @@ const ResumeBuilder: React.FC = () => {
   const applyUnderline = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -531,14 +647,14 @@ const ResumeBuilder: React.FC = () => {
   const applyStrikethrough = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
       quill.format('strike', !currentFormat.strike)
     }
   }
-
+  
   const insertLink = () => {
     const url = prompt('Enter URL:')
     if (url) {
@@ -577,7 +693,7 @@ const ResumeBuilder: React.FC = () => {
   const insertBulletList = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range) {
       quill.format('list', 'bullet')
@@ -587,7 +703,7 @@ const ResumeBuilder: React.FC = () => {
   const insertNumberedList = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range) {
       quill.format('list', 'ordered')
@@ -597,7 +713,7 @@ const ResumeBuilder: React.FC = () => {
   const insertCheckbox = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range) {
       quill.insertText(range.index, '☐ ')
@@ -607,7 +723,7 @@ const ResumeBuilder: React.FC = () => {
   const applySuperscript = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -618,7 +734,7 @@ const ResumeBuilder: React.FC = () => {
   const applySubscript = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       const currentFormat = quill.getFormat(range)
@@ -630,7 +746,7 @@ const ResumeBuilder: React.FC = () => {
   const applyTextColor = (color: string) => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       quill.format('color', color)
@@ -642,7 +758,7 @@ const ResumeBuilder: React.FC = () => {
   const applyHighlight = (color: string) => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range && range.length > 0) {
       quill.format('background', color)
@@ -653,7 +769,7 @@ const ResumeBuilder: React.FC = () => {
   const increaseIndent = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range) {
       quill.format('indent', '+1')
@@ -663,7 +779,7 @@ const ResumeBuilder: React.FC = () => {
   const decreaseIndent = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range) {
       quill.format('indent', '-1')
@@ -673,7 +789,7 @@ const ResumeBuilder: React.FC = () => {
   const insertHorizontalLine = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
+    
     const range = quill.getSelection()
     if (range) {
       quill.insertText(range.index, '\n───────────────────────────────\n')
@@ -725,12 +841,12 @@ const ResumeBuilder: React.FC = () => {
     }
 
     setIsSaving(true)
-
+    
     try {
-      const draftKey = selectedTemplate
-        ? `resume-draft-${selectedTemplate}`
+      const draftKey = selectedTemplate 
+        ? `resume-draft-${selectedTemplate}` 
         : 'resume-draft-scratch'
-
+      
       const draftData = {
         header: resumeTemplate.header,
         sidebar: resumeTemplate.sidebar,
@@ -739,9 +855,9 @@ const ResumeBuilder: React.FC = () => {
         mode: resumeMode,
         template: selectedTemplate
       }
-
+      
       localStorage.setItem(draftKey, JSON.stringify(draftData))
-
+      
       setTimeout(() => {
         setIsSaving(false)
         alert('Draft saved successfully!')
@@ -755,12 +871,12 @@ const ResumeBuilder: React.FC = () => {
 
   const loadDraft = (templateId: 'modern' | 'classic' | 'scratch') => {
     try {
-      const draftKey = templateId === 'scratch'
-        ? 'resume-draft-scratch'
+      const draftKey = templateId === 'scratch' 
+        ? 'resume-draft-scratch' 
         : `resume-draft-${templateId}`
-
+      
       const savedDraft = localStorage.getItem(draftKey)
-
+      
       if (savedDraft) {
         const draftData = JSON.parse(savedDraft)
         setResumeTemplate({
@@ -778,7 +894,7 @@ const ResumeBuilder: React.FC = () => {
   const selectTemplate = (id: 'modern' | 'classic') => {
     const draftKey = `resume-draft-${id}`
     const savedDraft = localStorage.getItem(draftKey)
-
+    
     if (savedDraft) {
       try {
         const draftData = JSON.parse(savedDraft)
@@ -795,9 +911,9 @@ const ResumeBuilder: React.FC = () => {
     } else {
       setResumeTemplate(templatesData[id])
     }
-
+    
     setSelectedTemplate(id)
-
+    
     const templateData = templates.find(t => t.name === id)
     if (templateData) {
       setCurrentPdfUrl(templateData.pdf)
@@ -816,7 +932,7 @@ const ResumeBuilder: React.FC = () => {
       const pdfBytes = await mergePDFWithText(currentPdfUrl, resumeTemplate)
       const fileName = `resume-${selectedTemplate || 'scratch'}-${Date.now()}.pdf`
       downloadPDF(pdfBytes, fileName)
-
+      
       setTimeout(() => {
         setIsDownloading(false)
         alert('Resume downloaded successfully!')
@@ -862,7 +978,7 @@ const ResumeBuilder: React.FC = () => {
         </div>
 
         {/* Font Family */}
-        <select
+        <select 
           value={fontFamily}
           onChange={(e) => setFontFamily(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[120px]"
@@ -879,7 +995,7 @@ const ResumeBuilder: React.FC = () => {
         </select>
 
         {/* Font Size */}
-        <select
+        <select 
           value={fontSize}
           onChange={(e) => setFontSize(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[70px]"
@@ -947,7 +1063,7 @@ const ResumeBuilder: React.FC = () => {
             title="Text Color"
           >
             <span className="text-sm font-semibold">A</span>
-            <div className="w-4 h-1 rounded" style={{ backgroundColor: textColor }}></div>
+            <div className="w-4 h-1 rounded" style={{backgroundColor: textColor}}></div>
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
@@ -971,7 +1087,7 @@ const ResumeBuilder: React.FC = () => {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
             </svg>
-            <div className="w-4 h-1 rounded" style={{ backgroundColor: highlightColor }}></div>
+            <div className="w-4 h-1 rounded" style={{backgroundColor: highlightColor}}></div>
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
@@ -1032,7 +1148,7 @@ const ResumeBuilder: React.FC = () => {
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
         {/* Line Height */}
-        <select
+        <select 
           value={lineHeight}
           onChange={(e) => setLineHeight(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[80px]"
@@ -1274,10 +1390,11 @@ const ResumeBuilder: React.FC = () => {
                     {resumeFiles.map(file => (
                       <div
                         key={file.name}
-                        className={`flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer ${selectedFiles.includes(file.name)
-                            ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 shadow-md'
+                        className={`flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer ${
+                          selectedFiles.includes(file.name) 
+                            ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 shadow-md' 
                             : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:shadow-md'
-                          }`}
+                        }`}
                         onClick={() => toggleSelect(file.name)}
                       >
                         <div className='flex items-center flex-1 gap-3'>
@@ -1298,53 +1415,59 @@ const ResumeBuilder: React.FC = () => {
                             <p className='text-sm text-gray-500 dark:text-gray-400'>
                               {(file.size / 1024).toFixed(2)} KB • {file.type.split('/')[1].toUpperCase()}
                             </p>
-                            {file.type === 'application/pdf' && (
-                              <div className='flex items-center gap-2 mt-2'>
-                                <button
-                                  onClick={e => { e.stopPropagation(); optimizeResumeWithAI(file.name) }}
-                                  className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium'
-                                  disabled={optimizingFiles.includes(file.name)}
-                                >
-                                  {optimizingFiles.includes(file.name) ? 'Optimizing...' : 'AI Optimize'}
-                                </button>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation()
-                                    const selected: SelectedResume = {
-                                      fileName: file.name,
-                                      text: pdfData[file.name]?.text || '',
-                                      images: pdfData[file.name]?.images || [],
-                                      optimized: aiOptimizedResumes[file.name] || false
-                                    }
-                                    try {
-                                      sessionStorage.setItem('selectedResume', JSON.stringify(selected))
-                                    } catch (err) {
-                                      console.warn('Failed to persist selected resume to sessionStorage', err)
-                                    }
-                                    navigate('/job-search')
-                                  }}
-                                  className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
-                                >
-                                  Job Search
-                                </button>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setFileToEdit(file);
-                                    setIsEditorOpen(true);
-                                  }}
-                                  className='text-xs bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-1.5 rounded-md hover:from-green-700 hover:to-green-800 transition-all shadow-sm font-medium ml-2'
-                                  title="Edit this PDF"
-                                >
-                                  Edit PDF
-                                </button>
-                                {pdfData[file.name]?.images?.length > 0 && (
-                                  <span className='text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded-md font-medium'>
-                                    {pdfData[file.name].images.length} images extracted
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                            <div className='flex items-center gap-2 mt-2'>
+                              <button
+                                onClick={async (e) => { 
+                                  e.stopPropagation();
+                                  setFileToOptimize(file);
+                                  setIsPreOptimizeModalOpen(true);
+                                }}
+                                className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-not-allowed'
+                                disabled={extractingFiles.includes(file.name)}
+                              >
+                                {extractingFiles.includes(file.name) ? 'Extracting...' : 'AI Optimize'}
+                              </button>
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  const selected: SelectedResume = {
+                                    fileName: file.name,
+                                    text: pdfData[file.name]?.text || '',
+                                    images: pdfData[file.name]?.images || [],
+                                    optimized: aiOptimizedResumes[file.name] || false
+                                  }
+                                  try {
+                                    sessionStorage.setItem('selectedResume', JSON.stringify(selected))
+                                  } catch (err) {
+                                    console.warn('Failed to persist selected resume to sessionStorage', err)
+                                  }
+                                  navigate('/job-search')
+                                }}
+                                className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
+                              >
+                                Job Search
+                              </button>
+                              {file.type === 'application/pdf' && (
+                                <>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setFileToEdit(file);
+                                      setIsEditorOpen(true);
+                                    }}
+                                    className='text-xs bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-1.5 rounded-md hover:from-green-700 hover:to-green-800 transition-all shadow-sm font-medium ml-2'
+                                    title="Edit this PDF"
+                                  >
+                                    Edit PDF
+                                  </button>
+                                  {pdfData[file.name]?.images?.length > 0 && (
+                                    <span className='text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded-md font-medium'>
+                                      {pdfData[file.name].images.length} images extracted
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <button
@@ -1361,8 +1484,8 @@ const ResumeBuilder: React.FC = () => {
 
                   {selectedFiles.length > 0 && (
                     <div className='flex justify-center gap-3 mt-6'>
-                      <button
-                        className='bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2'
+                      <button 
+                        className='bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2' 
                         onClick={deleteSelected}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1386,7 +1509,7 @@ const ResumeBuilder: React.FC = () => {
               </div>
               <div className='p-6'>
                 <div className='max-w-7xl mx-auto'>
-                  <div className='bg-gray-50 dark:bg-gray-900 p-4 rounded-md border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 overflow-auto' style={{ maxHeight: '280px' }}>
+                  <div className='bg-gray-50 dark:bg-gray-900 p-4 rounded-md border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-gray-100 overflow-auto' style={{maxHeight: '280px'}}>
                     <pre className='whitespace-pre-wrap break-words'>{aiOptimizedResumes[lastOptimizedFile]}</pre>
                   </div>
                   <div className='flex justify-center gap-3 mt-4'>
@@ -1432,16 +1555,17 @@ const ResumeBuilder: React.FC = () => {
             <div className='px-6 py-8'>
               <div className="flex flex-col sm:flex-row justify-center gap-6">
                 <button
-                  onClick={() => {
+                  onClick={() => { 
                     setResumeMode("scratch")
                     setSelectedTemplate(null)
                     setCurrentPdfUrl(null)
                     setHasSelectedMode(true)
                   }}
-                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "scratch"
-                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
+                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${
+                    resumeMode === "scratch" 
+                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900" 
                       : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
-                    }`}
+                  }`}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <svg className={`w-12 h-12 ${resumeMode === "scratch" ? "text-white" : "text-blue-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1456,14 +1580,15 @@ const ResumeBuilder: React.FC = () => {
                   </div>
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={() => { 
                     setResumeMode("template")
                     setHasSelectedMode(true)
                   }}
-                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "template"
-                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
+                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${
+                    resumeMode === "template" 
+                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900" 
                       : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
-                    }`}
+                  }`}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <svg className={`w-12 h-12 ${resumeMode === "template" ? "text-white" : "text-blue-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1488,11 +1613,11 @@ const ResumeBuilder: React.FC = () => {
                 <h2 className='text-xl font-semibold text-gray-900 dark:text-white'>Scratch Resume Editor</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create your resume with full creative control</p>
               </div>
-
+              
               <ProfessionalToolbar />
-
+              
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{aspectRatio: '8.5/11'}}>
                   <div className='w-full h-full flex flex-col p-12'>
                     <div className='border-b-2 border-gray-300 pb-8 mb-8'>
                       <div
@@ -1537,7 +1662,7 @@ const ResumeBuilder: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
+                
                 <div className='flex justify-center gap-4 mt-8'>
                   <button
                     onClick={saveDraft}
@@ -1573,15 +1698,15 @@ const ResumeBuilder: React.FC = () => {
               <div className='p-8'>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                   {templates.map((template, index) => (
-                    <div
-                      key={index}
-                      onClick={() => selectTemplate(template.name as 'modern' | 'classic')}
+                    <div 
+                      key={index} 
+                      onClick={() => selectTemplate(template.name as 'modern' | 'classic')} 
                       className="group cursor-pointer bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
                     >
                       <div className="relative">
-                        <img
-                          src={template.preview}
-                          alt={`${template.name} template`}
+                        <img 
+                          src={template.preview} 
+                          alt={`${template.name} template`} 
                           className="w-full h-96 object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-6">
@@ -1610,11 +1735,11 @@ const ResumeBuilder: React.FC = () => {
                 <h2 className='text-xl font-semibold text-gray-900 dark:text-white capitalize'>{selectedTemplate} Template Editor</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Customize your professional resume template</p>
               </div>
-
+              
               <ProfessionalToolbar />
-
+              
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{aspectRatio: '8.5/11'}}>
                   <div className='w-full h-full flex flex-col p-12'>
                     <div className='border-b-2 border-gray-300 pb-8 mb-8'>
                       <div
@@ -1662,7 +1787,7 @@ const ResumeBuilder: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
+                
                 <div className='flex flex-wrap justify-center gap-4 mt-8'>
                   <button
                     onClick={saveDraft}
@@ -1694,7 +1819,7 @@ const ResumeBuilder: React.FC = () => {
                     AI Format
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={() => { 
                       setSelectedTemplate(null)
                       setCurrentPdfUrl(null)
                     }}
@@ -1735,7 +1860,178 @@ const ResumeBuilder: React.FC = () => {
         }}
   file={fileToEdit}
   onSave={handleSaveEditedPdf}
-/>
+      />
+
+      {/* Pre-Optimize Extraction Modal */}
+      {isPreOptimizeModalOpen && fileToOptimize && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Prepare for AI Optimization
+              </h3>
+              <button onClick={() => setIsPreOptimizeModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold">&times;</button>
+            </div>
+            <div className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-gray-900">
+              <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
+                Displaying a preview of <strong>{fileToOptimize.name}</strong>.
+              </p>
+              <div className="border rounded-lg shadow-inner bg-white dark:bg-gray-800 h-[60vh] overflow-hidden">
+                <iframe
+                  src={URL.createObjectURL(fileToOptimize)}
+                  className="w-full h-full"
+                  title="PDF Preview"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end items-center gap-4 bg-gray-50 dark:bg-gray-800">
+              <button
+                onClick={() => setIsPreOptimizeModalOpen(false)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExtractAndOptimize}
+                disabled={isExtractingInModal}
+                className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-sm hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-wait"
+              >
+                {isExtractingInModal ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2">⏳</span>
+                    Extracting Text...
+                  </>
+                ) : (
+                  'Extract for Optimization'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Optimize Modal */}
+      {isOptimizeModalOpen && fileToOptimize && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gradient-to-r from-blue-600 to-blue-700">
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                AI Resume Optimizer - {fileToOptimize.name}
+              </h3>
+              <button
+                onClick={() => setIsOptimizeModalOpen(false)}
+                className="text-white hover:text-gray-200 text-2xl font-bold transition-colors"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Original Text */}
+              <div className="flex-1 p-6 border-r border-gray-200 dark:border-gray-700 overflow-auto">
+                <div className="mb-4">
+                  <h4 className="font-semibold text-lg text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Original Text
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Extracted from your document
+                  </p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono">
+                    {extractedTextForOptimize}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Optimized Text */}
+              <div className="flex-1 p-6 overflow-auto bg-blue-50 dark:bg-gray-800">
+                <div className="mb-4">
+                  <h4 className="font-semibold text-lg text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    AI-Optimized Text
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    {optimizedTextPreview ? 'Enhanced with AI suggestions' : 'Click "Optimize Now" to improve your resume'}
+                  </p>
+                </div>
+                {!optimizedTextPreview ? (
+                  <div className="flex items-center justify-center h-64 bg-white dark:bg-gray-700 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
+                    <div className="text-center p-6">
+                      <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        Ready to optimize your resume with AI?
+                      </p>
+                      <button
+                        onClick={handleOptimizeInModal}
+                        disabled={isOptimizingInModal}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-not-allowed"
+                      >
+                        {isOptimizingInModal ? (
+                          <>
+                            <span className="inline-block animate-spin mr-2">⏳</span>
+                            Optimizing...
+                          </>
+                        ) : (
+                          'Optimize Now'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-gray-700 rounded-lg p-4 border border-blue-200 dark:border-blue-800 shadow-lg">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono">
+                      {optimizedTextPreview}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {optimizedTextPreview && (
+                  <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Optimization complete!
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsOptimizeModalOpen(false)}
+                  className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                {optimizedTextPreview && (
+                  <button
+                    onClick={applyOptimizedText}
+                    className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-green-700 border border-transparent rounded-lg shadow-sm hover:from-green-700 hover:to-green-800 transition-colors"
+                  >
+                    Apply Optimized Text
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
