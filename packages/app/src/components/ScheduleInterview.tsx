@@ -61,7 +61,7 @@ const ScheduleInterview: React.FC = () => {
             <input
               type='date'
               min={new Date().toISOString().split('T')[0]} // prevents selecting old dates
-              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               required
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -72,7 +72,7 @@ const ScheduleInterview: React.FC = () => {
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>Time</label>
             <input
               type='time'
-              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               required
               value={time}
               onChange={(e) => setTime(e.target.value)}
@@ -82,7 +82,7 @@ const ScheduleInterview: React.FC = () => {
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>Interview Type</label>
             <select
-              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+              className='w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               value={interviewType}
               onChange={(e) => setInterviewType(e.target.value)}
             >
@@ -92,18 +92,20 @@ const ScheduleInterview: React.FC = () => {
             </select>
           </div>
 
-          <div className='text-center'>
+          <div className='text-center space-x-4'>
             <button
               type='submit'
               disabled={scheduleInterviewMutation.isPending}
-              className='ml-3 text-sm font-bold text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed'
+              className='ml-3 text-sm bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+
+              
             >
               {scheduleInterviewMutation.isPending ? 'Scheduling...' : 'Schedule'}
             </button>
             <button
               type='button'
               onClick={() => navigate('/dashboard')}
-              className='ml-3 text-sm text-gray-600 dark:text-gray-300 underline'
+              className='text-gray-900 dark:text-gray-100 underline'
             >
               Cancel
             </button>

@@ -61,7 +61,7 @@ const Signup: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className='w-full px-4 py-2 mt-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-blue-400 focus:outline-none'
+              className='w-full px-4 py-2 mt-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none'
             />
           </div>
 
@@ -73,7 +73,7 @@ const Signup: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className='w-full px-4 py-2 mt-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-blue-400 focus:outline-none'
+              className='w-full px-4 py-2 mt-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none'
             />
           </div>
 
@@ -85,27 +85,27 @@ const Signup: React.FC = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className='w-full px-4 py-2 mt-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-blue-400 focus:outline-none'
+              className='w-full px-4 py-2 mt-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none'
             />
           </div>
 
           <button
             type='submit'
             disabled={isLoading}
-            className='w-full py-2 font-semibold bg-black dark:bg-blue-600 text-white rounded-lg hover:bg-gray-900 dark:hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+            className='mt-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
           >
             {isLoading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
 
-        <p className='mt-6 text-sm text-center text-gray-600 dark:text-gray-400'>
+        <p className='mt-6 text-sm font-bold text-center text-gray-600 dark:text-gray-400'>
           Already have an account?{' '}
-          <button
-            onClick={() => navigate('/login')}
-            className='font-semibold text-black dark:text-blue-400 hover:underline'
-          >
-            Login
-          </button>
+          <span
+              onClick={() => navigate('/signup')}
+              className='text-bold text-blue-500 decoration-blue-500 cursor-pointer hover:underline'
+            >
+             Login
+            </span>
         </p>
       </div>
     </div>
