@@ -17,6 +17,8 @@ const JobSearch: React.FC = () => {
   const [missingSkillsState, setMissingSkillsState] = useState<string[]>([])
   const [showAnalysis, setShowAnalysis] = useState(false)
   const navigate = useNavigate()
+  const [showPopup, setShowPopup] = useState(false)
+  const [popupMessage, setPopupMessage] = useState('')
 
   useEffect(() => {
     try {
@@ -81,8 +83,13 @@ const JobSearch: React.FC = () => {
     // 'preferencesUpdated' event is dispatched.
   }, [])
 
+  //update this function with popup message
   const handleSavePreference = async () => {
-    if (!jobDescription || !jobDescription.trim()) return alert('Paste a job description first')
+    if (!jobDescription || !jobDescription.trim()) {
+      setPopupMessage('Paste a job description first.')
+      setShowPopup(true)
+      return
+    }
     try {
       const metadata = { keywords }
       const name = (jobDescription.split('\n')[0] || 'saved-job').slice(0, 80)
@@ -90,7 +97,8 @@ const JobSearch: React.FC = () => {
       if (res && res.success) {
         const savedLocally = res?.data?.savedLocally === true
         if (savedLocally) {
-          alert('Job preference saved locally (dev DB unavailable). It will be synced when the server is reachable.')
+          setPopupMessage('Job preference saved locally (dev DB unavailable). It will be synced when the server is reachable.')
+          setShowPopup(true)
           // optimistic UI: add the locally-saved preference to the list immediately
           try {
             const newPref = {
@@ -107,7 +115,8 @@ const JobSearch: React.FC = () => {
             console.warn('Failed to optimistic-insert local pref', e)
           }
         } else {
-          alert('Job preference saved')
+          setPopupMessage('Job preference saved')
+          setShowPopup(true)
           // optimistic UI: insert the new preference immediately so the user sees it
           try {
             const newPref = {
@@ -133,17 +142,28 @@ const JobSearch: React.FC = () => {
       } else {
         console.warn('Save preference failed', res)
         const details = res?.error?.details || res?.error?.error || res?.error || res?.status || 'Unknown error'
-        alert('Failed to save preference: ' + (typeof details === 'string' ? details : JSON.stringify(details)))
+        setPopupMessage('Failed to save preference: ' + (typeof details === 'string' ? details : JSON.stringify(details)))
+        setShowPopup(true)
       }
     } catch (e) {
       console.error('Save preference error', e)
-      alert('Failed to save preference')
+      setPopupMessage('Failed to save preference')
+      setShowPopup(true)
     }
   }
+     
 
   const handleAnalyzeSkillGap = () => {
-    if (!selectedResume) return alert('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
-    if (!keywords || keywords.length === 0) return alert('No keywords extracted. Please extract keywords first.')
+    if (!selectedResume) {
+      setPopupMessage('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
+      setShowPopup(true)
+      return
+    }
+    if (!keywords || keywords.length === 0) {
+      setPopupMessage('No keywords extracted. Please extract keywords first.')
+      setShowPopup(true)
+      return
+    }
     const resumeTextSource = selectedResume.text
       ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
     const resumeText = String(resumeTextSource).toLowerCase()
@@ -485,6 +505,21 @@ const JobSearch: React.FC = () => {
                     )}
                   </div>
                 )}
+                // popup message with Ok button
+                      {showPopup && (
+        <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
+          <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
+            <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
+            <button
+              className='px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700
+               hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-medium transition-colors'
+              onClick={() => setShowPopup(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
               </div>
             </div>
         </div>
