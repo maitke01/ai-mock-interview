@@ -273,7 +273,7 @@ const Dashboard: React.FC = () => {
                                   Start
                                 </button>
                                 <button
-                                  className='p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
+                                  className='p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:text-white dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
                                   onClick={() =>
                                     setInterviewToCancel(interview.id)}
                                   aria-label='Cancel interview'
