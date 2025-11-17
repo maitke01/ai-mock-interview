@@ -1531,7 +1531,7 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
                     </button>
                     <button
                       onClick={() => setLastOptimizedFile(null)}
-                      className='bg-gray-500 text-white px-6 py-2 rounded-lg font-medium transition-all shadow-md'
+                      className='bg-gray-500 text-black dark:text-white px-6 py-2 rounded-lg font-medium transition-all shadow-md'
                     >
                       Dismiss
                     </button>
