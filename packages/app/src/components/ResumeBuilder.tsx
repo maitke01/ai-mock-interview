@@ -12,6 +12,7 @@ import Header from './Header'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 import PdfEditorModal from './PdfEditorModal'
 
+
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
 const templates = [
@@ -39,6 +40,8 @@ const ResumeBuilder: React.FC = () => {
   const headerQuill = useRef<Quill | null>(null)
   const sidebarQuill = useRef<Quill | null>(null)
   const mainContentQuill = useRef<Quill | null>(null)
+  const [showPopup, setShowPopup] = useState(false)
+  const [popupMessage, setPopupMessage] = useState('')
 
   // File handling states
   const [resumeFiles, setResumeFiles] = useState<File[]>([])
@@ -239,17 +242,23 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const result = await response.json()
-      alert('Resume submitted for AI formatting!')
+      setPopupMessage('Resume submitted for AI formatting!')
+      setShowPopup(true)
       console.log('Formatted resume:', result)
     } catch (error) {
       console.error('Error submitting resume:', error)
-      alert('Failed to submit resume. Please try again.')
+      setPopupMessage('Failed to submit resume. Please try again.')
+      setShowPopup(true)
     }
   }
 
   const optimizeResumeWithAI = async (fileName: string) => {
     const data = pdfData[fileName]
-    if (!data || !data.text.trim()) return alert('No text content found to optimize')
+    if (!data || !data.text.trim()) {
+      setPopupMessage('No text content found to optimize')
+      setShowPopup(true)
+      return
+    }
 
     setOptimizingFiles(prev => [...prev, fileName])
     try {
@@ -367,7 +376,8 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
       }
     } catch (error) {
       console.error('Error optimizing resume:', error)
-      alert('Network error while optimizing resume. A local readability estimate will be used.')
+      setPopupMessage('Network error while optimizing resume. A local readability estimate will be used.')
+      setShowPopup(true)
       // Apply a local fallback so the dashboard reflects a change
       try {
         const fallbackText = data.text || ''
@@ -412,8 +422,9 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
 
   const handleOptimizeInModal = async () => {
     if (!fileToOptimize || !extractedTextForOptimize.trim()) {
-      alert('No text content to optimize');
-      return;
+      setPopupMessage('No text content to optimize')
+      setShowPopup(true)
+      return
     }
   
     setIsOptimizingInModal(true);
@@ -448,7 +459,8 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
       
     } catch (error) {
       console.error('Error optimizing resume:', error);
-      alert('Failed to optimize resume. Please try again.');
+      setPopupMessage('Failed to optimize resume. Please try again.')
+      setShowPopup(true)
     } finally {
       setIsOptimizingInModal(false);
     }
@@ -467,8 +479,9 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
 
   const handleExtractAndOptimize = async () => {
     if (!fileToOptimize) {
-      alert('No file selected for optimization.');
-      return;
+      setPopupMessage('No file selected for optimization.')
+      setShowPopup(true)
+      return
     }
     setIsExtractingInModal(true);
     try {
@@ -482,7 +495,8 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
       setIsOptimizeModalOpen(true);    // Open main optimize modal
     } catch (error) {
       console.error('Error during extraction in modal:', error);
-      alert((error as Error).message || 'Could not extract text. The file might be image-based or corrupted.');
+      setPopupMessage((error as Error).message || 'Could not extract text. The file might be image-based or corrupted.')
+      setShowPopup(true)
     } finally {
       setIsExtractingInModal(false);
     }
@@ -836,7 +850,8 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
   // Draft operations
   const saveDraft = () => {
     if (!selectedTemplate && resumeMode !== 'scratch') {
-      alert('Please select a template first')
+      setPopupMessage('Please select a template first')
+      setShowPopup(true)
       return
     }
 
@@ -860,12 +875,14 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
       
       setTimeout(() => {
         setIsSaving(false)
-        alert('Draft saved successfully!')
+        setPopupMessage('Draft saved successfully!')
+        setShowPopup(true)
       }, 500)
     } catch (error) {
       console.error('Error saving draft:', error)
       setIsSaving(false)
-      alert('Failed to save draft. Please try again.')
+      setPopupMessage('Failed to save draft. Please try again.')
+      setShowPopup(true)
     }
   }
 
@@ -922,7 +939,8 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
 
   const handleDownloadPDF = async () => {
     if (!currentPdfUrl) {
-      alert('No template selected')
+      setPopupMessage('No template selected')
+      setShowPopup(true)
       return
     }
 
@@ -935,12 +953,14 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
       
       setTimeout(() => {
         setIsDownloading(false)
-        alert('Resume downloaded successfully!')
+        setPopupMessage('Resume downloaded successfully!')
+        setShowPopup(true)
       }, 500)
     } catch (error) {
       console.error('Error downloading PDF:', error)
       setIsDownloading(false)
-      alert('Failed to generate PDF. Please try again.')
+      setPopupMessage('Failed to generate PDF. Please try again.')
+      setShowPopup(true)
     }
   }
 
@@ -2029,6 +2049,20 @@ const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+                 {/* popup message with Ok button */}
+                 {showPopup && (
+        <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
+          <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
+            <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
+            <button
+              className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+              onClick={() => setShowPopup(false)}
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

@@ -407,10 +407,12 @@ const JobSearch: React.FC = () => {
                               try {
                                 const text = missingSkillsState.join(', ')
                                 if (navigator.clipboard && text) await navigator.clipboard.writeText(text)
-                                alert('Missing skills copied to clipboard')
+                                setPopupMessage('Missing skills copied to clipboard')
+                              setShowPopup(true)
                               } catch (e) {
                                 console.warn('Copy failed', e)
-                                alert('Failed to copy')
+                                setPopupMessage('Failed to copy')
+                                setShowPopup(true)
                               }
                             }}
                             className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
