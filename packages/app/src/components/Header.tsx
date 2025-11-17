@@ -30,7 +30,7 @@ const Header: React.FC<HeaderProps> = ({ title = 'AI Resume & Interview Trainer'
             </a>
             <button
               onClick={() => navigate('/login')}
-              className='bg-red-500 text-white font-semibold hover:bg-red-600 py-2 px-4 rounded-lg shadow-md transition-colors'
+              className='bg-red-500 text-black font-semibold hover:bg-red-600 py-2 px-4 rounded-lg shadow-md transition-colors'
             >
               Log Out
             </button>
