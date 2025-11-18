@@ -113,32 +113,7 @@ const JobSearch: React.FC = () => {
     // 'preferencesUpdated' event is dispatched.
   }, [])
 
-  //update this function with popup message
-  const handleSavePreference = async () => {
-    if (!jobDescription || !jobDescription.trim()) {
-      setPopupMessage('Paste a job description first.')
-      setShowPopup(true)
-      return
-    }
 
-    try {
-      const res = await deletePreference(p.id)
-      if (res && res.success) {
-        setSavedPreferences((prev) => (prev || []).filter((it) => it.id !== p.id))
-        if (selectedPrefId === p.id) {
-          setSelectedPrefId(null)
-          try { localStorage.removeItem('selectedJobPrefId') } catch { }
-        }
-        try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
-      } else {
-        console.warn('deletePreference failed', res)
-        alert('Failed to delete preference')
-      }
-    } catch (e) {
-      console.error('Delete preference error', e)
-      alert('Failed to delete preference')
-    }
-  }
 
   const handleToggleFavorite = async (p: any) => {
     if (!p || !p.id) return
