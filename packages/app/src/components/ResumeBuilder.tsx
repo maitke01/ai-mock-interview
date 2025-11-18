@@ -12,6 +12,13 @@ import Header from './Header'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 import PdfEditorModal from './PdfEditorModal'
 
+interface StoredFile {
+  name: string;
+  type: string;
+  size: number;
+  content: string; // Base64
+  pdfData?: { text: string; images: string[]; metadata: any };
+}
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
@@ -88,15 +95,15 @@ const ResumeBuilder: React.FC = () => {
   const [highlightColor, setHighlightColor] = useState('#FFFF00')
   const [lineHeight, setLineHeight] = useState('1.5')
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left')
-  const [showMoreTools, setShowMoreTools] = useState(false)
   const [lastFocusedEditor, setLastFocusedEditor] = useState<'header' | 'sidebar' | 'mainContent'>('header')
 
   const quillFormats = [
-    'bold', 'italic', 'underline', 'strike',
+    'bold', 'italic', 'underline', 'strike', 'font', 'size',
     'color', 'background',
     'script',
     'list', 'indent',
-    'link', 'image'
+    'link', 'image',
+    'align'
   ]
 
   // Readability helper used across optimize flows. Treat newline/bullet/semicolon as
@@ -137,6 +144,20 @@ const ResumeBuilder: React.FC = () => {
     return local
   }
 
+  // Whitelist fonts for Quill
+  const Font = Quill.import('formats/font');
+  Font.whitelist = ['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 'Helvetica', 'Calibri', 'Tahoma', 'Comic Sans MS'];
+  Quill.register(Font, true);
+  
+  // Register alignment
+  const Align = Quill.import('formats/align');
+  Align.whitelist = ['left', 'center', 'right', 'justify'];
+  Quill.register(Align, true);
+  
+  // Register custom size attributor
+  const Size = Quill.import('attributors/style/size');
+  Size.whitelist = ['8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '72px'];
+  Quill.register(Size, true);
   const templatesData = {
     modern: {
       header: 'Your Name\nEmail | Phone | LinkedIn',
@@ -153,12 +174,38 @@ const ResumeBuilder: React.FC = () => {
   // File operations
   const addFiles = async (files: FileList | File[]) => {
     const newFiles = Array.from(files).filter(f => !resumeFiles.some(existing => existing.name === f.name))
+    if (newFiles.length === 0) return;
+
     setResumeFiles(prev => [...prev, ...newFiles])
 
     for (const file of newFiles) {
       setExtractingFiles(prev => [...prev, file.name])
       // extractPdfContent now handles all file types and internal errors
       const content = await extractPdfContent(file)
+
+      // Convert file to Base64 to store it
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64Content = reader.result as string;
+        const storedFile: StoredFile = {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          content: base64Content,
+          pdfData: content
+        };
+
+        try {
+          const existing = JSON.parse(sessionStorage.getItem('persistedResumeFiles') || '[]') as StoredFile[];
+          const updated = [...existing, storedFile];
+          sessionStorage.setItem('persistedResumeFiles', JSON.stringify(updated));
+        } catch (e) {
+          console.error("Failed to save file to sessionStorage:", e);
+        }
+
+      };
+
       setPdfData(prev => ({ ...prev, [file.name]: content }))
       // Remove from extracting list once done
       setExtractingFiles(prev => prev.filter(name => name !== file.name))
@@ -254,6 +301,14 @@ const ResumeBuilder: React.FC = () => {
       return updated
     })
     setSelectedFiles(prev => prev.filter(f => f !== fileName))
+    // Also remove from sessionStorage
+    try {
+      const existing = JSON.parse(sessionStorage.getItem('persistedResumeFiles') || '[]') as StoredFile[];
+      const updated = existing.filter(f => f.name !== fileName);
+      sessionStorage.setItem('persistedResumeFiles', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to update sessionStorage on delete:", e);
+    }
   }
 
   const extractSelected = async () => {
@@ -610,12 +665,13 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
       })
-
-      mainContentQuill.current.on('text-change', () => {
+      
+      const handleTextChange = (delta: any, oldDelta: any, source: string) => {
         if (mainContentQuill.current) {
           handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
         }
-      })
+      };
+      mainContentQuill.current.on('text-change', handleTextChange);
 
       mainContentQuill.current.on('selection-change', (range) => {
         if (range) {
@@ -626,17 +682,17 @@ const ResumeBuilder: React.FC = () => {
 
     return () => {
       if (headerQuill.current) {
-        headerQuill.current.off('text-change')
+        // headerQuill.current.off('text-change')
         headerQuill.current.off('selection-change')
         headerQuill.current = null
       }
       if (sidebarQuill.current) {
-        sidebarQuill.current.off('text-change')
+        // sidebarQuill.current.off('text-change')
         sidebarQuill.current.off('selection-change')
         sidebarQuill.current = null
       }
       if (mainContentQuill.current) {
-        mainContentQuill.current.off('text-change')
+        mainContentQuill.current.off('text-change');
         mainContentQuill.current.off('selection-change')
         mainContentQuill.current = null
       }
@@ -679,51 +735,57 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
+  const applyFormat = (format: string, value: any) => {
+    const quill = getActiveQuill();
+    if (!quill) return;
+    const range = quill.getSelection();
+    // We can format even with no selection, for the cursor.
+    if (range) {
+      quill.format(format, value);
+    }
+  };
+
   const applyBold = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('bold', !currentFormat.bold)
-    }
-    setIsBold(!isBold)
-  }
+    
+    const range = quill.getSelection();
+    // We can format even with no selection, for the cursor.
+    const currentFormat = quill.getFormat(range);
+    quill.format('bold', !currentFormat.bold);
+    
+    setIsBold(prev => !prev)
+  };
 
   const applyItalic = () => {
     const quill = getActiveQuill()
     if (!quill) return
+    
+    const range = quill.getSelection();
+    const currentFormat = quill.getFormat(range);
+    quill.format('italic', !currentFormat.italic);
 
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('italic', !currentFormat.italic)
-    }
-    setIsItalic(!isItalic)
-  }
+    setIsItalic(prev => !prev)
+  };
 
   const applyUnderline = () => {
     const quill = getActiveQuill()
     if (!quill) return
+    
+    const range = quill.getSelection();
+    const currentFormat = quill.getFormat(range);
+    quill.format('underline', !currentFormat.underline);
 
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('underline', !currentFormat.underline)
-    }
-    setIsUnderline(!isUnderline)
-  }
+    setIsUnderline(prev => !prev)
+  };
 
   const applyStrikethrough = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('strike', !currentFormat.strike)
-    }
+    
+    const range = quill.getSelection();
+    const currentFormat = quill.getFormat(range);
+    quill.format('strike', !currentFormat.strike);
   }
 
   const insertLink = () => {
@@ -1027,6 +1089,42 @@ const ResumeBuilder: React.FC = () => {
     }
   }, [hasSelectedMode, resumeMode])
 
+  // Effect to load files from sessionStorage on initial mount
+  useEffect(() => {
+    try {
+      const persistedFilesJSON = sessionStorage.getItem('persistedResumeFiles');
+      if (persistedFilesJSON) {
+        const storedFiles = JSON.parse(persistedFilesJSON) as StoredFile[];
+        if (storedFiles.length > 0) {
+          const reconstructedFiles: File[] = [];
+          const reconstructedPdfData: typeof pdfData = {};
+
+          for (const storedFile of storedFiles) {
+            // Reconstruct File object from Base64
+            const byteString = atob(storedFile.content.split(',')[1]);
+            const mimeString = storedFile.content.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeString });
+            const file = new File([blob], storedFile.name, { type: storedFile.type });
+            
+            reconstructedFiles.push(file);
+            if (storedFile.pdfData) {
+              reconstructedPdfData[storedFile.name] = storedFile.pdfData;
+            }
+          }
+          setResumeFiles(reconstructedFiles);
+          setPdfData(reconstructedPdfData);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load files from sessionStorage:", e);
+    }
+  }, []);
+
   // Professional Rich Text Editor Toolbar Component
   const ProfessionalToolbar = () => (
     <div className="bg-white dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 sticky top-0 z-50 shadow-sm">
@@ -1057,7 +1155,16 @@ const ResumeBuilder: React.FC = () => {
         {/* Font Family */}
         <select
           value={fontFamily}
-          onChange={(e) => setFontFamily(e.target.value)}
+          onChange={(e) => {
+            const newFont = e.target.value;
+            setFontFamily(newFont);
+            const quill = getActiveQuill();
+            if (!quill) return;
+            const range = quill.getSelection();
+            if (range && range.length > 0) {
+              quill.formatText(range.index, range.length, 'font', newFont);
+            }
+          }}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[120px]"
         >
           <option value="Arial">Arial</option>
@@ -1074,7 +1181,14 @@ const ResumeBuilder: React.FC = () => {
         {/* Font Size */}
         <select
           value={fontSize}
-          onChange={(e) => setFontSize(e.target.value)}
+          onChange={(e) => {
+            const newSize = e.target.value;
+            setFontSize(newSize);
+            const quill = getActiveQuill();
+            if (!quill) return;
+            // This will apply to selection or cursor
+            quill.format('size', `${newSize}px`);
+          }}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[70px]"
         >
           <option value="8">8</option>
@@ -1184,7 +1298,12 @@ const ResumeBuilder: React.FC = () => {
         {/* Alignment */}
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setTextAlign('left')}
+            onClick={() => {
+              setTextAlign('left');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', false);
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'left' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Align Left"
           >
@@ -1193,7 +1312,12 @@ const ResumeBuilder: React.FC = () => {
             </svg>
           </button>
           <button
-            onClick={() => setTextAlign('center')}
+            onClick={() => {
+              setTextAlign('center');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', 'center');
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'center' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Align Center"
           >
@@ -1202,7 +1326,12 @@ const ResumeBuilder: React.FC = () => {
             </svg>
           </button>
           <button
-            onClick={() => setTextAlign('right')}
+            onClick={() => {
+              setTextAlign('right');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', 'right');
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'right' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Align Right"
           >
@@ -1211,7 +1340,12 @@ const ResumeBuilder: React.FC = () => {
             </svg>
           </button>
           <button
-            onClick={() => setTextAlign('justify')}
+            onClick={() => {
+              setTextAlign('justify');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', 'justify');
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'justify' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Justify"
           >
@@ -1227,7 +1361,16 @@ const ResumeBuilder: React.FC = () => {
         {/* Line Height */}
         <select
           value={lineHeight}
-          onChange={(e) => setLineHeight(e.target.value)}
+          onChange={(e) => {
+            const newLineHeight = e.target.value;
+            setLineHeight(newLineHeight);
+            const quill = getActiveQuill();
+            if (!quill) return;
+            const range = quill.getSelection();
+            if (range) {
+              quill.formatLine(range.index, range.length || 1, 'lineHeight', newLineHeight);
+            }
+          }}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[80px]"
           title="Line Spacing"
         >
@@ -1339,54 +1482,15 @@ const ResumeBuilder: React.FC = () => {
           </button>
         </div>
 
-        {/* Divider */}
-        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
-
-        {/* More Tools Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setShowMoreTools(!showMoreTools)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex items-center gap-1"
-            title="More Tools"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-            </svg>
-          </button>
-
-          {/* Dropdown Menu */}
-          {showMoreTools && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-              <button
-                onClick={() => { applySuperscript(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm flex items-center gap-2"
-              >
-                <span>x<sup>2</sup></span>
-                <span>Superscript</span>
-              </button>
-              <button
-                onClick={() => { applySubscript(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm flex items-center gap-2"
-              >
-                <span>x<sub>2</sub></span>
-                <span>Subscript</span>
-              </button>
-              <div className="h-px bg-gray-200 dark:bg-gray-700 my-1"></div>
-              <button
-                onClick={() => { insertHorizontalLine(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-              >
-                Horizontal Line
-              </button>
-              <button
-                onClick={() => { clearFormatting(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-              >
-                Clear Formatting
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={clearFormatting}
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+          title="Clear Formatting"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Secondary Info Bar */}
@@ -1561,7 +1665,7 @@ const ResumeBuilder: React.FC = () => {
                   {selectedFiles.length > 0 && (
                     <div className='flex justify-center gap-3 mt-6'>
                       <button
-                        className='bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2'
+                        className='bg-gray-200 hover:bg-red-600 text-gray-700 hover:text-white dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-red-600 px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2' 
                         onClick={deleteSelected}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1697,8 +1801,8 @@ const ResumeBuilder: React.FC = () => {
                       <div
                         ref={headerRef}
                         style={{
-                          fontFamily,
-                          fontSize: `${fontSize}px`,
+                          // fontFamily, // Quill controls this now
+                          // fontSize: `${fontSize}px`, // Quill controls this now
                           lineHeight,
                           textAlign,
                           color: textColor,
@@ -1711,8 +1815,8 @@ const ResumeBuilder: React.FC = () => {
                         <div
                           ref={sidebarRef}
                           style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
+                            // fontFamily, // Quill controls this now
+                            // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
@@ -1724,8 +1828,8 @@ const ResumeBuilder: React.FC = () => {
                         <div
                           ref={mainContentRef}
                           style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
+                            // fontFamily, // Quill controls this now
+                            // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
@@ -1820,8 +1924,8 @@ const ResumeBuilder: React.FC = () => {
                         ref={headerRef}
                         className='focus:ring-2 focus:ring-blue-300 rounded-lg'
                         style={{
-                          fontFamily,
-                          fontSize: `${fontSize}px`,
+                          // fontFamily, // Quill controls this now
+                          // fontSize: `${fontSize}px`, // Quill controls this now
                           lineHeight,
                           textAlign,
                           color: textColor,
@@ -1835,8 +1939,8 @@ const ResumeBuilder: React.FC = () => {
                           ref={sidebarRef}
                           className='focus:ring-2 focus:ring-blue-300 rounded-lg'
                           style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
+                            // fontFamily, // Quill controls this now
+                            // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
@@ -1849,8 +1953,8 @@ const ResumeBuilder: React.FC = () => {
                           ref={mainContentRef}
                           className='focus:ring-2 focus:ring-blue-300 rounded-lg'
                           style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
+                            // fontFamily, // Quill controls this now
+                            // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
@@ -2126,3 +2230,4 @@ const ResumeBuilder: React.FC = () => {
 }
 
 export default ResumeBuilder
+                  
