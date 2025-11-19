@@ -3,6 +3,7 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDeleteInterview, useInterviews } from '../hooks/useInterviews'
+import Header from './Header'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
@@ -11,7 +12,6 @@ const Dashboard: React.FC = () => {
   const [keywordMatch, setKeywordMatch] = useState<number | null>(null)
   const [readabilityScore, setReadabilityScore] = useState<number | null>(null)
   const [interviewToCancel, setInterviewToCancel] = useState<number | null>(null)
-  const [jobRoleMatch, setJobRoleMatch] = useState<number>(0)
 
   const { data: interviewsData, isLoading: interviewsLoading } = useInterviews({ upcoming: true })
   const deleteInterviewMutation = useDeleteInterview()
@@ -65,9 +65,6 @@ const Dashboard: React.FC = () => {
     const rs = localStorage.getItem('readabilityScore')
     if (rs !== null) setReadabilityScore(Number(rs))
 
-    // compute job role match on mount
-    void computeJobRoleMatch()
-
     // Ensure derived completion is calculated on mount
     recomputeResumeCompletion()
   }, [])
@@ -84,10 +81,10 @@ const Dashboard: React.FC = () => {
       }
 
       ; (window as any).updateResumeCompletion = (n: number) => {
-        setResumeCompletion(n)
-        try { localStorage.setItem('resumeCompletion', String(n)) } catch (e) { /* noop */ }
-        // keep derived state consistent
-        try { recomputeResumeCompletion() } catch (e) { /* noop */ }
+          setResumeCompletion(n)
+          try { localStorage.setItem('resumeCompletion', String(n)) } catch (e) { /* noop */ }
+          // keep derived state consistent
+          try { recomputeResumeCompletion() } catch (e) { /* noop */ }
       }
 
     const onScores = (evt: any) => {
@@ -123,104 +120,17 @@ const Dashboard: React.FC = () => {
         }
         // After applying any direct values, recompute a derived resumeCompletion so the dashboard reflects combined progress
         recomputeResumeCompletion()
-        // recompute role match when scores or preferences change
-        try { computeJobRoleMatch().catch(() => { }) } catch (e) { /* noop */ }
       } catch (e) {
         console.warn('resumeScoresUpdated handler error', e)
       }
     }
 
     window.addEventListener('resumeScoresUpdated', onScores)
-    window.addEventListener('preferencesUpdated', () => { try { computeJobRoleMatch().catch(() => { }) } catch (e) { } })
 
     return () => {
       window.removeEventListener('resumeScoresUpdated', onScores)
     }
   }, [])
-
-  async function computeJobRoleMatch() {
-    try {
-      // load selected resume
-      const raw = sessionStorage.getItem('selectedResume')
-      let selected: any = null
-      if (raw) selected = JSON.parse(raw)
-      const resumeTextSource = selected?.text ?? (typeof selected?.optimized === 'string' ? selected.optimized : '')
-      const resumeText = String(resumeTextSource || '').toLowerCase()
-
-      // gather preferences: pending local + server
-      const pendingKey = 'pendingJobPreferences'
-      let pending: any[] = []
-      try { const r = localStorage.getItem(pendingKey); if (r) pending = JSON.parse(r) as any[] } catch (e) { console.warn('Failed to parse pendingJobPreferences in Dashboard', e) }
-
-      // fetch server prefs
-      let server: any[] = []
-      try {
-        const res = await fetch('/api/preferences/list')
-        if (res.ok) {
-          const j = await res.json()
-          if (j && j.success && Array.isArray(j.results)) server = j.results
-        }
-      } catch (e) {
-        console.warn('Failed to fetch server preferences in Dashboard', e)
-      }
-
-      const merged = [...pending, ...server.filter((s) => !pending.some((p) => String(p.id) === String(s.id)))]
-
-      // choose starred preference (first favorite)
-      const starred = merged.find((p) => p && p.metadata && p.metadata.favorite)
-      if (!starred) {
-        setJobRoleMatch(0)
-        return
-      }
-
-      // get keywords from metadata
-      let keywords: string[] = []
-      try {
-        const km = starred.metadata?.keywords
-        if (Array.isArray(km)) keywords = km.map((k: any) => String(k))
-        else if (typeof km === 'string') keywords = JSON.parse(km)
-      } catch (e) {
-        try { if (starred.metadata && typeof starred.metadata === 'string') { const m = JSON.parse(starred.metadata); if (Array.isArray(m.keywords)) keywords = m.keywords } } catch (ee) { /* noop */ }
-      }
-
-      if (!keywords || keywords.length === 0) {
-        setJobRoleMatch(0)
-        return
-      }
-
-      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
-      const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const wordBoundaryMatch = (phrase: string, text: string) => {
-        const p = phrase.trim()
-        if (!p) return false
-        const re = new RegExp('\\b' + escapeRegExp(p) + '\\b', 'i')
-        if (re.test(text)) return true
-        const parts = p.split(/\s+/).filter(Boolean)
-        return parts.every(part => {
-          const re2 = new RegExp('\\b' + escapeRegExp(part) + '\\b', 'i')
-          return re2.test(text)
-        })
-      }
-
-      const matched: string[] = []
-      const missing: string[] = []
-      const resumeLower = resumeText
-      for (const kw of keywords) {
-        const k = normalize(String(kw))
-        if (!k) continue
-        if (wordBoundaryMatch(k, resumeLower)) { matched.push(kw); continue }
-        if (k.endsWith('s')) { const sing = k.slice(0, -1); if (wordBoundaryMatch(sing, resumeLower)) { matched.push(kw); continue } }
-        missing.push(kw)
-      }
-
-      const score = keywords.length > 0 ? Math.round((matched.length / keywords.length) * 100) : 0
-      setJobRoleMatch(score)
-      try { localStorage.setItem('jobRoleMatch', String(score)) } catch (e) { }
-    } catch (e) {
-      console.warn('Failed to compute job role match', e)
-      setJobRoleMatch(0)
-    }
-  }
 
   // recomputeResumeCompletion is defined above and hoisted; calling that implementation here when needed
 
@@ -259,48 +169,13 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      <div className='bg-blue-600 dark:bg-blue-800 shadow-sm'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
-          <div className='flex justify-between items-center py-4'>
-            <h1 className='text-2xl font-bold text-white'>AI Resume & Interview Trainer</h1>
-            <nav className='flex space-x-8'>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/dashboard')}
-              >
-                Dashboard
-              </a>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/resume')}
-              >
-                Resume Builder
-              </a>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/interview')}
-              >
-                Mock Interview
-              </a>
-              <a
-                href='#'
-                className='text-white font-bold hover:text-blue-200 font-medium'
-                onClick={() => navigate('/login')}
-              >
-                Log Out
-              </a>
-            </nav>
-          </div>
-        </div>
-      </div>
+      <Header />
 
       <div className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
         <div className='px-4 py-6 sm:px-0'>
           <div className='mb-8'>
-            <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome back!</h2>
+            <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome!
+            </h2>
             <p className='text-gray-600 dark:text-gray-400'>
               You have {scheduledInterviews.length} scheduled interview{scheduledInterviews.length !== 1 ? 's' : ''}
               {' '}
@@ -352,10 +227,10 @@ const Dashboard: React.FC = () => {
                     <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
                       Job Role Match
                     </span>
-                    <span className='text-sm font-medium text-gray-900 dark:text-white'>{jobRoleMatch}%</span>
+                    <span className='text-sm font-medium text-gray-900 dark:text-white'>0%</span>
                   </div>
                   <div className='w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3'>
-                    <div className='bg-blue-600 dark:bg-blue-500 h-3 rounded-full' style={{ width: `${jobRoleMatch}%` }}></div>
+                    <div className='bg-blue-600 dark:bg-blue-500 h-3 rounded-full' style={{ width: '0%' }}></div>
                   </div>
                 </div>
               </div>
@@ -391,14 +266,14 @@ const Dashboard: React.FC = () => {
                                 <button
                                   className='ml-3 text-sm bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-00 text-white disabled:opacity-50 disabled:cursor-not-allowed'
 
-
+                                  
                                   onClick={() =>
                                     navigate('/interview')}
                                 >
                                   Start
                                 </button>
                                 <button
-                                  className='p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
+                                  className='p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:text-white dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors'
                                   onClick={() =>
                                     setInterviewToCancel(interview.id)}
                                   aria-label='Cancel interview'
