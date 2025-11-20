@@ -194,7 +194,11 @@ const JobSearch: React.FC = () => {
   }
 
   const handleSavePreference = async () => {
-    if (!jobDescription || !jobDescription.trim()) return alert('Paste a job description first')
+    if (!jobDescription || !jobDescription.trim()) {
+      setPopupMessage('Paste a job description first.')
+      setShowPopup(true)
+      return
+    }
     try {
       const metadata = { keywords }
       const name = (jobDescription.split('\n')[0] || 'saved-job').slice(0, 80)
