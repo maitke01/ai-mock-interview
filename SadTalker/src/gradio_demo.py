@@ -20,8 +20,10 @@ class SadTalker():
 
     def __init__(self, checkpoint_path='checkpoints', config_path='src/config', lazy_load=False):
 
-        if torch.cuda.is_available() :
+        if torch.cuda.is_available():
             device = "cuda"
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            device = "mps"
         else:
             device = "cpu"
         
@@ -147,6 +149,9 @@ class SadTalker():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+            torch.mps.synchronize()
             
         import gc; gc.collect()
         
