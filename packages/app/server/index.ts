@@ -5,6 +5,11 @@ import { getMockInterviewRoute } from './lib/routes/interview/getMockInterviewRo
 import { listMockInterviewsRoute } from './lib/routes/interview/listMockInterviewsRoute'
 import { scheduleMockInterviewRoute } from './lib/routes/interview/scheduleMockInterviewRoute'
 import { updateMockInterviewRoute } from './lib/routes/interview/updateMockInterviewRoute'
+import { startMockInterviewSessionRoute } from './lib/routes/interview/startMockInterviewSessionRoute'
+import { submitMockInterviewResponseRoute } from './lib/routes/interview/submitMockInterviewResponseRoute'
+import { getMockInterviewSessionRoute } from './lib/routes/interview/getMockInterviewSessionRoute'
+import { endMockInterviewSessionRoute } from './lib/routes/interview/endMockInterviewSessionRoute'
+import { listMockInterviewSessionsRoute } from './lib/routes/interview/listMockInterviewSessionsRoute'
 import { loginRoute } from './lib/routes/login/loginRoute'
 import { registerRoute } from './lib/routes/login/registerRoute'
 import { addResumeRoute } from './lib/routes/resume/addResumeRoute'
@@ -47,9 +52,16 @@ const app = new Hono({ strict: false })
   .post('/api/cancel-mock-interview/:id', cancelMockInterviewRoute)
   .delete('/api/delete-mock-interview/:id', deleteMockInterviewRoute)
   .post('/api/readability', readabilityRoute)
+  // Mock interview session routes
+  .post('/api/mock-interview-session/start', startMockInterviewSessionRoute)
+  .post('/api/mock-interview-session/:sessionId/respond', submitMockInterviewResponseRoute)
+  .get('/api/mock-interview-session/:sessionId', getMockInterviewSessionRoute)
+  .post('/api/mock-interview-session/:sessionId/end', endMockInterviewSessionRoute)
+  .get('/api/mock-interview-session/list', listMockInterviewSessionsRoute)
 
 export default {
   fetch: app.fetch
 } satisfies ExportedHandler<Env>
 
 export { DurableAccount } from './lib/account/DurableAccount'
+export { DurableMockInterview } from './lib/interview/DurableMockInterview'

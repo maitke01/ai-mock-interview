@@ -7,6 +7,10 @@ declare namespace Cloudflare {
     AUTH: Fetcher /* auth */ & InstanceType<typeof import('../auth/src/index').default>
     AI: Ai
     DURABLE_ACCOUNT: DurableObjectNamespace<import('./server/index').DurableAccount>
+    DURABLE_MOCK_INTERVIEW: DurableObjectNamespace<import('./server/index').DurableMockInterview>
+    MOCK_INTERVIEW_BUCKET: R2Bucket
+    REPLICATE_API_TOKEN: string
+    R2_PUBLIC_URL?: string
   }
 }
 interface Env extends Cloudflare.Env {}

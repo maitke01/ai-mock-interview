@@ -1,0 +1,13 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="256" height="256" fill="#4A5568"/>
+
+  <!-- Head -->
+  <circle cx="128" cy="90" r="40" fill="#E2E8F0"/>
+
+  <!-- Body -->
+  <ellipse cx="128" cy="180" rx="60" ry="50" fill="#E2E8F0"/>
+
+  <!-- Clip body to bottom -->
+  <rect x="0" y="200" width="256" height="56" fill="#4A5568"/>
+</svg>
