@@ -8,6 +8,7 @@ import Header from './Header.tsx'
 const JobSearch: React.FC = () => {
   const [query, setQuery] = useState('')
   const [jobDescription, setJobDescription] = useState('')
+  const [jobUrl, setJobUrl] = useState('')
   const [keywords, setKeywords] = useState<string[]>([])
   const [resumeSuggestion, setResumeSuggestion] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,6 +20,7 @@ const JobSearch: React.FC = () => {
   const navigate = useNavigate()
   const [showPopup, setShowPopup] = useState(false)
   const [popupMessage, setPopupMessage] = useState('')
+  const [lastEmbeddingPreview, setLastEmbeddingPreview] = useState<number | null>(null)
 
   useEffect(() => {
     try {
@@ -200,7 +202,8 @@ const JobSearch: React.FC = () => {
       return
     }
     try {
-      const metadata = { keywords }
+      const metadata: any = { keywords }
+      if (jobUrl && jobUrl.trim()) metadata.url = jobUrl.trim()
       const name = (jobDescription.split('\n')[0] || 'saved-job').slice(0, 80)
       const res = await savePreference({ userId: undefined, name, text: jobDescription, metadata })
       if (res && res.success) {
@@ -220,6 +223,12 @@ const JobSearch: React.FC = () => {
             }
             setSavedPreferences((prev) => [newPref, ...(prev || [])])
             setSelectedPrefId(newPref.id)
+            // show embedding preview if server returned it
+            try {
+              const emb = res?.data?.embedding || res?.data?.embeddingLength || null
+              if (Array.isArray(emb)) setLastEmbeddingPreview(emb.length)
+              else if (typeof emb === 'number') setLastEmbeddingPreview(emb)
+            } catch (e) { /* noop */ }
           } catch (e) {
             console.warn('Failed to optimistic-insert local pref', e)
           }
@@ -238,6 +247,11 @@ const JobSearch: React.FC = () => {
             }
             setSavedPreferences((prev) => [newPref, ...(prev || [])])
             setSelectedPrefId(newPref.id)
+            try {
+              const emb = res?.data?.embedding || res?.data?.embeddingLength || null
+              if (Array.isArray(emb)) setLastEmbeddingPreview(emb.length)
+              else if (typeof emb === 'number') setLastEmbeddingPreview(emb)
+            } catch (e) { /* noop */ }
           } catch (e) {
             console.warn('Failed to optimistic-insert pref', e)
           }
@@ -260,7 +274,7 @@ const JobSearch: React.FC = () => {
       setShowPopup(true)
     }
   }
-     
+
 
   const handleAnalyzeSkillGap = () => {
     if (!selectedResume) {
@@ -354,294 +368,318 @@ const JobSearch: React.FC = () => {
         <div className='px-4 py-6 sm:px-0'>
           <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-8 w-full'>
             <h1 className='text-3xl font-bold mb-6 text-gray-900 dark:text-white'>Job Search</h1>
-              <form
-                className='space-y-4 text-left'
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  handleSearch()
-                }}
-              >
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                    Job Type Entry:
-                  </label>
-                  <input
-                    type='text'
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder='Search for jobs (e.g. Software Engineer)'
-                    className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
-                    required
-                  />
-                </div>
-                <button
-                  type='submit'
-                  className= 'mt-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
-                >
-                  Search on Indeed
-                </button>
+            <form
+              className='space-y-4 text-left'
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleSearch()
+              }}
+            >
+              <div>
                 <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                  Paste Job Description
+                  Job Type Entry:
                 </label>
-                <textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder='Paste the job description here...'
+                <input
+                  type='text'
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder='Search for jobs (e.g. Software Engineer)'
                   className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
-                  rows={5}
+                  required
                 />
-                <button
-                  type='button'
-                  className='mt-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full'
-                  onClick={handleExtractKeywords}
-                  disabled={loading}
-                >
-                  {loading ? 'Extracting...' : 'Extract Keywords & Suggest Resume Edit'}
-                </button>
-                <button
-                  type='button'
-                  className='mt-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
-                  onClick={handleSavePreference}
-                  disabled={loading || prefLoading}
-                >
-                  {prefLoading ? 'Saving...' : 'Save Job Preference'}
-                </button>
-                <button
-                  type='button'
-                  className='mt-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
-                  onClick={handleAnalyzeSkillGap}
-                  disabled={!selectedResume || keywords.length === 0}
-                >
-                  Analyze Skill Gap against Selected Resume
-                </button>
-                {/* Saved preferences panel - always visible so users can discover saved items */}
-                <div className='mt-4'>
-                  <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Saved Job Preferences</h4>
-                  <div className='flex flex-col gap-2'>
-                    {prefLoading ? (
-                      <div className='text-xs text-gray-500'>Loading saved preferences...</div>
-                    ) : toRender && toRender.length > 0 ? (
-                      toRender.map((p: any) => (
-                        <div key={p.id} className='flex items-center justify-between bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2'>
-                          <div className='text-sm'>
-                            <div className='font-medium text-gray-800 dark:text-gray-200'>{p.name || 'saved-job'}</div>
-                            <div className='text-xs text-gray-500 truncate max-w-xl'>{p.text ? String(p.text).slice(0, 200) : ''}</div>
-                            {p.createdAt && (
-                              <div className='text-xs text-gray-400 mt-1'>Saved {new Date(p.createdAt).toLocaleString()}</div>
-                            )}
-                          </div>
-                          <div className='flex items-center gap-2'>
-                            <button
-                              type='button'
-                              title={p.metadata && p.metadata.favorite ? 'Unstar preference' : 'Star preference'}
-                              onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleToggleFavorite(p) }}
-                              className={`px-3 py-1 rounded text-sm ${p.metadata && p.metadata.favorite ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
-                            >
-                              {p.metadata && p.metadata.favorite ? '★' : '☆'}
-                            </button>
+              </div>
+              <button
+                type='submit'
+                className='mt-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
+              >
+                Search on Indeed
+              </button>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                Job Description URL (optional)
+              </label>
+              <input
+                type='url'
+                value={jobUrl}
+                onChange={(e) => setJobUrl(e.target.value)}
+                placeholder='https://example.com/job/123'
+                className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 mb-3'
+              />
 
-                            <button
-                              type='button'
-                              className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
-                              onClick={() => {
-                                setJobDescription(p.text || '')
-                                try { setKeywords(Array.isArray(p.metadata?.keywords) ? p.metadata.keywords : []) } catch { setKeywords([]) }
-                                setSelectedPrefId(p.id)
-                              }}
-                            >
-                              Load
-                            </button>
-                          </div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                Paste Job Description
+              </label>
+              <textarea
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                placeholder='Paste the job description here...'
+                className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400'
+                rows={5}
+              />
+              <button
+                type='button'
+                className='mt-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full'
+                onClick={handleExtractKeywords}
+                disabled={loading}
+              >
+                {loading ? 'Extracting...' : 'Extract Keywords & Suggest Resume Edit'}
+              </button>
+              <button
+                type='button'
+                className='mt-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
+                onClick={handleSavePreference}
+                disabled={loading || prefLoading}
+              >
+                {prefLoading ? 'Saving...' : 'Save Job Preference'}
+              </button>
+              <button
+                type='button'
+                className='mt-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
+                onClick={handleAnalyzeSkillGap}
+                disabled={!selectedResume || keywords.length === 0}
+              >
+                Analyze Skill Gap against Selected Resume
+              </button>
+              {lastEmbeddingPreview !== null && (
+                <div className='mt-2 text-xs text-gray-600 dark:text-gray-300'>
+                  Embedding computed (length: {lastEmbeddingPreview}).
+                </div>
+              )}
+              {/* Saved preferences panel - always visible so users can discover saved items */}
+              <div className='mt-4'>
+                <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Saved Job Preferences</h4>
+                <div className='flex flex-col gap-2'>
+                  {prefLoading ? (
+                    <div className='text-xs text-gray-500'>Loading saved preferences...</div>
+                  ) : toRender && toRender.length > 0 ? (
+                    toRender.map((p: any) => (
+                      <div key={p.id} className='flex items-center justify-between bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2'>
+                        <div className='text-sm'>
+                          <div className='font-medium text-gray-800 dark:text-gray-200'>{p.name || 'saved-job'}</div>
+                          <div className='text-xs text-gray-500 truncate max-w-xl'>{p.text ? String(p.text).slice(0, 200) : ''}</div>
+                          {p.createdAt && (
+                            <div className='text-xs text-gray-400 mt-1'>Saved {new Date(p.createdAt).toLocaleString()}</div>
+                          )}
                         </div>
-                      ))
-                    ) : (
-                      <div className='text-xs text-gray-500'>No saved job preferences yet. Save a job description to see it here.</div>
-                    )}
+                        <div className='flex items-center gap-2'>
+                          <button
+                            type='button'
+                            title={p.metadata && p.metadata.favorite ? 'Unstar preference' : 'Star preference'}
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleToggleFavorite(p) }}
+                            className={`px-3 py-1 rounded text-sm ${p.metadata && p.metadata.favorite ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
+                          >
+                            {p.metadata && p.metadata.favorite ? '★' : '☆'}
+                          </button>
+
+                          <button
+                            type='button'
+                            className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                            onClick={() => {
+                              try {
+                                const url = p?.metadata?.url
+                                if (url && typeof url === 'string' && url.trim()) {
+                                  window.open(url.trim(), '_blank')
+                                  return
+                                }
+                              } catch (e) { /* ignore and fallback */ }
+                              setJobDescription(p.text || '')
+                              try { setKeywords(Array.isArray(p.metadata?.keywords) ? p.metadata.keywords : []) } catch { setKeywords([]) }
+                              setSelectedPrefId(p.id)
+                            }}
+                          >
+                            Load
+                          </button>
+                            {/* Open URL link removed per request; Load button opens URL when present */}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className='text-xs text-gray-500'>No saved job preferences yet. Save a job description to see it here.</div>
+                  )}
+                </div>
+              </div>
+              {keywords.length > 0 && (
+                <div className='mt-4'>
+                  <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Extracted Keywords:</h4>
+                  <div className='flex flex-wrap gap-2'>
+                    {keywords.map((kw, idx) => (
+                      <span
+                        key={idx}
+                        className='bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-xs'
+                      >
+                        {kw}
+                      </span>
+                    ))}
                   </div>
                 </div>
-                {keywords.length > 0 && (
-                  <div className='mt-4'>
-                    <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Extracted Keywords:</h4>
-                    <div className='flex flex-wrap gap-2'>
-                      {keywords.map((kw, idx) => (
-                        <span
-                          key={idx}
-                          className='bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-xs'
-                        >
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
+              )}
+              {resumeSuggestion && (
+                <div className='mt-4'>
+                  <h4 className='text-sm font-semibold text-green-700 dark:text-green-400 mb-2'>
+                    AI Resume Suggestion:
+                  </h4>
+                  <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-3 text-sm text-green-900 dark:text-green-100'>
+                    {resumeSuggestion}
                   </div>
-                )}
-                {resumeSuggestion && (
-                  <div className='mt-4'>
-                    <h4 className='text-sm font-semibold text-green-700 dark:text-green-400 mb-2'>
-                      AI Resume Suggestion:
-                    </h4>
-                    <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-3 text-sm text-green-900 dark:text-green-100'>
-                      {resumeSuggestion}
-                    </div>
-                  </div>
-                )}
-                {/* Skill Gap Analysis panel - shown after Analyze is clicked */}
-                {showAnalysis && (
-                  <div className='mt-6 p-4 bg-gray-800/50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-lg'>
-                    <div className='flex items-start justify-between'>
-                      <div>
-                        <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
-                        <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
-                        <div className='flex flex-wrap gap-2 mt-2'>
-                          {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
-                            matchedSkillsState.map((m, i) => (
-                              <span
-                                key={i}
-                                className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'
-                              >
-                                {m}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                        <p className='text-xs text-gray-300 mt-3'>Missing Skills</p>
-                        <div className='flex flex-wrap gap-2 mt-2'>
-                          {missingSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
-                            missingSkillsState.map((m, i) => (
-                              <span
-                                key={i}
-                                className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'
-                              >
-                                {m}
-                              </span>
-                            ))
-                          )}
-                        </div>
+                </div>
+              )}
+              {/* Skill Gap Analysis panel - shown after Analyze is clicked */}
+              {showAnalysis && (
+                <div className='mt-6 p-4 bg-gray-800/50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-lg'>
+                  <div className='flex items-start justify-between'>
+                    <div>
+                      <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
+                      <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
+                      <div className='flex flex-wrap gap-2 mt-2'>
+                        {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
+                          matchedSkillsState.map((m, i) => (
+                            <span
+                              key={i}
+                              className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'
+                            >
+                              {m}
+                            </span>
+                          ))
+                        )}
                       </div>
-                      <div className='text-right'>
-                        <div className='text-sm font-semibold text-gray-100'>Match score</div>
-                        <div className='text-2xl font-bold text-blue-400 mt-1'>{analysisScore ?? 0}%</div>
-                        <div className='mt-4 flex flex-col gap-2'>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const text = missingSkillsState.join(', ')
-                                if (navigator.clipboard && text) await navigator.clipboard.writeText(text)
-                                setPopupMessage('Missing skills copied to clipboard')
+                      <p className='text-xs text-gray-300 mt-3'>Missing Skills</p>
+                      <div className='flex flex-wrap gap-2 mt-2'>
+                        {missingSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
+                          missingSkillsState.map((m, i) => (
+                            <span
+                              key={i}
+                              className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'
+                            >
+                              {m}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <div className='text-right'>
+                      <div className='text-sm font-semibold text-gray-100'>Match score</div>
+                      <div className='text-2xl font-bold text-blue-400 mt-1'>{analysisScore ?? 0}%</div>
+                      <div className='mt-4 flex flex-col gap-2'>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const text = missingSkillsState.join(', ')
+                              if (navigator.clipboard && text) await navigator.clipboard.writeText(text)
+                              setPopupMessage('Missing skills copied to clipboard')
                               setShowPopup(true)
-                              } catch (e) {
-                                console.warn('Copy failed', e)
-                                setPopupMessage('Failed to copy')
-                                setShowPopup(true)
-                              }
-                            }}
-                            className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
-                          >
-                            Copy Missing Skills
-                          </button>
-                          <button
-                            onClick={() => setShowAnalysis(false)}
-                            className='px-3 py-1 border border-gray-300 text-gray-200 rounded text-sm'
-                          >
-                            Dismiss
-                          </button>
-                        </div>
+                            } catch (e) {
+                              console.warn('Copy failed', e)
+                              setPopupMessage('Failed to copy')
+                              setShowPopup(true)
+                            }
+                          }}
+                          className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                        >
+                          Copy Missing Skills
+                        </button>
+                        <button
+                          onClick={() => setShowAnalysis(false)}
+                          className='px-3 py-1 border border-gray-300 text-gray-200 rounded text-sm'
+                        >
+                          Dismiss
+                        </button>
                       </div>
                     </div>
                   </div>
-                )}
-                <button
-                  type='button'
-                  className='text-blue-600 dark:text-blue-400 underline w-full mt-2'
-                  onClick={() => navigate('/dashboard')}
-                >
-                  Back to Dashboard
-                </button>
-              </form>
+                </div>
+              )}
+              <button
+                type='button'
+                className='text-blue-600 dark:text-blue-400 underline w-full mt-2'
+                onClick={() => navigate('/dashboard')}
+              >
+                Back to Dashboard
+              </button>
+            </form>
           </div>
 
           {/* Full-width resume/template panel below */}
-            <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-6 w-full'>
-              <div className='flex items-center justify-between mb-3'>
-                <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Selected Resume</h2>
-                <button
-                   className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
-                  onClick={() => {
-                    sessionStorage.removeItem('selectedResume')
-                    setSelectedResume(null)
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-              <div className='border border-gray-200 dark:border-gray-700 rounded p-3 overflow-y-auto text-sm bg-gray-50 dark:bg-gray-900'>
-                {!selectedResume && (
-                  <div className='text-xs text-gray-500'>
-                    No resume selected. Pick a resume in the Resume Builder and click Job Search.
-                  </div>
-                )}
-                {selectedResume && (
-                  <div className='space-y-3'>
-                    <div>
-                      <div className='font-medium text-gray-800 dark:text-gray-200'>{selectedResume.fileName}</div>
-                      {/* Prefer showing the optimized text when available; fall back to the raw text */}
-                      {(typeof selectedResume.optimized === 'string' && selectedResume.optimized.trim()) ? (
-                        <div className='mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-sm text-green-900 dark:text-green-100'>
-                          {selectedResume.optimized}
-                        </div>
-                      ) : selectedResume.text ? (
-                        <div className='mt-2 bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2 text-sm text-gray-900 dark:text-gray-100'>
-                          {selectedResume.text}
-                        </div>
-                      ) : null}
-                    </div>
-                    <EditableTemplateEditor
-                      resume={{
-                        fileName: selectedResume.fileName,
-                        text: selectedResume.text,
-                        images: selectedResume.images,
-                        // ensure the minimal type expects a string or null for optimized
-                        optimized: typeof selectedResume.optimized === 'string' ? selectedResume.optimized : null
-                      }}
-                      suggestion={resumeSuggestion}
-                      onSave={(updated) => {
-                        // Convert MinimalSelectedResume back into the full SelectedResume shape
-                        const merged: SelectedResume = {
-                          fileName: updated.fileName ?? selectedResume.fileName,
-                          text: updated.optimized ?? updated.text ?? selectedResume.text,
-                          images: updated.images ?? selectedResume.images,
-                          optimized: updated.optimized ?? updated.text ?? selectedResume.optimized
-                        }
-                        handleSaveEditedResume(merged)
-                      }}
-                    />
-                    {selectedResume.images && selectedResume.images.length > 0 && (
-                      <div>
-                        <h4 className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>Images</h4>
-                        <div className='flex flex-wrap gap-2'>
-                          {selectedResume.images.map((src: string, idx: number) => (
-                            <img key={idx} src={src} alt={`resume-img-${idx}`} className='h-20 w-auto border rounded' />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* popup message with Ok button */}
-                      {showPopup && (
-        <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
-          <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
-            <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
-            <button
-              className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
-              onClick={() => setShowPopup(false)}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-              </div>
+          <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-6 w-full'>
+            <div className='flex items-center justify-between mb-3'>
+              <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Selected Resume</h2>
+              <button
+                className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+                onClick={() => {
+                  sessionStorage.removeItem('selectedResume')
+                  setSelectedResume(null)
+                }}
+              >
+                Close
+              </button>
             </div>
+            <div className='border border-gray-200 dark:border-gray-700 rounded p-3 overflow-y-auto text-sm bg-gray-50 dark:bg-gray-900'>
+              {!selectedResume && (
+                <div className='text-xs text-gray-500'>
+                  No resume selected. Pick a resume in the Resume Builder and click Job Search.
+                </div>
+              )}
+              {selectedResume && (
+                <div className='space-y-3'>
+                  <div>
+                    <div className='font-medium text-gray-800 dark:text-gray-200'>{selectedResume.fileName}</div>
+                    {/* Prefer showing the optimized text when available; fall back to the raw text */}
+                    {(typeof selectedResume.optimized === 'string' && selectedResume.optimized.trim()) ? (
+                      <div className='mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-sm text-green-900 dark:text-green-100'>
+                        {selectedResume.optimized}
+                      </div>
+                    ) : selectedResume.text ? (
+                      <div className='mt-2 bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2 text-sm text-gray-900 dark:text-gray-100'>
+                        {selectedResume.text}
+                      </div>
+                    ) : null}
+                  </div>
+                  <EditableTemplateEditor
+                    resume={{
+                      fileName: selectedResume.fileName,
+                      text: selectedResume.text,
+                      images: selectedResume.images,
+                      // ensure the minimal type expects a string or null for optimized
+                      optimized: typeof selectedResume.optimized === 'string' ? selectedResume.optimized : null
+                    }}
+                    suggestion={resumeSuggestion}
+                    onSave={(updated) => {
+                      // Convert MinimalSelectedResume back into the full SelectedResume shape
+                      const merged: SelectedResume = {
+                        fileName: updated.fileName ?? selectedResume.fileName,
+                        text: updated.optimized ?? updated.text ?? selectedResume.text,
+                        images: updated.images ?? selectedResume.images,
+                        optimized: updated.optimized ?? updated.text ?? selectedResume.optimized
+                      }
+                      handleSaveEditedResume(merged)
+                    }}
+                  />
+                  {selectedResume.images && selectedResume.images.length > 0 && (
+                    <div>
+                      <h4 className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>Images</h4>
+                      <div className='flex flex-wrap gap-2'>
+                        {selectedResume.images.map((src: string, idx: number) => (
+                          <img key={idx} src={src} alt={`resume-img-${idx}`} className='h-20 w-auto border rounded' />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* popup message with Ok button */}
+              {showPopup && (
+                <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
+                  <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
+                    <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
+                    <button
+                      className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+                      onClick={() => setShowPopup(false)}
+                    >
+                      OK
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

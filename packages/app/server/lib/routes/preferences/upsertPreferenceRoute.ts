@@ -100,7 +100,8 @@ export const upsertPreferenceRoute: Route = async (ctx) => {
             return ctx.json({ error: 'D1_ERROR', details: String(dbErr) }, 500)
         }
 
-        return ctx.json({ success: true, id: prefId })
+        // Return embedding (or its length) so the client can show a quick preview if desired
+        return ctx.json({ success: true, id: prefId, embedding: embedding || null, embeddingLength: Array.isArray(embedding) ? embedding.length : 0 })
     } catch (error) {
         console.error('Error in upsertPreferenceRoute:', error)
         return ctx.json({ error: 'Failed to upsert preference', details: error instanceof Error ? error.message : String(error) }, 500)
