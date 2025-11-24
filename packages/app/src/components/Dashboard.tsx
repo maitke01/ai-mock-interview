@@ -333,11 +333,18 @@ const Dashboard: React.FC = () => {
             <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
             <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Keyword Match</div>
             </div>
-                  <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
-                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{readabilityScore ?? 0}</div>
-                    <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
-                    <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Readability</div>
-                  </div>
+
+              {/* make clickable for Readability */}
+              <div 
+              className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors'
+              onClick={() => {
+              setPopupMessage(`Your Readability Score is ${readabilityScore ?? 0}/100. This measures how clear and easy to understand your resume content is for recruiters.`)
+              setShowPopup(true)
+               }}>
+              <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{readabilityScore ?? 0}</div>
+              <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
+              <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Readability</div>
+              </div>
                 </div>
               </div>
             </div>
