@@ -312,21 +312,27 @@ const Dashboard: React.FC = () => {
 
                   {/* make clickable for ATS Score */}
                 <div 
-  className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors'
-  onClick={() => {
-    setPopupMessage(`Your ATS Score is ${atsScore ?? 0}/100. This measures how well your resume passes Applicant Tracking Systems used by employers to filter candidates.`)
-    setShowPopup(true)
-  }}
->
-  <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{atsScore ?? 0}</div>
-  <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
-  <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>ATS Score</div>
-</div>
-                  <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
-                    <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{keywordMatch ?? 0}</div>
-                    <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
-                    <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Keyword Match</div>
-                  </div>
+            className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors'
+            onClick={() => {
+            setPopupMessage(`Your ATS Score is ${atsScore ?? 0}/100. This measures how well your resume passes Applicant Tracking Systems used by employers to filter candidates.`)
+            setShowPopup(true)
+             }}>
+            <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{atsScore ?? 0}</div>
+            <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
+            <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>ATS Score</div>
+            </div>
+
+               {/* make clickable for Keyword Match */}
+               <div 
+              className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors'
+              onClick={() => {
+              setPopupMessage(`Your Keyword Match Score is ${keywordMatch ?? 0}/100. This shows how well your resume matches the keywords from job descriptions you've analyzed.`)
+              setShowPopup(true)
+               }}>
+            <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{keywordMatch ?? 0}</div>
+            <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
+            <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Keyword Match</div>
+            </div>
                   <div className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4'>
                     <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{readabilityScore ?? 0}</div>
                     <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
@@ -395,7 +401,7 @@ const Dashboard: React.FC = () => {
       {showPopup && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
           <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center max-w-md'>
-            <p className='text-gray-800 dark:text-gray-200 mb-4'>{popupMessage}</p>
+            <p className='font-medium text-black dark:text-gray-200 mb-4'>{popupMessage}</p>
             <button
               className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
               onClick={() => setShowPopup(false)}
