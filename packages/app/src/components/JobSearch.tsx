@@ -85,18 +85,17 @@ const JobSearch: React.FC = () => {
     async function load() {
       try {
         // Prefer server-side auth resolution; don't force 'public' so logged-in users
-        // see their own saved preferences.
+        // see their own saved preferences. Always display the DB-backed results
+        // for the current user rather than merging in any local-only items.
         const res = await listPreferences()
         if (!mounted) return
         if (res && res.success) {
           const server = res.results || []
           console.debug('[JobSearch] load: server results', server)
-          const merged = [...pending, ...server.filter((s: any) => !pending.some((p) => String(p.id) === String(s.id)))]
-          console.debug('[JobSearch] load: merged list', merged)
-          setSavedPreferences(merged)
+          setSavedPreferences(server)
         } else {
-          // server failed or returned nothing - keep pending (already set above)
-          if (mounted && (!pending || pending.length === 0)) setSavedPreferences([])
+          // server failed or returned nothing - show empty list
+          if (mounted) setSavedPreferences([])
         }
       } catch (e) {
         console.warn('Failed to load saved preferences', e)
@@ -488,7 +487,7 @@ const JobSearch: React.FC = () => {
                           >
                             Load
                           </button>
-                            {/* Open URL link removed per request; Load button opens URL when present */}
+                          {/* Open URL link removed per request; Load button opens URL when present */}
                         </div>
                       </div>
                     ))

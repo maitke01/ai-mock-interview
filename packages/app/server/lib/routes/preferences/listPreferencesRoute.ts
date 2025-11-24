@@ -24,8 +24,32 @@ export const listPreferencesRoute: Route = async (ctx) => {
             ? `SELECT id, user_id, name, pref_text, embedding, metadata, created_at FROM job_preferences WHERE user_id = ? ORDER BY created_at DESC`
             : `SELECT id, user_id, name, pref_text, embedding, metadata, created_at FROM job_preferences ORDER BY created_at DESC`
 
-        const stmt = db.prepare(sql)
-        const res = userId ? await stmt.all(userId) : await stmt.all()
+        // Debug: log SQL and userId resolution to help diagnose intermittent D1 binding errors
+        try {
+            console.debug('[listPreferencesRoute] url=', ctx.req.url)
+            console.debug('[listPreferencesRoute] userIdParam=', userIdParam, 'resolved userId=', userId)
+            console.debug('[listPreferencesRoute] sql=', sql)
+        } catch (e) { /* ignore logging errors */ }
+
+        let stmt = db.prepare(sql)
+        // Only bind when userId is non-empty (avoid binding empty string).
+        // D1's bind() returns a new prepared statement, so reassign the result.
+        if (userId != null && userId !== '') {
+            stmt = stmt.bind(userId)
+            try {
+                console.debug('[listPreferencesRoute] bound userId to statement')
+            } catch (e) { }
+        } else {
+            try { console.debug('[listPreferencesRoute] no userId to bind') } catch (e) { }
+        }
+
+        let res
+        try {
+            res = await stmt.all()
+        } catch (err) {
+            console.error('[listPreferencesRoute] stmt.all() failed', { sql, userId, err })
+            throw err
+        }
         const rows: any[] = res.results || []
 
         const parsed = rows.map((r) => {

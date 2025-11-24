@@ -18,6 +18,7 @@ export function usePreferences() {
                     try {
                         const res = await fetch('/api/preferences/upsert', {
                             method: 'POST',
+                            credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ id: it.id, userId: it.userId, name: it.name, text: it.text, metadata: it.metadata })
                         })
@@ -49,14 +50,15 @@ export function usePreferences() {
         syncPending()
     }, [])
 
-    async function savePreference(opts: { userId?: string; name?: string; text: string; metadata?: any }) {
+    async function savePreference(opts: { id?: string; userId?: string; name?: string; text: string; metadata?: any }) {
         setLoading(true)
         setError(null)
         try {
             const res = await fetch('/api/preferences/upsert', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: opts.userId, name: opts.name, text: opts.text, metadata: opts.metadata })
+                body: JSON.stringify({ id: opts.id, userId: opts.userId, name: opts.name, text: opts.text, metadata: opts.metadata })
             })
             let j: any = null
             let textBody = null
@@ -108,6 +110,7 @@ export function usePreferences() {
         try {
             const res = await fetch('/api/preferences/search', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: opts.query, topK: opts.topK || 5, userId: opts.userId })
             })
@@ -130,7 +133,7 @@ export function usePreferences() {
         setError(null)
         try {
             const userQuery = opts?.userId ? `?userId=${encodeURIComponent(opts.userId)}` : ''
-            const res = await fetch(`/api/preferences/list${userQuery}`, { method: 'GET' })
+            const res = await fetch(`/api/preferences/list${userQuery}`, { method: 'GET', credentials: 'include' })
             const j = await res.json()
             setLoading(false)
             if (!res.ok) {
