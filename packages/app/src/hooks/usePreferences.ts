@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export function usePreferences() {
     const [loading, setLoading] = useState(false)
@@ -50,7 +50,7 @@ export function usePreferences() {
         syncPending()
     }, [])
 
-    async function savePreference(opts: { id?: string; userId?: string; name?: string; text: string; metadata?: any }) {
+    const savePreference = useCallback(async (opts: { id?: string; userId?: string; name?: string; text: string; metadata?: any }) => {
         setLoading(true)
         setError(null)
         try {
@@ -102,9 +102,9 @@ export function usePreferences() {
             setError(String(e))
             return { success: false, error: String(e) }
         }
-    }
+    }, [])
 
-    async function searchPreferences(opts: { query: string; topK?: number; userId?: string }) {
+    const searchPreferences = useCallback(async (opts: { query: string; topK?: number; userId?: string }) => {
         setLoading(true)
         setError(null)
         try {
@@ -126,9 +126,9 @@ export function usePreferences() {
             setError(String(e))
             return { success: false, error: String(e) }
         }
-    }
+    }, [])
 
-    async function listPreferences(opts?: { userId?: string }) {
+    const listPreferences = useCallback(async (opts?: { userId?: string }) => {
         setLoading(true)
         setError(null)
         try {
@@ -146,9 +146,30 @@ export function usePreferences() {
             setError(String(e))
             return { success: false, error: String(e) }
         }
-    }
+    }, [])
 
-    return { savePreference, searchPreferences, listPreferences, loading, error }
+    const deletePreference = useCallback(async (id: string) => {
+        setLoading(true)
+        setError(null)
+        try {
+            const res = await fetch(`/api/preferences/delete/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' })
+            let j: any = null
+            try { j = await res.json() } catch { j = null }
+            setLoading(false)
+            if (!res.ok) {
+                const errInfo = j || `HTTP ${res.status}`
+                setError(typeof errInfo === 'string' ? errInfo : JSON.stringify(errInfo))
+                return { success: false, error: errInfo }
+            }
+            return { success: true }
+        } catch (e: any) {
+            setLoading(false)
+            setError(String(e))
+            return { success: false, error: String(e) }
+        }
+    }, [])
+
+    return { savePreference, searchPreferences, listPreferences, deletePreference, loading, error }
 }
 
 export default usePreferences

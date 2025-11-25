@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { usePreferences } from '../hooks/usePreferences'
 import { useNavigate } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
-import EditableTemplateEditor from './EditableTemplateEditor.tsx'
-import Header from './Header.tsx'
+import EditableTemplateEditor from './EditableTemplateEditor'
+import Header from './Header'
 
 const JobSearch: React.FC = () => {
   const [query, setQuery] = useState('')
@@ -20,7 +20,14 @@ const JobSearch: React.FC = () => {
   const navigate = useNavigate()
   const [showPopup, setShowPopup] = useState(false)
   const [popupMessage, setPopupMessage] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [confirmMessage, setConfirmMessage] = useState('')
+  const confirmActionRef = useRef<(() => Promise<void>) | null>(null)
   const [lastEmbeddingPreview, setLastEmbeddingPreview] = useState<number | null>(null)
+
+  const { savePreference, deletePreference, listPreferences, loading: prefLoading } = usePreferences()
+  const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
+  const [selectedPrefId, setSelectedPrefId] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -30,34 +37,6 @@ const JobSearch: React.FC = () => {
       console.warn('Failed to parse selectedResume from sessionStorage', err)
     }
   }, [])
-
-  const handleSearch = () => {
-    window.open(`https://www.indeed.com/jobs?q=${encodeURIComponent(query)}`, '_blank')
-  }
-
-  const handleExtractKeywords = async () => {
-    if (!jobDescription.trim()) return
-    setLoading(true)
-    try {
-      // AI called for keyword extraction
-      const response = await fetch('/api/extract-keywords', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobDescription })
-      })
-      const data = await response.json() as ResumeSuggestion
-      setKeywords(data.keywords || [])
-      setResumeSuggestion(data.resumeSuggestion || '')
-    } catch {
-      setKeywords([])
-      setResumeSuggestion('Error extracting keywords.')
-    }
-    setLoading(false)
-  }
-
-  const { savePreference, deletePreference, listPreferences, loading: prefLoading, error: prefError } = usePreferences()
-  const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
-  const [selectedPrefId, setSelectedPrefId] = useState<string | null>(null)
 
   const normalizeText = (t: any) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase()
 
@@ -74,29 +53,14 @@ const JobSearch: React.FC = () => {
     return out
   }, [savedPreferences])
 
-  // Choose which list to render: prefer deduped displayPreferences, but
-  // fall back to the raw savedPreferences to avoid hiding items unexpectedly.
-  const toRender = (displayPreferences && displayPreferences.length > 0) ? displayPreferences : (savedPreferences || [])
-  const canonicalFavoriteId = (toRender || []).find((x: any) => x.metadata && x.metadata.favorite)?.id
-
-  // Load saved preferences on mount and when preferencesUpdated event fires
   useEffect(() => {
     let mounted = true
     async function load() {
       try {
-        // Prefer server-side auth resolution; don't force 'public' so logged-in users
-        // see their own saved preferences. Always display the DB-backed results
-        // for the current user rather than merging in any local-only items.
         const res = await listPreferences()
         if (!mounted) return
-        if (res && res.success) {
-          const server = res.results || []
-          console.debug('[JobSearch] load: server results', server)
-          setSavedPreferences(server)
-        } else {
-          // server failed or returned nothing - show empty list
-          if (mounted) setSavedPreferences([])
-        }
+        if (res && res.success) setSavedPreferences(res.results || [])
+        else if (mounted) setSavedPreferences([])
       } catch (e) {
         console.warn('Failed to load saved preferences', e)
       }
@@ -108,90 +72,59 @@ const JobSearch: React.FC = () => {
       mounted = false
       window.removeEventListener('preferencesUpdated', handler)
     }
-    // listPreferences is intentionally omitted from deps to avoid re-running
-    // this effect on every render (the hook returns a new function instance
-    // each render). We only want to load once on mount and when the
-    // 'preferencesUpdated' event is dispatched.
-  }, [])
+  }, [listPreferences])
 
+  const handleSearch = () => {
+    window.open(`https://www.indeed.com/jobs?q=${encodeURIComponent(query)}`, '_blank')
+  }
 
+  const handleExtractKeywords = async () => {
+    if (!jobDescription.trim()) return
+    setLoading(true)
+    try {
+      const response = await fetch('/api/extract-keywords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobDescription })
+      })
+      const data = await response.json() as ResumeSuggestion
+      setKeywords(data.keywords || [])
+      setResumeSuggestion(data.resumeSuggestion || '')
+    } catch (e) {
+      console.warn('Keyword extraction failed', e)
+      setKeywords([])
+      setResumeSuggestion('Error extracting keywords.')
+    }
+    setLoading(false)
+  }
 
   const handleToggleFavorite = async (p: any) => {
     if (!p || !p.id) return
     const newMeta = { ...(p.metadata || {}), favorite: !(p.metadata && p.metadata.favorite) }
-    // optimistic update: set this pref favorite and clear favorites on others locally
-    setSavedPreferences((prev) => {
-      const list = prev || []
-      const updated = list.map((it) => {
-        if (String(it.id) === String(p.id)) return { ...it, metadata: newMeta }
-        if (newMeta.favorite) return { ...it, metadata: { ...(it.metadata || {}), favorite: false } }
-        return it
-      })
-      console.debug('[JobSearch] handleToggleFavorite: optimistic updated list', updated)
-      return updated
-    })
-
-    // update local pending storage for local prefs
+    setSavedPreferences((prev) => (prev || []).map((it) => (String(it.id) === String(p.id) ? { ...it, metadata: newMeta } : (newMeta.favorite ? { ...it, metadata: { ...(it.metadata || {}), favorite: false } } : it))))
     try {
-      console.debug('[JobSearch] handleToggleFavorite: updating pending for', p.id, 'newMeta=', newMeta)
       const key = 'pendingJobPreferences'
       const raw = localStorage.getItem(key)
       const arr = raw ? (JSON.parse(raw) as any[]) : []
       const idx = arr.findIndex((it) => String(it.id) === String(p.id))
-      if (idx !== -1) {
-        arr[idx].metadata = { ...(arr[idx].metadata || {}), ...newMeta }
-      } else {
-        // add a pending entry so the toggled state persists until server confirms
-        const newPending = { id: p.id, userId: p.userId ?? 'public', name: p.name ?? null, text: p.text ?? null, metadata: newMeta, createdAt: Date.now() }
-        arr.unshift(newPending)
-      }
+      if (idx !== -1) arr[idx].metadata = { ...(arr[idx].metadata || {}), ...newMeta }
+      else arr.unshift({ id: p.id, userId: p.userId ?? 'public', name: p.name ?? null, text: p.text ?? null, metadata: newMeta, createdAt: Date.now() })
       localStorage.setItem(key, JSON.stringify(arr))
-      console.debug('[JobSearch] handleToggleFavorite: pending now', arr)
-    } catch (e) {
-      console.warn('Failed to update pending preferences for favorite toggle', e)
-    }
+    } catch (e) { console.warn('Failed to update pending preferences for favorite toggle', e) }
 
-    // persist favorite via upsert (include id and full text). If the server confirms
-    // the upsert (not savedLocally), remove the pending entry.
     try {
       const res = await savePreference({ id: p.id, userId: p.userId, name: p.name, text: p.text, metadata: newMeta })
-      // if saved to server (not savedLocally), remove from pending
-      try {
+      if (res && res.success) try {
         const key = 'pendingJobPreferences'
-        if (res && res.success && !(res.data && res.data.savedLocally === true)) {
-          const raw = localStorage.getItem(key)
-          if (raw) {
-            const arr = JSON.parse(raw) as any[]
-            const filtered = arr.filter((it) => String(it.id) !== String(p.id))
-            if (filtered.length) {
-              localStorage.setItem(key, JSON.stringify(filtered))
-              console.debug('[JobSearch] handleToggleFavorite: removed pending entry after server save, remaining', filtered)
-            } else {
-              localStorage.removeItem(key)
-              console.debug('[JobSearch] handleToggleFavorite: removed pending entry after server save, no remaining')
-            }
-          }
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          const arr = JSON.parse(raw) as any[]
+          const filtered = arr.filter((it) => String(it.id) !== String(p.id))
+          if (filtered.length) localStorage.setItem(key, JSON.stringify(filtered))
+          else localStorage.removeItem(key)
         }
-      } catch (e) {
-        console.warn('Failed to cleanup pending preferences after save', e)
-      }
-
-      // If we just set this item as favorite, clear favorite on other server-backed prefs (fire-and-forget)
-      if (newMeta.favorite) {
-        try {
-          const others = (savedPreferences || []).filter((it: any) => String(it.id) !== String(p.id) && it.metadata && it.metadata.favorite)
-          for (const o of others) {
-            try {
-              const metaCleared = { ...(o.metadata || {}), favorite: false }
-              void savePreference({ id: o.id, userId: o.userId, name: o.name, text: o.text, metadata: metaCleared })
-            } catch (e) { /* noop */ }
-          }
-        } catch (e) { console.warn('Failed to clear favorites on other prefs', e) }
-      }
-      try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
-    } catch (e) {
-      console.warn('Failed to persist favorite toggle', e)
-    }
+      } catch (e) { /* ignore */ }
+    } catch (e) { console.warn('Failed to persist favorite toggle', e) }
   }
 
   const handleSavePreference = async () => {
@@ -210,60 +143,19 @@ const JobSearch: React.FC = () => {
         if (savedLocally) {
           setPopupMessage('Job preference saved locally (dev DB unavailable). It will be synced when the server is reachable.')
           setShowPopup(true)
-          // optimistic UI: add the locally-saved preference to the list immediately
-          try {
-            const newPref = {
-              id: res?.data?.id || ('local-' + Math.random().toString(36).slice(2, 9)),
-              userId: 'public',
-              name,
-              text: jobDescription,
-              metadata,
-              createdAt: Date.now()
-            }
-            setSavedPreferences((prev) => [newPref, ...(prev || [])])
-            setSelectedPrefId(newPref.id)
-            // show embedding preview if server returned it
-            try {
-              const emb = res?.data?.embedding || res?.data?.embeddingLength || null
-              if (Array.isArray(emb)) setLastEmbeddingPreview(emb.length)
-              else if (typeof emb === 'number') setLastEmbeddingPreview(emb)
-            } catch (e) { /* noop */ }
-          } catch (e) {
-            console.warn('Failed to optimistic-insert local pref', e)
-          }
+          const newPref = { id: res?.data?.id || ('local-' + Math.random().toString(36).slice(2, 9)), userId: 'public', name, text: jobDescription, metadata, createdAt: Date.now() }
+          setSavedPreferences((prev) => [newPref, ...(prev || [])])
+          setSelectedPrefId(newPref.id)
         } else {
           setPopupMessage('Job preference saved')
           setShowPopup(true)
-          // optimistic UI: insert the new preference immediately so the user sees it
-          try {
-            const newPref = {
-              id: res?.data?.id || ('temp-' + Math.random().toString(36).slice(2, 9)),
-              userId: undefined,
-              name,
-              text: jobDescription,
-              metadata,
-              createdAt: Date.now()
-            }
-            setSavedPreferences((prev) => [newPref, ...(prev || [])])
-            setSelectedPrefId(newPref.id)
-            try {
-              const emb = res?.data?.embedding || res?.data?.embeddingLength || null
-              if (Array.isArray(emb)) setLastEmbeddingPreview(emb.length)
-              else if (typeof emb === 'number') setLastEmbeddingPreview(emb)
-            } catch (e) { /* noop */ }
-          } catch (e) {
-            console.warn('Failed to optimistic-insert pref', e)
-          }
-          // notify other parts of the app that preferences changed
-          try {
-            window.dispatchEvent(new CustomEvent('preferencesUpdated', { detail: { id: res?.data?.id || null } }))
-          } catch (e) {
-            // ignore
-          }
+          const newPref = { id: res?.data?.id || ('temp-' + Math.random().toString(36).slice(2, 9)), userId: undefined, name, text: jobDescription, metadata, createdAt: Date.now() }
+          setSavedPreferences((prev) => [newPref, ...(prev || [])])
+          setSelectedPrefId(newPref.id)
+          try { window.dispatchEvent(new CustomEvent('preferencesUpdated', { detail: { id: res?.data?.id || null } })) } catch { }
         }
       } else {
-        console.warn('Save preference failed', res)
-        const details = res?.error?.details || res?.error?.error || res?.error || res?.status || 'Unknown error'
+        const details = res?.error?.details || res?.error || 'Unknown error'
         setPopupMessage('Failed to save preference: ' + (typeof details === 'string' ? details : JSON.stringify(details)))
         setShowPopup(true)
       }
@@ -274,6 +166,64 @@ const JobSearch: React.FC = () => {
     }
   }
 
+  const handleDeletePreference = async (p: any) => {
+    if (!p || !p.id) return
+
+    // show styled confirmation popup instead of native confirm
+    setConfirmMessage('Delete this saved preference? This will remove it from your account.')
+    confirmActionRef.current = async () => {
+      try {
+        // optimistic UI remove
+        setSavedPreferences((prev) => (prev || []).filter((it) => String(it.id) !== String(p.id)))
+
+        // If this looks like a local-only pref, remove from pending local storage
+        if (String(p.id).startsWith('local-') || p.userId === 'public') {
+          try {
+            const key = 'pendingJobPreferences'
+            const raw = localStorage.getItem(key)
+            if (raw) {
+              const arr = JSON.parse(raw || '[]') as any[]
+              const filtered = arr.filter((it) => String(it.id) !== String(p.id))
+              if (filtered.length) localStorage.setItem(key, JSON.stringify(filtered))
+              else localStorage.removeItem(key)
+            }
+          } catch (e) { console.warn('Failed to cleanup local pending preference', e) }
+          setPopupMessage('Preference removed')
+          setShowPopup(true)
+          try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
+          return
+        }
+
+        const res = await deletePreference(String(p.id))
+        if (res && res.success) {
+          setPopupMessage('Preference deleted')
+          setShowPopup(true)
+          try {
+            const refreshed = await listPreferences()
+            if (refreshed && refreshed.success) setSavedPreferences(refreshed.results || [])
+          } catch (e) { /* noop */ }
+          try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
+        } else {
+          const details = res?.error || 'Unknown error'
+          setPopupMessage('Failed to delete preference: ' + (typeof details === 'string' ? details : JSON.stringify(details)))
+          setShowPopup(true)
+          try {
+            const refreshed = await listPreferences()
+            if (refreshed && refreshed.success) setSavedPreferences(refreshed.results || [])
+          } catch (e) { /* noop */ }
+        }
+      } catch (e) {
+        console.warn('Delete failed', e)
+        setPopupMessage('Delete failed: ' + String(e))
+        setShowPopup(true)
+        try {
+          const refreshed = await listPreferences()
+          if (refreshed && refreshed.success) setSavedPreferences(refreshed.results || [])
+        } catch (e) { /* noop */ }
+      }
+    }
+    setShowConfirm(true)
+  }
 
   const handleAnalyzeSkillGap = () => {
     if (!selectedResume) {
@@ -286,8 +236,7 @@ const JobSearch: React.FC = () => {
       setShowPopup(true)
       return
     }
-    const resumeTextSource = selectedResume.text
-      ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
+    const resumeTextSource = selectedResume.text ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
     const resumeText = String(resumeTextSource).toLowerCase()
     const matched: string[] = []
     const missing: string[] = []
@@ -297,10 +246,8 @@ const JobSearch: React.FC = () => {
     const wordBoundaryMatch = (phrase: string, text: string) => {
       const p = phrase.trim()
       if (!p) return false
-      // exact phrase with word boundaries
       const re = new RegExp('\\b' + escapeRegExp(p) + '\\b', 'i')
       if (re.test(text)) return true
-      // otherwise check that all words in phrase appear somewhere in text (order-insensitive)
       const parts = p.split(/\s+/).filter(Boolean)
       return parts.every(part => {
         const re2 = new RegExp('\\b' + escapeRegExp(part) + '\\b', 'i')
@@ -311,12 +258,10 @@ const JobSearch: React.FC = () => {
     for (const kw of keywords) {
       const k = normalize(String(kw))
       if (!k) continue
-      // check phrase match first
       if (wordBoundaryMatch(k, resumeText)) {
         matched.push(kw)
         continue
       }
-      // try simple singular/plural normalization: check without trailing 's'
       if (k.endsWith('s')) {
         const sing = k.slice(0, -1)
         if (wordBoundaryMatch(sing, resumeText)) {
@@ -337,14 +282,8 @@ const JobSearch: React.FC = () => {
       console.warn('Failed to persist skill gap results', e)
     }
 
-    // Notify dashboard (and other listeners) that keyword match changed so resume completion can update
-    try {
-      window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } }))
-    } catch (e) {
-      console.warn('Failed to dispatch resumeScoresUpdated from JobSearch', e)
-    }
+    try { window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } })) } catch { }
 
-    // show results inline instead of navigating away
     setMatchedSkillsState(matched)
     setMissingSkillsState(missing)
     setAnalysisScore(score)
@@ -353,12 +292,10 @@ const JobSearch: React.FC = () => {
 
   const handleSaveEditedResume = (updated: SelectedResume) => {
     setSelectedResume(updated)
-    try {
-      sessionStorage.setItem('selectedResume', JSON.stringify(updated))
-    } catch (e) {
-      console.warn('Failed to persist selectedResume', e)
-    }
+    try { sessionStorage.setItem('selectedResume', JSON.stringify(updated)) } catch (e) { console.warn('Failed to persist selectedResume', e) }
   }
+
+  const toRender = (displayPreferences && displayPreferences.length > 0) ? displayPreferences : (savedPreferences || [])
 
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
@@ -443,7 +380,6 @@ const JobSearch: React.FC = () => {
                   Embedding computed (length: {lastEmbeddingPreview}).
                 </div>
               )}
-              {/* Saved preferences panel - always visible so users can discover saved items */}
               <div className='mt-4'>
                 <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Saved Job Preferences</h4>
                 <div className='flex flex-col gap-2'>
@@ -487,7 +423,14 @@ const JobSearch: React.FC = () => {
                           >
                             Load
                           </button>
-                          {/* Open URL link removed per request; Load button opens URL when present */}
+
+                          <button
+                            type='button'
+                            className='px-3 py-1 bg-red-600 text-white rounded text-sm ml-2'
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); void handleDeletePreference(p) }}
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     ))
@@ -501,27 +444,19 @@ const JobSearch: React.FC = () => {
                   <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Extracted Keywords:</h4>
                   <div className='flex flex-wrap gap-2'>
                     {keywords.map((kw, idx) => (
-                      <span
-                        key={idx}
-                        className='bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-xs'
-                      >
-                        {kw}
-                      </span>
+                      <span key={idx} className='bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-xs'>{kw}</span>
                     ))}
                   </div>
                 </div>
               )}
               {resumeSuggestion && (
                 <div className='mt-4'>
-                  <h4 className='text-sm font-semibold text-green-700 dark:text-green-400 mb-2'>
-                    AI Resume Suggestion:
-                  </h4>
+                  <h4 className='text-sm font-semibold text-green-700 dark:text-green-400 mb-2'>AI Resume Suggestion:</h4>
                   <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-3 text-sm text-green-900 dark:text-green-100'>
                     {resumeSuggestion}
                   </div>
                 </div>
               )}
-              {/* Skill Gap Analysis panel - shown after Analyze is clicked */}
               {showAnalysis && (
                 <div className='mt-6 p-4 bg-gray-800/50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-lg'>
                   <div className='flex items-start justify-between'>
@@ -529,29 +464,15 @@ const JobSearch: React.FC = () => {
                       <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
                       <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
                       <div className='flex flex-wrap gap-2 mt-2'>
-                        {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
-                          matchedSkillsState.map((m, i) => (
-                            <span
-                              key={i}
-                              className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'
-                            >
-                              {m}
-                            </span>
-                          ))
-                        )}
+                        {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : matchedSkillsState.map((m, i) => (
+                          <span key={i} className='bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs'>{m}</span>
+                        ))}
                       </div>
                       <p className='text-xs text-gray-300 mt-3'>Missing Skills</p>
                       <div className='flex flex-wrap gap-2 mt-2'>
-                        {missingSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : (
-                          missingSkillsState.map((m, i) => (
-                            <span
-                              key={i}
-                              className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'
-                            >
-                              {m}
-                            </span>
-                          ))
-                        )}
+                        {missingSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : missingSkillsState.map((m, i) => (
+                          <span key={i} className='bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded text-xs'>{m}</span>
+                        ))}
                       </div>
                     </div>
                     <div className='text-right'>
@@ -575,105 +496,69 @@ const JobSearch: React.FC = () => {
                         >
                           Copy Missing Skills
                         </button>
-                        <button
-                          onClick={() => setShowAnalysis(false)}
-                          className='px-3 py-1 border border-gray-300 text-gray-200 rounded text-sm'
-                        >
-                          Dismiss
-                        </button>
+                        <button onClick={() => setShowAnalysis(false)} className='px-3 py-1 border border-gray-300 text-gray-200 rounded text-sm'>Dismiss</button>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
-              <button
-                type='button'
-                className='text-blue-600 dark:text-blue-400 underline w-full mt-2'
-                onClick={() => navigate('/dashboard')}
-              >
-                Back to Dashboard
-              </button>
+              <button type='button' className='text-blue-600 dark:text-blue-400 underline w-full mt-2' onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
             </form>
           </div>
 
-          {/* Full-width resume/template panel below */}
-          <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-6 w-full'>
+          <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-6 w-full mt-6'>
             <div className='flex items-center justify-between mb-3'>
               <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Selected Resume</h2>
-              <button
-                className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
-                onClick={() => {
-                  sessionStorage.removeItem('selectedResume')
-                  setSelectedResume(null)
-                }}
-              >
-                Close
-              </button>
+              <button className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent' onClick={() => { sessionStorage.removeItem('selectedResume'); setSelectedResume(null) }}>Close</button>
             </div>
             <div className='border border-gray-200 dark:border-gray-700 rounded p-3 overflow-y-auto text-sm bg-gray-50 dark:bg-gray-900'>
-              {!selectedResume && (
-                <div className='text-xs text-gray-500'>
-                  No resume selected. Pick a resume in the Resume Builder and click Job Search.
-                </div>
-              )}
+              {!selectedResume && (<div className='text-xs text-gray-500'>No resume selected. Pick a resume in the Resume Builder and click Job Search.</div>)}
               {selectedResume && (
                 <div className='space-y-3'>
                   <div>
                     <div className='font-medium text-gray-800 dark:text-gray-200'>{selectedResume.fileName}</div>
-                    {/* Prefer showing the optimized text when available; fall back to the raw text */}
                     {(typeof selectedResume.optimized === 'string' && selectedResume.optimized.trim()) ? (
-                      <div className='mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-sm text-green-900 dark:text-green-100'>
-                        {selectedResume.optimized}
-                      </div>
+                      <div className='mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-sm text-green-900 dark:text-green-100'>{selectedResume.optimized}</div>
                     ) : selectedResume.text ? (
-                      <div className='mt-2 bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2 text-sm text-gray-900 dark:text-gray-100'>
-                        {selectedResume.text}
-                      </div>
+                      <div className='mt-2 bg-gray-50 dark:bg-gray-900/10 border border-gray-200 dark:border-gray-700 rounded p-2 text-sm text-gray-900 dark:text-gray-100'>{selectedResume.text}</div>
                     ) : null}
                   </div>
-                  <EditableTemplateEditor
-                    resume={{
-                      fileName: selectedResume.fileName,
-                      text: selectedResume.text,
-                      images: selectedResume.images,
-                      // ensure the minimal type expects a string or null for optimized
-                      optimized: typeof selectedResume.optimized === 'string' ? selectedResume.optimized : null
-                    }}
-                    suggestion={resumeSuggestion}
-                    onSave={(updated) => {
-                      // Convert MinimalSelectedResume back into the full SelectedResume shape
-                      const merged: SelectedResume = {
-                        fileName: updated.fileName ?? selectedResume.fileName,
-                        text: updated.optimized ?? updated.text ?? selectedResume.text,
-                        images: updated.images ?? selectedResume.images,
-                        optimized: updated.optimized ?? updated.text ?? selectedResume.optimized
-                      }
-                      handleSaveEditedResume(merged)
-                    }}
-                  />
+                  <EditableTemplateEditor resume={{ fileName: selectedResume.fileName, text: selectedResume.text, images: selectedResume.images, optimized: typeof selectedResume.optimized === 'string' ? selectedResume.optimized : null }} suggestion={resumeSuggestion} onSave={(updated) => { const merged: SelectedResume = { fileName: updated.fileName ?? selectedResume.fileName, text: updated.optimized ?? updated.text ?? selectedResume.text, images: updated.images ?? selectedResume.images, optimized: updated.optimized ?? updated.text ?? selectedResume.optimized }; handleSaveEditedResume(merged) }} />
                   {selectedResume.images && selectedResume.images.length > 0 && (
                     <div>
                       <h4 className='text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>Images</h4>
                       <div className='flex flex-wrap gap-2'>
-                        {selectedResume.images.map((src: string, idx: number) => (
-                          <img key={idx} src={src} alt={`resume-img-${idx}`} className='h-20 w-auto border rounded' />
-                        ))}
+                        {selectedResume.images.map((src: string, idx: number) => (<img key={idx} src={src} alt={`resume-img-${idx}`} className='h-20 w-auto border rounded' />))}
                       </div>
                     </div>
                   )}
                 </div>
               )}
-              {/* popup message with Ok button */}
+
               {showPopup && (
                 <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
                   <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
                     <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
-                    <button
-                      className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
-                      onClick={() => setShowPopup(false)}
-                    >
-                      OK
-                    </button>
+                    <button className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent' onClick={() => setShowPopup(false)}>OK</button>
+                  </div>
+                </div>
+              )}
+              {showConfirm && (
+                <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
+                  <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
+                    <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{confirmMessage}</p>
+                    <div className='flex items-center justify-center gap-4'>
+                      <button
+                        className='bg-pink-300 dark:bg-pink-600 text-pink-900 dark:text-white px-4 py-2 rounded-md font-medium'
+                        onClick={async () => {
+                          setShowConfirm(false)
+                          try { await confirmActionRef.current?.() } catch (e) { console.warn('Confirm action failed', e) }
+                        }}
+                      >
+                        OK
+                      </button>
+                      <button className='px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-gray-700 dark:text-gray-200' onClick={() => setShowConfirm(false)}>Cancel</button>
+                    </div>
                   </div>
                 </div>
               )}
