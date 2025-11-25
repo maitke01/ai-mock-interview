@@ -1944,7 +1944,8 @@ const ResumeBuilder: React.FC = () => {
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                 Prepare for AI Optimization
               </h3>
-              <button onClick={() => setIsPreOptimizeModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-bold">&times;</button>
+              <button onClick={() => setIsPreOptimizeModalOpen(false)} 
+              className="p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:text-white dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors">&times;</button>
             </div>
             <div className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-gray-900">
               <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
@@ -1998,7 +1999,7 @@ const ResumeBuilder: React.FC = () => {
               </h3>
               <button
                 onClick={() => setIsOptimizeModalOpen(false)}
-                className="text-white hover:text-gray-200 text-2xl font-bold transition-colors"
+                className="p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:text-white dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
               >
                 ×
               </button>
