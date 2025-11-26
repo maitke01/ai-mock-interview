@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
 import JobSearch from './components/JobSearch'
+import LandingPage from './components/LandingPage'
 import Login from './components/Login'
 import MockInterview from './components/MockInterview'
 import ResumeBuilder from './components/ResumeBuilder'
@@ -11,7 +12,7 @@ function App () {
   return (
     <Router>
       <Routes>
-        <Route path='/' element={<Login />} />
+        <Route path='/' element={<LandingPage />} />
         <Route path='/login' element={<Login />} />
         <Route path='/signup' element={<Signup />} />
         <Route path='/dashboard' element={<Dashboard />} />
