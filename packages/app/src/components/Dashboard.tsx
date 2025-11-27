@@ -169,10 +169,9 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
+    <>
       <Header />
-
-      <div className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
+        <main className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
         <div className='px-4 py-6 sm:px-0'>
           <div className='mb-8'>
             <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome!
@@ -379,7 +378,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+        </main>
 
       {interviewToCancel && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
@@ -418,7 +417,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
 import EditableTemplateEditor from './EditableTemplateEditor'
 import Header from './Header'
+import TodoList from './TodoList'
 
 const JobSearch: React.FC = () => {
   const [query, setQuery] = useState('')
@@ -24,6 +25,7 @@ const JobSearch: React.FC = () => {
   const [confirmMessage, setConfirmMessage] = useState('')
   const confirmActionRef = useRef<(() => Promise<void>) | null>(null)
   const [lastEmbeddingPreview, setLastEmbeddingPreview] = useState<number | null>(null)
+  const [mainContentMargin, setMainContentMargin] = useState(320);
 
   const { savePreference, deletePreference, listPreferences, loading: prefLoading } = usePreferences()
   const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
@@ -298,9 +300,11 @@ const JobSearch: React.FC = () => {
   const toRender = (displayPreferences && displayPreferences.length > 0) ? displayPreferences : (savedPreferences || [])
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      <Header title="Let's Find a Job" />
-      <div className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
+    <div className='flex min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <TodoList onWidthChange={setMainContentMargin} />
+      <div className='flex-1 transition-all duration-300' style={{ marginLeft: `${mainContentMargin}px` }}>
+        <Header title="Let's Find a Job" />
+        <main className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
         <div className='px-4 py-6 sm:px-0'>
           <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-8 w-full'>
             <h1 className='text-3xl font-bold mb-6 text-gray-900 dark:text-white'>Job Search</h1>
@@ -565,6 +569,7 @@ const JobSearch: React.FC = () => {
             </div>
           </div>
         </div>
+        </main>
       </div>
     </div>
   )

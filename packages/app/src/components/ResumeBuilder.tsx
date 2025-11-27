@@ -11,6 +11,7 @@ import classicPDF from "./assets/pdfs/classic-template.pdf"
 import Header from './Header'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 import PdfEditorModal from './PdfEditorModal'
+import TodoList from './TodoList'
 
 interface StoredFile {
   name: string;
@@ -80,6 +81,7 @@ const ResumeBuilder: React.FC = () => {
   const [resumeMode, setResumeMode] = useState<'scratch' | 'template'>('scratch')
   const [selectedTemplate, setSelectedTemplate] = useState<'modern' | 'classic' | null>(null)
   const [hasSelectedMode, setHasSelectedMode] = useState(false)
+  const [mainContentMargin, setMainContentMargin] = useState(320);
 
   // Loading states
   const [isSaving, setIsSaving] = useState(false)
@@ -1512,10 +1514,12 @@ const ResumeBuilder: React.FC = () => {
   )
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      <Header title="Build a Better Resume" />
+    <div className='flex min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <TodoList onWidthChange={setMainContentMargin} />
+      <div className='flex-1 transition-all duration-300' style={{ marginLeft: `${mainContentMargin}px` }}>
+        <Header title="Build a Better Resume" />
 
-      <div className='max-w-7xl mx-auto py-8 sm:px-6 lg:px-8'>
+        <main className='max-w-7xl mx-auto py-8 sm:px-6 lg:px-8'>
         <div className='px-4 sm:px-0'>
           {/* Upload Section */}
           <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8'>
@@ -2027,6 +2031,7 @@ const ResumeBuilder: React.FC = () => {
             </div>
           )}
         </div>
+        </main>
       </div>
 
       {/* PDF Editor Modal */}
@@ -2211,6 +2216,7 @@ const ResumeBuilder: React.FC = () => {
           </div>
         </div>
       )}
+
       {/* popup message with Ok button */}
       {showPopup && (
         <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
