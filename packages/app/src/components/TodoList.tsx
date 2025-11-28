@@ -1,22 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react'
+import { useTodos, type Task } from './useTodo'
 
-interface TodoItem {
-  id: number;
-  text: string;
-  completed: boolean;
-  priority: 'low' | 'medium' | 'high';
-  createdAt: number;
-}
 
 interface TodoListProps {
-  onWidthChange: (width: number) => void;
+  onWidthChange: (width: number) => void
 }
 
 const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
-  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const { tasks, addTask, toggleTask, deleteTask, clearCompleted, isSidebarOpen, setSidebarOpen } = useTodos()
   const [inputValue, setInputValue] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [isOpen, setIsOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -27,28 +20,9 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
   const maxWidth = window.innerWidth / 2;
 
   useEffect(() => {
-    try {
-      const storedTodos = localStorage.getItem('todoList');
-      if (storedTodos) {
-        setTodos(JSON.parse(storedTodos));
-      }
-    } catch (error) {
-      console.error("Failed to load todos from localStorage:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('todoList', JSON.stringify(todos));
-    } catch (error) {
-      console.error("Failed to save todos to localStorage:", error);
-    }
-  }, [todos]);
-
-  useEffect(() => {
     // Notify parent component of width changes
-    onWidthChange(isOpen ? sidebarWidth : 0);
-  }, [isOpen, sidebarWidth, onWidthChange]);
+    onWidthChange(isSidebarOpen ? sidebarWidth : 0);
+  }, [isSidebarOpen, sidebarWidth, onWidthChange]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -76,35 +50,24 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
 
   const handleAddTodo = () => {
     if (inputValue.trim()) {
-      setTodos([
-        ...todos,
-        {
-          id: Date.now(),
-          text: inputValue.trim(),
-          completed: false,
-          priority,
-          createdAt: Date.now()
-        }
-      ]);
+      addTask(inputValue.trim(), priority)
+
       setInputValue('');
       setPriority('medium');
     }
   };
 
   const handleToggleTodo = (id: number) => {
-    setTodos(
-      todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
-    );
+    toggleTask(id);
   };
 
   const handleDeleteTodo = (id: number) => {
-    setTodos(todos.filter(todo => todo.id !== id));
-  };
+    deleteTask(id);
+      
+};
 
   const handleClearCompleted = () => {
-    setTodos(todos.filter(todo => !todo.completed));
+    clearCompleted()
   };
 
   const getPriorityColor = (priority: string) => {
@@ -120,22 +83,23 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
     }
   };
 
-  const filteredTodos = todos.filter(todo => {
+    const filteredTodos = tasks.filter(todo => {
     if (filter === 'active') return !todo.completed;
     if (filter === 'completed') return todo.completed;
     return true;
   });
 
-  const activeTodosCount = todos.filter(todo => !todo.completed).length;
-  const completedTodosCount = todos.filter(todo => todo.completed).length;
+    const activeTodosCount = tasks.filter(todo => !todo.completed).length;
+    const completedTodosCount = tasks.filter(todo => todo.completed).length;
+
 
   return (
     <>
       {/* Open Button */}
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => setSidebarOpen(true)}
         className={`fixed top-1/2 left-0 -translate-y-1/2 z-40 bg-blue-600 text-white p-4 rounded-r-xl shadow-2xl hover:bg-blue-700 transition-all duration-300 hover:pl-5 ${
-          isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          isSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         title="Open To-Do List"
       >
@@ -149,7 +113,7 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
         ref={sidebarRef}
         style={{ width: `${sidebarWidth}px` }}
         className={`fixed top-0 left-0 h-full bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col transition-all duration-300 ${
-          isOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
+          isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
         }`}
       >
         {/* Header */}
@@ -161,8 +125,8 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
             </p>
           </div>
           <button
-            onClick={() => setIsOpen(false)}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            onClick={() => setSidebarOpen(false)}
+            className="p-2 rounded-full transition-all duration-200 hover:shadow-[0_0_15px_rgba(255,255,255,0.6)]"
             title="Close To-Do List"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

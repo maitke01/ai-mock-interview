@@ -9,12 +9,14 @@ import {
   type ConversationTurn
 } from '../hooks/useInterviews'
 import Header from './Header'
+import TodoList from './TodoList'
 
 const MockInterview: React.FC = () => {
   const navigate = useNavigate()
   const [inputValue, setInputValue] = useState('')
   const [sessionId, setSessionId] = useState<number | null>(null)
   const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([])
+  const [mainContentMargin, setMainContentMargin] = useState(320)
   const [currentVideo, setCurrentVideo] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -188,11 +190,12 @@ const MockInterview: React.FC = () => {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      <Header title="Let's prepare for the interview" />
-
-      <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+    <div className='flex min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <TodoList onWidthChange={setMainContentMargin} />
+      <div className='flex-1 transition-all duration-300' style={{ marginLeft: `${mainContentMargin}px` }}>
+        <Header title="Let's prepare for the interview" />
+        <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* Video Interface Section */}
           <div className='lg:col-span-2'>
             <div className='bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden'>
@@ -534,7 +537,8 @@ const MockInterview: React.FC = () => {
             </div>
           </div>
         </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDeleteInterview, useInterviews } from '../hooks/useInterviews'
 import Header from './Header'
+import TodoList from './TodoList'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [resumeCompletion, setResumeCompletion] = useState<number>(0)
   const [keywordMatch, setKeywordMatch] = useState<number | null>(null)
+  const [mainContentMargin, setMainContentMargin] = useState(320)
   const [readabilityScore, setReadabilityScore] = useState<number | null>(null)
   const [interviewToCancel, setInterviewToCancel] = useState<number | null>(null)
   const [showPopup, setShowPopup] = useState(false)
@@ -169,10 +171,12 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <>
-      <Header />
+    <div className='flex min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <TodoList onWidthChange={setMainContentMargin} />
+      <div className='flex-1 transition-all duration-300' style={{ marginLeft: `${mainContentMargin}px` }}>
+        <Header />
         <main className='max-w-7xl mx-auto py-6 sm:px-6 lg:px-8'>
-        <div className='px-4 py-6 sm:px-0'>
+          <div className='px-4 py-6 sm:px-0'>
           <div className='mb-8'>
             <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Welcome!
             </h2>
@@ -377,8 +381,9 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+          </div>
         </main>
+      </div>
 
       {interviewToCancel && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
@@ -417,7 +422,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
 
