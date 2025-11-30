@@ -404,14 +404,14 @@ const JobSearch: React.FC = () => {
                             type='button'
                             title={p.metadata && p.metadata.favorite ? 'Unstar preference' : 'Star preference'}
                             onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleToggleFavorite(p) }}
-                            className={`px-3 py-1 rounded text-sm ${p.metadata && p.metadata.favorite ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
+                            className={`bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent ${p.metadata && p.metadata.favorite ? 'bg-yellow-400 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}
                           >
                             {p.metadata && p.metadata.favorite ? '★' : '☆'}
                           </button>
 
                           <button
                             type='button'
-                            className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+                            className='bg-gradient-to-r from-green-500 to-green-700 hover:from-green-500 hover:to-green-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
                             onClick={() => {
                               try {
                                 const url = p?.metadata?.url
@@ -430,7 +430,7 @@ const JobSearch: React.FC = () => {
 
                           <button
                             type='button'
-                            className='bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+                           className='px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-red-600 dark:hover:text-red-400 rounded-md font-medium transition-colors'
                             onClick={(e) => { e.stopPropagation(); e.preventDefault(); void handleDeletePreference(p) }}
                           >
                             Delete
@@ -553,7 +553,7 @@ const JobSearch: React.FC = () => {
                     <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{confirmMessage}</p>
                     <div className='flex items-center justify-center gap-4'>
                       <button
-                        className='bg-pink-300 dark:bg-pink-600 text-pink-900 dark:text-white px-4 py-2 rounded-md font-medium'
+                        className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
                         onClick={async () => {
                           setShowConfirm(false)
                           try { await confirmActionRef.current?.() } catch (e) { console.warn('Confirm action failed', e) }
