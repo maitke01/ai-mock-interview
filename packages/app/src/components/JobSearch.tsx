@@ -411,7 +411,7 @@ const JobSearch: React.FC = () => {
 
                           <button
                             type='button'
-                            className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                            className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
                             onClick={() => {
                               try {
                                 const url = p?.metadata?.url
@@ -430,7 +430,7 @@ const JobSearch: React.FC = () => {
 
                           <button
                             type='button'
-                            className='px-3 py-1 bg-red-600 text-white rounded text-sm ml-2'
+                            className='bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
                             onClick={(e) => { e.stopPropagation(); e.preventDefault(); void handleDeletePreference(p) }}
                           >
                             Delete
