@@ -39,6 +39,16 @@ const LandingPage: React.FC = () => {
     }, 2500);
   };
 
+  const handleBottomGetStarted = () => {
+    // Smoothly scroll the window to the top of the page
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+    // Trigger the same fade-out and navigation logic as the top button
+    handleGetStarted();
+  };
+
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       {/* Animated Background with fade overlay */}
@@ -227,15 +237,15 @@ const LandingPage: React.FC = () => {
               </li>
               <li className={`flex items-start list-item ${visibleSections.has('how-it-works') ? 'list-item-2' : ''}`}>
                 <span className="text-4xl font-bold mr-6">2.</span>
-                <span>Use our intelligent builder to craft your resume.</span>
+                <span>Search a job and extract it's description/requirements.</span>
               </li>
               <li className={`flex items-start list-item ${visibleSections.has('how-it-works') ? 'list-item-3' : ''}`}>
                 <span className="text-4xl font-bold mr-6">3.</span>
-                <span>Start a mock interview tailored to your goals.</span>
+                <span>Use intelligent builder to craft your resume with detailed AI-powered feedback.</span>
               </li>
               <li className={`flex items-start list-item ${visibleSections.has('how-it-works') ? 'list-item-4' : ''}`}>
                 <span className="text-4xl font-bold mr-6">4.</span>
-                <span>Receive detailed AI-powered feedback.</span>
+                <span>Set up an AI mock Interview.</span>
               </li>
               <li className={`flex items-start list-item ${visibleSections.has('how-it-works') ? 'list-item-5' : ''}`}>
                 <span className="text-4xl font-bold mr-6">5.</span>
@@ -259,7 +269,7 @@ const LandingPage: React.FC = () => {
             </h2>
 
             {/* Creator 1 */}
-            <div className="flex flex-col md:flex-row items-center gap-12 mb-24">
+            <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
                 <h3 className="text-4xl font-bold mb-3">Gaurav Tadia</h3>
                 <p className="text-xl mb-4 opacity-90">Co-Founder & Lead AI Engineer</p>
@@ -267,13 +277,10 @@ const LandingPage: React.FC = () => {
                   With 10+ years in machine learning and NLP, he has built AI systems for Fortune 500 companies.
                 </p>
               </div>
-              <div className="w-64 h-64 bg-white bg-opacity-20 backdrop-blur-sm rounded-3xl flex items-center justify-center text-white text-7xl font-bold shadow-2xl">
-                GT
-              </div>
             </div>
 
             {/* Creator 2 */}
-            <div className="flex flex-col md:flex-row-reverse items-center gap-12 mb-24 text-right">
+            <div className="flex flex-col md:flex-row-reverse items-center gap-12 mb-16 text-right md:text-right">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
                 <h3 className="text-4xl font-bold mb-3">Creator name</h3>
                 <p className="text-xl mb-4 opacity-90">Position (Head of Product Design)</p>
@@ -281,13 +288,10 @@ const LandingPage: React.FC = () => {
                 designs award-winning products with a focus on intuitive user experience.
                 </p>
               </div>
-              <div className="w-64 h-64 bg-white bg-opacity-20 backdrop-blur-sm rounded-3xl flex items-center justify-center text-white text-7xl font-bold shadow-2xl">
-                ER
-              </div>
             </div>
             
-            {/* Creator 4 */}
-            <div className="flex flex-col md:flex-row items-center gap-12">
+            {/* Creator 3 */}
+            <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
                 <h3 className="text-4xl font-bold mb-3">Creator name</h3>
                 <p className="text-xl mb-4 opacity-90">Postion (Co-Founder & Career Coach)</p>
@@ -295,15 +299,36 @@ const LandingPage: React.FC = () => {
                   A former HR director, he has helped thousands of candidates land their dream roles.
                 </p>
               </div>
-              <div className="w-64 h-64 bg-white bg-opacity-20 backdrop-blur-sm rounded-3xl flex items-center justify-center text-white text-7xl font-bold shadow-2xl">
-                MC
+            </div>
+
+            {/* Creator 4 */}
+            <div className="flex flex-col md:flex-row-reverse items-center gap-12 text-right md:text-right">
+              <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
+                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
+                <p className="text-xl mb-4 opacity-90">Position (Lead Frontend Engineer)</p>
+                <p className="text-lg md:text-xl opacity-90">
+                  Specializes in creating fluid, responsive user interfaces for modern web applications.
+                </p>
               </div>
             </div>
 
           </div>
         </section>
 
-        <div className="h-32"></div>
+        {/* FINAL CTA SECTION */}
+        <section className="flex flex-col items-center justify-center px-6 py-20">
+          <div className="text-center">
+            <button
+              onClick={handleBottomGetStarted}
+              className="font-bold py-8 px-24 rounded-full shadow-2xl hover:scale-110 transition-all duration-300 text-3xl transform hover:-translate-y-1"
+              style={{ backgroundColor: 'white', color: 'black' }}
+            >
+              Get Started Now
+            </button>
+          </div>
+        </section>
+
+        <div className="h-20"></div>
       </div>
     </div>
   );
