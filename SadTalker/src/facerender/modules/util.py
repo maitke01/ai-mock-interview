@@ -37,8 +37,30 @@ def make_coordinate_grid_2d(spatial_size, type):
     Create a meshgrid [-1,1] x [-1,1] of given spatial_size.
     """
     h, w = spatial_size
-    x = torch.arange(w).type(type)
-    y = torch.arange(h).type(type)
+    # Handle MPS and other device types properly
+    if isinstance(type, str):
+        # Parse device from type string (e.g., 'torch.mps.FloatTensor' -> 'mps')
+        if '.mps.' in type:
+            device = 'mps'
+        elif '.cuda.' in type:
+            device = 'cuda'
+        else:
+            device = 'cpu'
+        # Determine dtype from type string
+        if 'Float' in type:
+            dtype = torch.float32
+        elif 'Double' in type:
+            dtype = torch.float64
+        else:
+            dtype = torch.float32
+        x = torch.arange(w, device=device, dtype=dtype)
+        y = torch.arange(h, device=device, dtype=dtype)
+    else:
+        # For tensor types, extract device and dtype
+        device = type.device if hasattr(type, 'device') else 'cpu'
+        dtype = type.dtype if hasattr(type, 'dtype') else torch.float32
+        x = torch.arange(w, device=device, dtype=dtype)
+        y = torch.arange(h, device=device, dtype=dtype)
 
     x = (2 * (x / (w - 1)) - 1)
     y = (2 * (y / (h - 1)) - 1)
@@ -53,9 +75,33 @@ def make_coordinate_grid_2d(spatial_size, type):
 
 def make_coordinate_grid(spatial_size, type):
     d, h, w = spatial_size
-    x = torch.arange(w).type(type)
-    y = torch.arange(h).type(type)
-    z = torch.arange(d).type(type)
+    # Handle MPS and other device types properly
+    # Extract device and dtype from type string or tensor
+    if isinstance(type, str):
+        # Parse device from type string (e.g., 'torch.mps.FloatTensor' -> 'mps')
+        if '.mps.' in type:
+            device = 'mps'
+        elif '.cuda.' in type:
+            device = 'cuda'
+        else:
+            device = 'cpu'
+        # Determine dtype from type string
+        if 'Float' in type:
+            dtype = torch.float32
+        elif 'Double' in type:
+            dtype = torch.float64
+        else:
+            dtype = torch.float32
+        x = torch.arange(w, device=device, dtype=dtype)
+        y = torch.arange(h, device=device, dtype=dtype)
+        z = torch.arange(d, device=device, dtype=dtype)
+    else:
+        # For tensor types, extract device and dtype
+        device = type.device if hasattr(type, 'device') else 'cpu'
+        dtype = type.dtype if hasattr(type, 'dtype') else torch.float32
+        x = torch.arange(w, device=device, dtype=dtype)
+        y = torch.arange(h, device=device, dtype=dtype)
+        z = torch.arange(d, device=device, dtype=dtype)
 
     x = (2 * (x / (w - 1)) - 1)
     y = (2 * (y / (h - 1)) - 1)

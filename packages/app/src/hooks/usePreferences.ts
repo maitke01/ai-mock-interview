@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export function usePreferences() {
     const [loading, setLoading] = useState(false)
@@ -18,6 +18,7 @@ export function usePreferences() {
                     try {
                         const res = await fetch('/api/preferences/upsert', {
                             method: 'POST',
+                            credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ id: it.id, userId: it.userId, name: it.name, text: it.text, metadata: it.metadata })
                         })
@@ -49,16 +50,15 @@ export function usePreferences() {
         syncPending()
     }, [])
 
-    async function savePreference(opts: { id?: string; userId?: string; name?: string; text: string; metadata?: any }) {
+    const savePreference = useCallback(async (opts: { id?: string; userId?: string; name?: string; text: string; metadata?: any }) => {
         setLoading(true)
         setError(null)
         try {
-            const body: any = { userId: opts.userId, name: opts.name, text: opts.text, metadata: opts.metadata }
-            if (opts.id) body.id = opts.id
             const res = await fetch('/api/preferences/upsert', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({ id: opts.id, userId: opts.userId, name: opts.name, text: opts.text, metadata: opts.metadata })
             })
             let j: any = null
             let textBody = null
@@ -102,31 +102,15 @@ export function usePreferences() {
             setError(String(e))
             return { success: false, error: String(e) }
         }
-    }
+    }, [])
 
-    async function deletePreference(id: string) {
-        setLoading(true)
-        setError(null)
-        try {
-            const res = await fetch(`/api/preferences/delete/${encodeURIComponent(id)}`, { method: 'DELETE' })
-            let j = null
-            try { j = await res.json() } catch { j = null }
-            setLoading(false)
-            if (!res.ok) return { success: false, error: j || `HTTP ${res.status}` }
-            return { success: true, data: j }
-        } catch (e: any) {
-            setLoading(false)
-            setError(String(e))
-            return { success: false, error: String(e) }
-        }
-    }
-
-    async function searchPreferences(opts: { query: string; topK?: number; userId?: string }) {
+    const searchPreferences = useCallback(async (opts: { query: string; topK?: number; userId?: string }) => {
         setLoading(true)
         setError(null)
         try {
             const res = await fetch('/api/preferences/search', {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: opts.query, topK: opts.topK || 5, userId: opts.userId })
             })
@@ -142,14 +126,14 @@ export function usePreferences() {
             setError(String(e))
             return { success: false, error: String(e) }
         }
-    }
+    }, [])
 
-    async function listPreferences(opts?: { userId?: string }) {
+    const listPreferences = useCallback(async (opts?: { userId?: string }) => {
         setLoading(true)
         setError(null)
         try {
             const userQuery = opts?.userId ? `?userId=${encodeURIComponent(opts.userId)}` : ''
-            const res = await fetch(`/api/preferences/list${userQuery}`, { method: 'GET' })
+            const res = await fetch(`/api/preferences/list${userQuery}`, { method: 'GET', credentials: 'include' })
             const j = await res.json()
             setLoading(false)
             if (!res.ok) {
@@ -162,9 +146,30 @@ export function usePreferences() {
             setError(String(e))
             return { success: false, error: String(e) }
         }
-    }
+    }, [])
 
-    return { savePreference, deletePreference, searchPreferences, listPreferences, loading, error }
+    const deletePreference = useCallback(async (id: string) => {
+        setLoading(true)
+        setError(null)
+        try {
+            const res = await fetch(`/api/preferences/delete/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' })
+            let j: any = null
+            try { j = await res.json() } catch { j = null }
+            setLoading(false)
+            if (!res.ok) {
+                const errInfo = j || `HTTP ${res.status}`
+                setError(typeof errInfo === 'string' ? errInfo : JSON.stringify(errInfo))
+                return { success: false, error: errInfo }
+            }
+            return { success: true }
+        } catch (e: any) {
+            setLoading(false)
+            setError(String(e))
+            return { success: false, error: String(e) }
+        }
+    }, [])
+
+    return { savePreference, searchPreferences, listPreferences, deletePreference, loading, error }
 }
 
 export default usePreferences

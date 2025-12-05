@@ -200,3 +200,201 @@ export const useDeleteInterview = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interviews'] })
   })
 }
+
+// Mock Interview Session Hooks
+
+export interface InterviewSession {
+  id: number
+  mock_interview_id: number | null
+  account_id: number
+  status: 'active' | 'completed' | 'abandoned'
+  started_at: number
+  ended_at: number | null
+  total_turns: number
+  created_date: number
+  updated_date: number
+}
+
+export interface ConversationTurn {
+  turnNumber: number
+  userText: string
+  aiText: string
+  videoUrl: string
+  audioUrl: string
+}
+
+interface StartSessionResponse {
+  success: boolean
+  session?: InterviewSession
+  error?: string
+}
+
+interface SubmitResponseResponse {
+  success: boolean
+  turn?: ConversationTurn
+  error?: string
+}
+
+interface GetSessionResponse {
+  success: boolean
+  session?: InterviewSession & {
+    turns: Array<{
+      id: number
+      session_id: number
+      turn_number: number
+      user_text: string
+      ai_response_text: string
+      video_url: string | null
+      audio_url: string | null
+      created_at: number
+    }>
+  }
+  error?: string
+}
+
+interface EndSessionResponse {
+  success: boolean
+  session?: InterviewSession
+  error?: string
+}
+
+interface ListSessionsResponse {
+  success: boolean
+  sessions?: InterviewSession[]
+  error?: string
+}
+
+/**
+ * Start a new mock interview session
+ */
+export const useStartInterviewSession = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data?: { mockInterviewId?: number }): Promise<StartSessionResponse> => {
+      const response = await fetch('/api/mock-interview-session/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data || {})
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to start interview session')
+      }
+
+      return response.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interviewSessions'] })
+  })
+}
+
+/**
+ * Submit a user response and get AI reply with video
+ */
+export const useSubmitInterviewResponse = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: {
+      sessionId: number
+      userText: string
+      conversationHistory?: Array<{ role: string; content: string }>
+      r2PublicUrl?: string
+    }): Promise<SubmitResponseResponse> => {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+
+      // Add R2 public URL header if provided
+      if (data.r2PublicUrl) {
+        headers['X-R2-Public-URL'] = data.r2PublicUrl
+      }
+
+      const response = await fetch(`/api/mock-interview-session/${data.sessionId}/respond`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          userText: data.userText,
+          conversationHistory: data.conversationHistory
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to submit response')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['interviewSession', variables.sessionId] })
+    }
+  })
+}
+
+/**
+ * Get a specific interview session with conversation history
+ */
+export const useInterviewSession = (sessionId: number | null) => {
+  return useQuery({
+    queryKey: ['interviewSession', sessionId],
+    queryFn: async (): Promise<GetSessionResponse> => {
+      if (!sessionId) {
+        throw new Error('Session ID is required')
+      }
+
+      const response = await fetch(`/api/mock-interview-session/${sessionId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch interview session')
+      }
+      return response.json()
+    },
+    enabled: !!sessionId
+  })
+}
+
+/**
+ * End an active interview session
+ */
+export const useEndInterviewSession = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (sessionId: number): Promise<EndSessionResponse> => {
+      const response = await fetch(`/api/mock-interview-session/${sessionId}/end`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to end interview session')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_, sessionId) => {
+      queryClient.invalidateQueries({ queryKey: ['interviewSession', sessionId] })
+      queryClient.invalidateQueries({ queryKey: ['interviewSessions'] })
+    }
+  })
+}
+
+/**
+ * List all interview sessions for the current user
+ */
+export const useInterviewSessions = () => {
+  return useQuery({
+    queryKey: ['interviewSessions'],
+    queryFn: async (): Promise<ListSessionsResponse> => {
+      const response = await fetch('/api/mock-interview-session/list')
+      if (!response.ok) {
+        throw new Error('Failed to fetch interview sessions')
+      }
+      return response.json()
+    }
+  })
+}

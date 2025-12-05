@@ -1,12 +1,22 @@
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import {
+  useStartInterviewSession,
+  useSubmitInterviewResponse,
+  useEndInterviewSession,
+  type ConversationTurn
+} from '../hooks/useInterviews'
 import Header from './Header'
 
 const MockInterview: React.FC = () => {
   const navigate = useNavigate()
   const [inputValue, setInputValue] = useState('')
+  const [sessionId, setSessionId] = useState<number | null>(null)
+  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([])
+  const [currentVideo, setCurrentVideo] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   const {
     isInitialized,
@@ -21,15 +31,45 @@ const MockInterview: React.FC = () => {
     clearTranscript
   } = useSpeechRecognition()
 
+  const startSession = useStartInterviewSession()
+  const submitResponse = useSubmitInterviewResponse()
+  const endSession = useEndInterviewSession()
+
+  // Initialize speech recognition
   useEffect(() => {
     void initialize()
   }, [initialize])
 
+  // Start interview session on mount
+  useEffect(() => {
+    startSession.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data.success && data.session) {
+          setSessionId(data.session.id)
+        }
+      },
+      onError: (error) => {
+        console.error('Failed to start session:', error)
+      }
+    })
+  }, [])
+
+  // Update input value when transcript changes
   useEffect(() => {
     if (transcript) {
       setInputValue(transcript)
     }
   }, [transcript])
+
+  // Auto-play video when it changes
+  useEffect(() => {
+    if (currentVideo && videoRef.current) {
+      videoRef.current.load()
+      videoRef.current.play().catch(err => {
+        console.error('Failed to play video:', err)
+      })
+    }
+  }, [currentVideo])
 
   const handleMicrophoneClick = () => {
     if (isRecording) {
@@ -37,6 +77,55 @@ const MockInterview: React.FC = () => {
     } else {
       void startRecording()
     }
+  }
+
+  const handleSubmitResponse = () => {
+    if (!sessionId || !inputValue.trim()) {
+      return
+    }
+
+    // Build conversation history for context
+    const history = conversationHistory.flatMap(turn => [
+      { role: 'user', content: turn.userText },
+      { role: 'assistant', content: turn.aiText }
+    ])
+
+    submitResponse.mutate(
+      {
+        sessionId,
+        userText: inputValue,
+        conversationHistory: history
+      },
+      {
+        onSuccess: (data) => {
+          if (data.success && data.turn) {
+            // Add to conversation history
+            setConversationHistory(prev => [...prev, data.turn!])
+
+            // Set current video for playback
+            setCurrentVideo(data.turn.videoUrl)
+
+            // Clear input
+            setInputValue('')
+            clearTranscript()
+          }
+        },
+        onError: (error) => {
+          console.error('Failed to submit response:', error)
+          alert(`Error: ${error.message}`)
+        }
+      }
+    )
+  }
+
+  const handleEndSession = () => {
+    if (!sessionId) return
+
+    endSession.mutate(sessionId, {
+      onSuccess: () => {
+        navigate('/dashboard')
+      }
+    })
   }
 
   const getStatusDisplay = () => {
@@ -112,22 +201,62 @@ const MockInterview: React.FC = () => {
 
                 {/* Video Display */}
                 <div className='relative bg-gray-900 rounded-lg overflow-hidden mb-6' style={{ aspectRatio: '16/9' }}>
-                  <div className='absolute inset-0 flex items-center justify-center'>
-                    <div className='text-center'>
-                      <div className='w-24 h-24 bg-blue-600 rounded-full mx-auto mb-4 flex items-center justify-center'>
-                        <svg className='w-12 h-12 text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                          <path
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                            strokeWidth={2}
-                            d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
-                          />
-                        </svg>
+                  {currentVideo ? (
+                    <video
+                      ref={videoRef}
+                      className='w-full h-full object-cover'
+                      controls
+                      playsInline
+                    >
+                      <source src={currentVideo} type='video/mp4' />
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : (
+                    <div className='absolute inset-0 flex items-center justify-center'>
+                      <div className='text-center'>
+                        {submitResponse.isPending ? (
+                          <>
+                            <div className='w-24 h-24 bg-blue-600 rounded-full mx-auto mb-4 flex items-center justify-center'>
+                              <svg className='w-12 h-12 text-white animate-spin' fill='none' viewBox='0 0 24 24'>
+                                <circle
+                                  className='opacity-25'
+                                  cx='12'
+                                  cy='12'
+                                  r='10'
+                                  stroke='currentColor'
+                                  strokeWidth='4'
+                                ></circle>
+                                <path
+                                  className='opacity-75'
+                                  fill='currentColor'
+                                  d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                                ></path>
+                              </svg>
+                            </div>
+                            <p className='text-white text-lg font-medium'>Generating response...</p>
+                            <p className='text-gray-400 text-sm mt-1'>This may take a minute</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className='w-24 h-24 bg-blue-600 rounded-full mx-auto mb-4 flex items-center justify-center'>
+                              <svg className='w-12 h-12 text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth={2}
+                                  d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+                                />
+                              </svg>
+                            </div>
+                            <p className='text-white text-lg font-medium'>AI Interviewer</p>
+                            <p className='text-gray-400 text-sm mt-1'>
+                              {sessionId ? 'Ready for your response' : 'Starting session...'}
+                            </p>
+                          </>
+                        )}
                       </div>
-                      <p className='text-white text-lg font-medium'>AI Interviewer</p>
-                      <p className='text-gray-400 text-sm mt-1'>Ready to begin</p>
                     </div>
-                  </div>
+                  )}
 
                   {/* Recording Indicator (shown only while recording) */}
                   {isRecording && (
@@ -147,21 +276,27 @@ const MockInterview: React.FC = () => {
 
                 {/* Controls */}
                 <div className='flex items-center justify-center gap-4 mb-6'>
-                  <button className='w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors'>
+                  <button
+                    onClick={handleEndSession}
+                    disabled={!sessionId || endSession.isPending}
+                    className='w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                    title='End Session'
+                  >
                     <svg className='w-6 h-6 text-white' fill='currentColor' viewBox='0 0 24 24'>
                       <rect x='6' y='6' width='12' height='12' />
                     </svg>
                   </button>
                   <button
                     onClick={handleMicrophoneClick}
-                    disabled={!isInitialized || isTranscribing}
+                    disabled={!isInitialized || isTranscribing || submitResponse.isPending}
                     className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
                       isRecording
                         ? 'bg-red-500 hover:bg-red-600 text-white'
-                        : isInitialized
+                        : isInitialized && !submitResponse.isPending
                         ? 'bg-blue-500 hover:bg-blue-600 text-white'
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    } ${isTranscribing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isTranscribing || submitResponse.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isRecording ? 'Stop Recording' : 'Start Recording'}
                   >
                     {isTranscribing
                       ? (
@@ -184,16 +319,6 @@ const MockInterview: React.FC = () => {
                           />
                         </svg>
                       )}
-                  </button>
-                  <button className='w-14 h-14 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center transition-colors'>
-                    <svg className='w-6 h-6 text-gray-700' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth={2}
-                        d='M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z'
-                      />
-                    </svg>
                   </button>
                 </div>
 
@@ -248,14 +373,74 @@ const MockInterview: React.FC = () => {
                     placeholder='Type your answer here or use the microphone to speak...'
                     rows={4}
                     className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-vertical'
+                    disabled={submitResponse.isPending}
                   />
+                  <button
+                    onClick={handleSubmitResponse}
+                    disabled={!sessionId || !inputValue.trim() || submitResponse.isPending}
+                    className='mt-3 w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+                  >
+                    {submitResponse.isPending ? (
+                      <>
+                        <svg className='w-5 h-5 animate-spin' fill='none' viewBox='0 0 24 24'>
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
+                        </svg>
+                        Generating AI Response...
+                      </>
+                    ) : (
+                      <>
+                        <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M12 19l9 2-9-18-9 18 9-2zm0 0v-8'
+                          />
+                        </svg>
+                        Submit Response
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Feedback Panel */}
-          <div className='lg:col-span-1'>
+          <div className='lg:col-span-1 space-y-4'>
+            {/* Conversation History */}
+            {conversationHistory.length > 0 && (
+              <div className='bg-white rounded-lg shadow-sm border border-gray-200 p-6'>
+                <h2 className='text-xl font-semibold mb-4'>Conversation History</h2>
+                <div className='space-y-4 max-h-96 overflow-y-auto'>
+                  {conversationHistory.map((turn, index) => (
+                    <div key={index} className='space-y-2'>
+                      <div className='bg-blue-50 rounded-lg p-3'>
+                        <p className='text-xs font-semibold text-blue-900 mb-1'>You:</p>
+                        <p className='text-sm text-gray-700'>{turn.userText}</p>
+                      </div>
+                      <div className='bg-gray-50 rounded-lg p-3'>
+                        <p className='text-xs font-semibold text-gray-900 mb-1'>AI Interviewer:</p>
+                        <p className='text-sm text-gray-700'>{turn.aiText}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className='bg-white rounded-lg shadow-sm border border-gray-200 p-6'>
               <h2 className='text-xl font-semibold mb-4'>AI Feedback</h2>
 
