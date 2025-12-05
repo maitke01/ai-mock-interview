@@ -22,6 +22,9 @@ const Header: React.FC<HeaderProps> = ({ title = 'AI Resume & Interview Trainer'
             <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/resume')}>
               Resume Builder
             </a>
+            <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/my-resumes')}>
+              My Resumes
+            </a>
             <a href='#' className='text-white font-medium hover:text-blue-200 transition-colors' style={{ color: 'white' }} onClick={() => navigate('/job-search')}>
               Job Search
             </a>

@@ -4,13 +4,10 @@ import type { SelectedResume } from '../types/resume'
 import { extractImages, extractText } from 'unpdf'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
-import modernPreview from "./assets/modern-preview.svg"
-import classicPreview from "./assets/classic-preview.svg"
-import modernPDF from "./assets/pdfs/modern-template.pdf"
-import classicPDF from "./assets/pdfs/classic-template.pdf"
 import Header from './Header'
+import { latexTemplates } from '../data/latexTemplates'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
-import PdfEditorModal from './PdfEditorModal'
+import CleanPdfEditor from './CleanPdfEditor'
 import TodoList from './TodoList'
 
 interface StoredFile {
@@ -23,18 +20,7 @@ interface StoredFile {
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
-const templates = [
-  {
-    name: "modern",
-    preview: modernPreview,
-    pdf: modernPDF
-  },
-  {
-    name: "classic",
-    preview: classicPreview,
-    pdf: classicPDF
-  }
-]
+// Using the imported latexTemplates from data file
 
 const ResumeBuilder: React.FC = () => {
   const navigate = useNavigate()
@@ -79,7 +65,7 @@ const ResumeBuilder: React.FC = () => {
     mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your background.\n\nWORK HISTORY\n\nJob Title | Company\nDates\n• Responsibility 1\n• Responsibility 2\n\nPROJECTS\n\nProject Name\n• Key achievement\n\nAWARDS\n• Award 1\n• Award 2'
   })
   const [resumeMode, setResumeMode] = useState<'scratch' | 'template'>('scratch')
-  const [selectedTemplate, setSelectedTemplate] = useState<'modern' | 'classic' | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [hasSelectedMode, setHasSelectedMode] = useState(false)
   const [mainContentMargin, setMainContentMargin] = useState(320);
 
@@ -160,18 +146,7 @@ const ResumeBuilder: React.FC = () => {
   const Size = Quill.import('attributors/style/size');
   Size.whitelist = ['8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '72px'];
   Quill.register(Size, true);
-  const templatesData = {
-    modern: {
-      header: 'Your Name\nEmail | Phone | LinkedIn',
-      sidebar: 'SKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nEDUCATION\nUniversity Name\nDegree, Year\n\nCERTIFICATIONS\n• Certification 1\n• Certification 2',
-      mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your experience and skills.\n\nWORK EXPERIENCE\n\nJob Title | Company Name\nDates\n• Achievement 1\n• Achievement 2\n\nPROJECTS\n\nProject Name\n• Description\n• Technologies used'
-    },
-    classic: {
-      header: 'Your Name\nEmail | Phone',
-      sidebar: 'EDUCATION\nUniversity Name\nDegree, Year\n\nSKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nLANGUAGES\n• English\n• Spanish',
-      mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your background.\n\nWORK HISTORY\n\nJob Title | Company\nDates\n• Responsibility 1\n• Responsibility 2\n\nPROJECTS\n\nProject Name\n• Key achievement\n\nAWARDS\n• Award 1\n• Award 2'
-    }
-  }
+  // Using latexTemplates imported from data file
 
   // File operations
   const addFiles = async (files: FileList | File[]) => {
@@ -1029,9 +1004,15 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const selectTemplate = (id: 'modern' | 'classic') => {
+  const selectTemplate = (id: string) => {
     const draftKey = `resume-draft-${id}`
     const savedDraft = localStorage.getItem(draftKey)
+
+    const template = latexTemplates.find(t => t.id === id)
+    if (!template) {
+      console.error('Template not found:', id)
+      return
+    }
 
     if (savedDraft) {
       try {
@@ -1044,18 +1025,35 @@ const ResumeBuilder: React.FC = () => {
         console.log('Draft loaded from:', new Date(draftData.savedAt).toLocaleString())
       } catch (error) {
         console.error('Error parsing draft:', error)
-        setResumeTemplate(templatesData[id])
+        // Load fresh template data
+        loadTemplateIntoEditor(template)
       }
     } else {
-      setResumeTemplate(templatesData[id])
+      // Load fresh template data
+      loadTemplateIntoEditor(template)
     }
 
     setSelectedTemplate(id)
+    setCurrentPdfUrl('') // Clear PDF URL since we're using HTML templates now
+  }
 
-    const templateData = templates.find(t => t.name === id)
-    if (templateData) {
-      setCurrentPdfUrl(templateData.pdf)
-    }
+  const loadTemplateIntoEditor = (template: typeof latexTemplates[0]) => {
+    // Use a small delay to ensure Quill is fully initialized
+    setTimeout(() => {
+      if (mainContentQuill.current) {
+        // Clear existing content first
+        mainContentQuill.current.setText('')
+        // Then paste the HTML - this will render it as formatted text, not code
+        mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, template.content)
+      }
+    }, 100)
+
+    // Update state - clear header and sidebar, put everything in mainContent
+    setResumeTemplate({
+      header: '',
+      sidebar: '',
+      mainContent: template.content
+    })
   }
 
   const handleDownloadPDF = async () => {
@@ -1878,30 +1876,33 @@ const ResumeBuilder: React.FC = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose from our professionally designed templates</p>
               </div>
               <div className='p-8'>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                  {templates.map((template, index) => (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                  {latexTemplates.map((template) => (
                     <div
-                      key={index}
-                      onClick={() => selectTemplate(template.name as 'modern' | 'classic')}
+                      key={template.id}
+                      onClick={() => selectTemplate(template.id)}
                       className="group cursor-pointer bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
                     >
-                      <div className="relative">
-                        <img
-                          src={template.preview}
-                          alt={`${template.name} template`}
-                          className="w-full h-96 object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-6">
-                          <span className="text-white font-semibold text-lg">Select Template</span>
+                      <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-b-2 border-gray-200 dark:border-gray-600">
+                        <div className="h-24 flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="text-4xl mb-2">📄</div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">LaTeX Template</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
-                        <p className="font-bold text-lg text-gray-900 dark:text-gray-100 capitalize text-center">
-                          {template.name} Template
+                      <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
+                        <p className="font-bold text-lg text-gray-900 dark:text-gray-100 text-center mb-2">
+                          {template.name}
                         </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 text-center mt-1">
-                          Professional & ATS-friendly
+                        <p className="text-sm text-gray-600 dark:text-gray-400 text-center leading-relaxed">
+                          {template.description}
                         </p>
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                          <p className="text-xs text-center text-blue-600 dark:text-blue-400 font-medium group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                            Click to use template →
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1914,7 +1915,7 @@ const ResumeBuilder: React.FC = () => {
           {hasSelectedMode && resumeMode === "template" && selectedTemplate && (
             <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden'>
               <div className='px-6 py-5 border-b border-gray-200 dark:border-gray-700'>
-                <h2 className='text-xl font-semibold text-gray-900 dark:text-white capitalize'>{selectedTemplate} Template Editor</h2>
+                <h2 className='text-xl font-semibold text-gray-900 dark:text-white'>{latexTemplates.find(t => t.id === selectedTemplate)?.name || selectedTemplate} Editor</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Customize your professional resume template</p>
               </div>
 
@@ -1922,51 +1923,21 @@ const ResumeBuilder: React.FC = () => {
 
               <div className='p-6'>
                 <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
-                  <div className='w-full h-full flex flex-col p-12'>
-                    <div className='border-b-2 border-gray-300 pb-8 mb-8'>
-                      <div
-                        ref={headerRef}
-                        className='focus:ring-2 focus:ring-blue-300 rounded-lg'
-                        style={{
-                          // fontFamily, // Quill controls this now
-                          // fontSize: `${fontSize}px`, // Quill controls this now
-                          lineHeight,
-                          textAlign,
-                          color: textColor,
-                          minHeight: '100px'
-                        }}
-                      />
-                    </div>
-                    <div className='flex-1 flex gap-8'>
-                      <div className='w-1/3 border-r-2 border-gray-300 pr-8'>
-                        <div
-                          ref={sidebarRef}
-                          className='focus:ring-2 focus:ring-blue-300 rounded-lg'
-                          style={{
-                            // fontFamily, // Quill controls this now
-                            // fontSize: `${fontSize}px`, // Quill controls this now
-                            lineHeight,
-                            textAlign,
-                            color: textColor,
-                            minHeight: '700px'
-                          }}
-                        />
-                      </div>
-                      <div className='flex-1'>
-                        <div
-                          ref={mainContentRef}
-                          className='focus:ring-2 focus:ring-blue-300 rounded-lg'
-                          style={{
-                            // fontFamily, // Quill controls this now
-                            // fontSize: `${fontSize}px`, // Quill controls this now
-                            lineHeight,
-                            textAlign,
-                            color: textColor,
-                            minHeight: '700px'
-                          }}
-                        />
-                      </div>
-                    </div>
+                  <div className='w-full h-full p-12'>
+                    {/* Single page editor - no boxes */}
+                    <div
+                      ref={mainContentRef}
+                      className='focus:ring-2 focus:ring-blue-300 rounded-lg w-full h-full'
+                      style={{
+                        lineHeight,
+                        textAlign,
+                        color: textColor,
+                        minHeight: '900px'
+                      }}
+                    />
+                    {/* Hidden refs for compatibility */}
+                    <div ref={headerRef} style={{ display: 'none' }} />
+                    <div ref={sidebarRef} style={{ display: 'none' }} />
                   </div>
                 </div>
 
@@ -2035,7 +2006,7 @@ const ResumeBuilder: React.FC = () => {
       </div>
 
       {/* PDF Editor Modal */}
-      <PdfEditorModal
+      <CleanPdfEditor
         isOpen={isEditorOpen}
         onClose={() => {
           setIsEditorOpen(false)

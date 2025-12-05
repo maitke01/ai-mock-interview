@@ -315,6 +315,7 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        <div className="h-32"></div>
         {/* FINAL CTA SECTION */}
         <section className="flex flex-col items-center justify-center px-6 py-20">
           <div className="text-center">
