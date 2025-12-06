@@ -2,8 +2,50 @@ import type { Route } from '../../../index'
 
 export const formatResumeRoute: Route = async (ctx) => {
   try {
-    const { sectionType, content } = await ctx.req.json()
+    const body = await ctx.req.json()
 
+    // Support both formats:
+    // 1. Full template: { header, sidebar, mainContent }
+    // 2. Single section: { sectionType, content }
+    const { sectionType, content, header, sidebar, mainContent } = body
+
+    // If full template format is provided, format all sections
+    if (header !== undefined || sidebar !== undefined || mainContent !== undefined) {
+      const sections = { header, sidebar, mainContent }
+      const formattedSections: Record<string, string> = {}
+
+      for (const [section, sectionContent] of Object.entries(sections)) {
+        if (!sectionContent) {
+          formattedSections[section] = ''
+          continue
+        }
+
+        const prompt = `Format this resume ${section}. Return ONLY the final formatted text. No explanations, no choices, no "or" options:
+
+${typeof sectionContent === 'object' ? JSON.stringify(sectionContent, null, 2) : sectionContent}`
+
+        const aiResponse = await ctx.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+          prompt: prompt,
+          temperature: 0.1,
+          top_p: 0.7,
+          max_tokens: 512
+        })
+
+        if (aiResponse && 'response' in aiResponse && aiResponse.response) {
+          formattedSections[section] = aiResponse.response.trim()
+        } else {
+          formattedSections[section] = sectionContent
+        }
+      }
+
+      return ctx.json({
+        success: true,
+        formattedContent: formattedSections,
+        model: '@cf/meta/llama-3.1-8b-instruct'
+      })
+    }
+
+    // Single section format
     if (!sectionType || !content) {
       return ctx.json({ error: 'Missing sectionType or content' }, 400)
     }
