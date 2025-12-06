@@ -81,7 +81,11 @@ const JobSearch: React.FC = () => {
   }
 
   const handleExtractKeywords = async () => {
-    if (!jobDescription.trim()) return
+    if (!jobDescription.trim()) {
+      setPopupMessage('Please paste a job description first.')
+      setShowPopup(true)
+      return
+    }
     setLoading(true)
     try {
       const response = await fetch('/api/extract-keywords', {
@@ -92,10 +96,14 @@ const JobSearch: React.FC = () => {
       const data = await response.json() as ResumeSuggestion
       setKeywords(data.keywords || [])
       setResumeSuggestion(data.resumeSuggestion || '')
+      setPopupMessage('Keywords extracted successfully!')
+      setShowPopup(true)
     } catch (e) {
       console.warn('Keyword extraction failed', e)
       setKeywords([])
       setResumeSuggestion('Error extracting keywords.')
+      setPopupMessage('Failed to extract keywords. Please try again.')
+      setShowPopup(true)
     }
     setLoading(false)
   }
