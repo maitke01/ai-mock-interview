@@ -139,7 +139,7 @@ const JobSearch: React.FC = () => {
 
   const handleSavePreference = async () => {
     if (!jobDescription || !jobDescription.trim()) {
-      setPopupMessage('Paste a job description first.')
+      setPopupMessage('Please paste a job description first.')
       setShowPopup(true)
       return
     }
@@ -157,7 +157,7 @@ const JobSearch: React.FC = () => {
           setSavedPreferences((prev) => [newPref, ...(prev || [])])
           setSelectedPrefId(newPref.id)
         } else {
-          setPopupMessage('Job preference saved')
+          setPopupMessage('Job preference saved!')
           setShowPopup(true)
           const newPref = { id: res?.data?.id || ('temp-' + Math.random().toString(36).slice(2, 9)), userId: undefined, name, text: jobDescription, metadata, createdAt: Date.now() }
           setSavedPreferences((prev) => [newPref, ...(prev || [])])
@@ -206,7 +206,7 @@ const JobSearch: React.FC = () => {
 
         const res = await deletePreference(String(p.id))
         if (res && res.success) {
-          setPopupMessage('Preference deleted')
+          setPopupMessage('Preference deleted!')
           setShowPopup(true)
           try {
             const refreshed = await listPreferences()
@@ -236,6 +236,7 @@ const JobSearch: React.FC = () => {
   }
 
   const handleAnalyzeSkillGap = () => {
+    
     if (!selectedResume) {
       setPopupMessage('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
       setShowPopup(true)
@@ -246,6 +247,7 @@ const JobSearch: React.FC = () => {
       setShowPopup(true)
       return
     }
+    
     const resumeTextSource = selectedResume.text ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
     const resumeText = String(resumeTextSource).toLowerCase()
     const matched: string[] = []
@@ -547,7 +549,13 @@ const JobSearch: React.FC = () => {
                 </div>
               )}
 
-              {showPopup && (
+            </div>
+          </div>
+        </div>
+        </main>
+      </div>
+       {/* Move popups outside all content containers */}
+      {showPopup && (
                 <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
                   <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
                     <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
@@ -574,11 +582,6 @@ const JobSearch: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-        </main>
-      </div>
     </div>
   )
 }
