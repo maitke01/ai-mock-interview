@@ -55,7 +55,7 @@ const Signup: React.FC = () => {
 
         <form onSubmit={handleSubmit} className='space-y-4'>
           {error && (
-            <div className='p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg'>
+            <div className='p-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg'>
               {error}
             </div>
           )}
