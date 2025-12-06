@@ -3,6 +3,7 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDeleteInterview, useInterviews } from '../hooks/useInterviews'
+import { getUserItem, setUserItem } from '../utils/userStorage'
 import Header from './Header'
 import TodoList from './TodoList'
 
@@ -24,70 +25,78 @@ const Dashboard: React.FC = () => {
 
   // Recompute resume completion score using available stored data: selectedResume (sessionStorage) and keywordMatch
   function recomputeResumeCompletion() {
-    try {
-      const raw = sessionStorage.getItem('selectedResume')
-      let selected: any = null
-      if (raw) selected = JSON.parse(raw)
+    // Make this async-compatible
+    (async () => {
+      try {
+        const raw = sessionStorage.getItem('selectedResume')
+        let selected: any = null
+        if (raw) selected = JSON.parse(raw)
 
-      // Heuristic weights (kept consistent with ResumeBuilder):
-      // - has resume text: 20
-      // - optimized resume present: 40
-      // - keywordMatch (0-100) contributes up to 40
-      let score = 0
-      const hasText = selected && (selected.text || '').toString().trim().length > 0
-      const hasOptimized = selected && typeof selected.optimized === 'string' && (selected.optimized as string).trim().length > 0
+        // Heuristic weights (kept consistent with ResumeBuilder):
+        // - has resume text: 20
+        // - optimized resume present: 40
+        // - keywordMatch (0-100) contributes up to 40
+        let score = 0
+        const hasText = selected && (selected.text || '').toString().trim().length > 0
+        const hasOptimized = selected && typeof selected.optimized === 'string' && (selected.optimized as string).trim().length > 0
 
-      if (hasText) score += 20
-      if (hasOptimized) score += 40
+        if (hasText) score += 20
+        if (hasOptimized) score += 40
 
-      const kmRaw = localStorage.getItem('keywordMatch')
-      const km = kmRaw !== null ? Number(kmRaw) : (keywordMatch ?? null)
-      if (km !== null && !Number.isNaN(km)) {
-        const kmContribution = Math.round(Math.max(0, Math.min(100, Number(km))) * 0.4) // scale to 0-40
-        score += kmContribution
+        const kmRaw = await getUserItem('keywordMatch')
+        const km = kmRaw !== null ? Number(kmRaw) : (keywordMatch ?? null)
+        if (km !== null && !Number.isNaN(km)) {
+          const kmContribution = Math.round(Math.max(0, Math.min(100, Number(km))) * 0.4) // scale to 0-40
+          score += kmContribution
+        }
+
+        if (score > 100) score = 100
+        console.debug('Dashboard: recomputeResumeCompletion', { hasText, hasOptimized, km: kmRaw ?? keywordMatch, score })
+        setResumeCompletion(score)
+        await setUserItem('resumeCompletion', String(score))
+      } catch (e) {
+        console.warn('Failed to recompute resume completion', e)
       }
-
-      if (score > 100) score = 100
-      console.debug('Dashboard: recomputeResumeCompletion', { hasText, hasOptimized, km: kmRaw ?? keywordMatch, score })
-      setResumeCompletion(score)
-      try { localStorage.setItem('resumeCompletion', String(score)) } catch (e) { /* noop */ }
-    } catch (e) {
-      console.warn('Failed to recompute resume completion', e)
-    }
+    })().catch(err => console.error('recomputeResumeCompletion error:', err))
   }
 
   useEffect(() => {
-    const s = localStorage.getItem('atsScore')
-    if (s !== null) setAtsScore(Number(s))
+    // Load user-specific scores from localStorage
+    async function loadUserScores() {
+      const s = await getUserItem('atsScore')
+      if (s !== null) setAtsScore(Number(s))
 
-    const rc = localStorage.getItem('resumeCompletion')
-    if (rc !== null) setResumeCompletion(Number(rc))
+      const rc = await getUserItem('resumeCompletion')
+      if (rc !== null) setResumeCompletion(Number(rc))
 
-    const km = localStorage.getItem('keywordMatch')
-    if (km !== null) setKeywordMatch(Number(km))
-    if (km !== null) setJobRoleMatch(Number(km))
+      const km = await getUserItem('keywordMatch')
+      if (km !== null) setKeywordMatch(Number(km))
+      if (km !== null) setJobRoleMatch(Number(km))
 
-    const rs = localStorage.getItem('readabilityScore')
-    if (rs !== null) setReadabilityScore(Number(rs))
+      const rs = await getUserItem('readabilityScore')
+      if (rs !== null) setReadabilityScore(Number(rs))
 
-    // Ensure derived completion is calculated on mount
-    recomputeResumeCompletion()
+      // Ensure derived completion is calculated on mount
+      recomputeResumeCompletion()
+    }
+
+    loadUserScores().catch(err => console.error('Failed to load user scores:', err))
   }, [])
 
   useEffect(() => {
     ; (window as any).updateAtsScore = (n: number) => {
       setAtsScore(n)
-      localStorage.setItem('atsScore', String(n))
+      setUserItem('atsScore', String(n)).catch(err => console.error('Failed to save atsScore:', err))
     }
 
       ; (window as any).updateReadabilityScore = (n: number) => {
         setReadabilityScore(n)
-        localStorage.setItem('readabilityScore', String(n))
+        setUserItem('readabilityScore', String(n)).catch(err => console.error('Failed to save readabilityScore:', err))
       }
 
       ; (window as any).updateResumeCompletion = (n: number) => {
         setResumeCompletion(n)
-        try { localStorage.setItem('resumeCompletion', String(n)) } catch (e) { /* noop */ }
+        setUserItem('resumeCompletion', String(n)).catch(err => console.error('Failed to save resumeCompletion:', err))
         // keep derived state consistent
         try { recomputeResumeCompletion() } catch (e) { /* noop */ }
       }
@@ -99,21 +108,21 @@ const Dashboard: React.FC = () => {
           const a = Number(d.atsScore)
           if (Number.isFinite(a)) {
             setAtsScore(a)
-            localStorage.setItem('atsScore', String(a))
+            setUserItem('atsScore', String(a)).catch(err => console.error('Failed to save atsScore:', err))
           }
         }
         if (d.readabilityScore !== undefined && d.readabilityScore !== null) {
           const r = Number(d.readabilityScore)
           if (Number.isFinite(r)) {
             setReadabilityScore(r)
-            localStorage.setItem('readabilityScore', String(r))
+            setUserItem('readabilityScore', String(r)).catch(err => console.error('Failed to save readabilityScore:', err))
           }
         }
         if (d.keywordMatch !== undefined && d.keywordMatch !== null) {
           const k = Number(d.keywordMatch)
           if (Number.isFinite(k)) {
             setKeywordMatch(k)
-            localStorage.setItem('keywordMatch', String(k))
+            setUserItem('keywordMatch', String(k)).catch(err => console.error('Failed to save keywordMatch:', err))
             // keep job role match in sync with keywordMatch
             try { setJobRoleMatch(k) } catch (e) { /* noop */ }
           }
@@ -122,7 +131,7 @@ const Dashboard: React.FC = () => {
           const rc = Number(d.resumeCompletion)
           if (Number.isFinite(rc)) {
             setResumeCompletion(rc)
-            localStorage.setItem('resumeCompletion', String(rc))
+            setUserItem('resumeCompletion', String(rc)).catch(err => console.error('Failed to save resumeCompletion:', err))
           }
         }
         // After applying any direct values, recompute a derived resumeCompletion so the dashboard reflects combined progress

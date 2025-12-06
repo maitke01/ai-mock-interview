@@ -25,6 +25,7 @@ import { upsertPreferenceRoute } from './lib/routes/preferences/upsertPreference
 import { searchPreferencesRoute } from './lib/routes/preferences/searchPreferencesRoute'
 import { listPreferencesRoute } from './lib/routes/preferences/listPreferencesRoute'
 import { deletePreferenceRoute } from './lib/routes/preferences/deletePreferenceRoute'
+import { currentUserRoute } from './lib/routes/user/currentUserRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -33,6 +34,7 @@ export type Route<R extends string = string> = (ctx: Context<Bindings, R>) => Pr
 const app = new Hono({ strict: false })
   .post('/login', loginRoute)
   .post('/register', registerRoute)
+  .get('/api/current-user', currentUserRoute)
   .post('/api/add-resume', addResumeRoute)
   .delete('/api/delete-resume', deleteResumeRoute)
   .get('/api/get-resume/:id', getResumeRoute)

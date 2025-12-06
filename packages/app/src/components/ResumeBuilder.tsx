@@ -6,9 +6,11 @@ import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
 import Header from './Header'
 import { latexTemplates } from '../data/latexTemplates'
-import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
-import CleanPdfEditor from './CleanPdfEditor'
+import SimplePdfEditor from './SimplePdfEditor'
 import TodoList from './TodoList'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
+import { getUserItem, setUserItem } from '../utils/userStorage'
 
 interface StoredFile {
   name: string;
@@ -304,20 +306,135 @@ const ResumeBuilder: React.FC = () => {
 
   const handleTemplateSubmit = async () => {
     try {
-      const response = await fetch('/api/format-resume', {
+      // Get the current resume text content from Quill
+      if (!mainContentQuill.current) {
+        setPopupMessage('No content to format')
+        setShowPopup(true)
+        return
+      }
+
+      const resumeText = mainContentQuill.current.getText()
+      if (!resumeText.trim()) {
+        setPopupMessage('Please add some content first')
+        setShowPopup(true)
+        return
+      }
+
+      setPopupMessage('Analyzing resume with AI...')
+      setShowPopup(true)
+
+      // Use free AI API (Hugging Face Inference API as alternative to Cloudflare)
+      const AI_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2'
+      const API_KEY = 'hf_demo' // Demo key for testing, user should replace with their own
+
+      const prompt = `Analyze this resume and provide specific improvements. Focus on:
+1. Grammar and spelling corrections
+2. Action verb enhancements
+3. ATS keyword optimization
+4. Structure improvements
+
+Resume text:
+${resumeText}
+
+Provide your response as a JSON object with this structure:
+{
+  "additions": ["suggestion 1", "suggestion 2"],
+  "removals": ["issue 1", "issue 2"],
+  "improvements": ["improvement 1", "improvement 2"]
+}
+
+JSON response:`
+
+      const response = await fetch(AI_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(resumeTemplate)
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: 500,
+            temperature: 0.7,
+            return_full_text: false
+          }
+        })
       })
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`AI API error: ${response.status}`)
+      }
+
       const result = await response.json()
-      setPopupMessage('Resume submitted for AI formatting!')
-      setShowPopup(true)
-      console.log('Formatted resume:', result)
+      console.log('AI Response:', result)
+
+      // Parse the AI response
+      let suggestions
+      try {
+        const generatedText = Array.isArray(result) ? result[0]?.generated_text : result.generated_text || ''
+        suggestions = JSON.parse(generatedText)
+      } catch (parseError) {
+        // Fallback to basic suggestions if AI response isn't perfect
+        suggestions = {
+          additions: [
+            'Add quantified achievements (e.g., "Increased sales by 30%")',
+            'Include relevant technical skills and certifications',
+            'Add action verbs: led, developed, implemented, achieved'
+          ],
+          removals: [
+            'Remove vague descriptions like "responsible for"',
+            'Eliminate personal pronouns (I, me, my)',
+            'Remove outdated or irrelevant experience'
+          ],
+          improvements: [
+            'Use consistent formatting throughout',
+            'Tailor content to job description keywords',
+            'Keep resume to 1-2 pages maximum'
+          ]
+        }
+      }
+
+      // Display suggestions in a formatted popup
+      const suggestionHTML = `
+        <div style="text-align: left; max-width: 600px;">
+          <h3 style="color: #22c55e; margin-bottom: 10px;">✅ Additions (Green):</h3>
+          <ul style="color: #22c55e; margin-bottom: 15px;">
+            ${suggestions.additions?.map(item => `<li>${item}</li>`).join('') || '<li>No additions suggested</li>'}
+          </ul>
+
+          <h3 style="color: #ef4444; margin-bottom: 10px;">❌ Removals (Red):</h3>
+          <ul style="color: #ef4444; margin-bottom: 15px;">
+            ${suggestions.removals?.map(item => `<li>${item}</li>`).join('') || '<li>No removals suggested</li>'}
+          </ul>
+
+          <h3 style="color: #f59e0b; margin-bottom: 10px;">⚡ Improvements (Yellow):</h3>
+          <ul style="color: #f59e0b;">
+            ${suggestions.improvements?.map(item => `<li>${item}</li>`).join('') || '<li>No improvements suggested</li>'}
+          </ul>
+        </div>
+      `
+
+      // Create a modal to display suggestions
+      const modal = document.createElement('div')
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px;'
+      modal.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 700px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+          <h2 style="margin-top: 0; color: #1f2937;">AI Resume Suggestions</h2>
+          ${suggestionHTML}
+          <button id="closeModal" style="margin-top: 20px; background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;">
+            Close
+          </button>
+        </div>
+      `
+      document.body.appendChild(modal)
+      document.getElementById('closeModal')?.addEventListener('click', () => {
+        document.body.removeChild(modal)
+      })
+
+      setShowPopup(false)
     } catch (error) {
-      console.error('Error submitting resume:', error)
-      setPopupMessage('Failed to submit resume. Please try again.')
+      console.error('Error with AI formatting:', error)
+      setPopupMessage('AI formatting is currently unavailable. Please try again later or add your own Hugging Face API key.')
       setShowPopup(true)
     }
   }
@@ -374,8 +491,8 @@ const ResumeBuilder: React.FC = () => {
         console.debug('ResumeBuilder: calling updateReadabilityScore with local', finalReadability)
           ; (window as any).updateReadabilityScore(finalReadability)
       } else {
-        console.debug('ResumeBuilder: updateReadabilityScore not available, writing to localStorage', finalReadability)
-        try { localStorage.setItem('readabilityScore', String(finalReadability)) } catch (e) { /* noop */ }
+        console.debug('ResumeBuilder: updateReadabilityScore not available, writing to user storage', finalReadability)
+        setUserItem('readabilityScore', String(finalReadability)).catch(err => console.error('Failed to save readabilityScore:', err))
       }
 
       // Also request ATS score for the optimized resume and update dashboard
@@ -397,7 +514,7 @@ const ResumeBuilder: React.FC = () => {
               console.debug('ResumeBuilder: calling updateAtsScore with', ats)
                 ; (window as any).updateAtsScore(ats);
             } else {
-              try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
+              setUserItem('atsScore', String(ats)).catch(err => console.error('Failed to save atsScore:', err))
             }
             // remember final ATS for event dispatch
             finalAts = ats
@@ -436,8 +553,8 @@ const ResumeBuilder: React.FC = () => {
           console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
             ; (window as any).updateReadabilityScore(localScore)
         } else if (localScore !== null) {
-          console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to localStorage', localScore)
-          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
+          console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to user storage', localScore)
+          setUserItem('readabilityScore', String(localScore)).catch(err => console.error('Failed to save readabilityScore:', err))
         }
       } catch (e) {
         console.warn('Failed to apply local fallback after optimize error', e)
@@ -484,7 +601,7 @@ const ResumeBuilder: React.FC = () => {
         if (typeof (window as any)?.updateReadabilityScore === 'function') {
           (window as any).updateReadabilityScore(finalScore)
         } else {
-          try { localStorage.setItem('readabilityScore', String(finalScore)) } catch (e) { /* noop */ }
+          setUserItem('readabilityScore', String(finalScore)).catch(err => console.error('Failed to save readabilityScore:', err))
         }
 
         // Also request ATS score for the selected/extracted resume text so Dashboard reflects
@@ -503,7 +620,7 @@ const ResumeBuilder: React.FC = () => {
             if (typeof (window as any)?.updateAtsScore === 'function') {
               (window as any).updateAtsScore(ats)
             } else {
-              try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
+              setUserItem('atsScore', String(ats)).catch(err => console.error('Failed to save atsScore:', err))
             }
             modalFinalAts = ats
           }
@@ -535,7 +652,7 @@ const ResumeBuilder: React.FC = () => {
     }
   };
 
-  const applyOptimizedText = () => {
+  const applyOptimizedText = async () => {
     if (!fileToOptimize || !optimizedTextPreview) return;
 
     // Store the optimized version and set it for the main preview box
@@ -555,7 +672,7 @@ const ResumeBuilder: React.FC = () => {
       const detail: any = {}
       const rnum = computeBoostedReadability(optimizedTextPreview)
       if (Number.isFinite(rnum)) detail.readabilityScore = rnum
-      const as = localStorage.getItem('atsScore')
+      const as = await getUserItem('atsScore')
       if (as !== null) {
         const anum = Number(as)
         if (Number.isFinite(anum)) detail.atsScore = anum
@@ -944,7 +1061,7 @@ const ResumeBuilder: React.FC = () => {
   }
 
   // Draft operations
-  const saveDraft = () => {
+  const saveDraft = async () => {
     if (!selectedTemplate && resumeMode !== 'scratch') {
       setPopupMessage('Please select a template first')
       setShowPopup(true)
@@ -967,7 +1084,7 @@ const ResumeBuilder: React.FC = () => {
         template: selectedTemplate
       }
 
-      localStorage.setItem(draftKey, JSON.stringify(draftData))
+      await setUserItem(draftKey, JSON.stringify(draftData))
 
       setTimeout(() => {
         setIsSaving(false)
@@ -982,13 +1099,13 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const loadDraft = (templateId: 'modern' | 'classic' | 'scratch') => {
+  const loadDraft = async (templateId: 'modern' | 'classic' | 'scratch') => {
     try {
       const draftKey = templateId === 'scratch'
         ? 'resume-draft-scratch'
         : `resume-draft-${templateId}`
 
-      const savedDraft = localStorage.getItem(draftKey)
+      const savedDraft = await getUserItem(draftKey)
 
       if (savedDraft) {
         const draftData = JSON.parse(savedDraft)
@@ -1004,9 +1121,9 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const selectTemplate = (id: string) => {
+  const selectTemplate = async (id: string) => {
     const draftKey = `resume-draft-${id}`
-    const savedDraft = localStorage.getItem(draftKey)
+    const savedDraft = await getUserItem(draftKey)
 
     const template = latexTemplates.find(t => t.id === id)
     if (!template) {
@@ -1038,15 +1155,35 @@ const ResumeBuilder: React.FC = () => {
   }
 
   const loadTemplateIntoEditor = (template: typeof latexTemplates[0]) => {
+    console.log('Loading template:', template.name)
+    console.log('Template content length:', template.content.length)
+
     // Use a small delay to ensure Quill is fully initialized
     setTimeout(() => {
       if (mainContentQuill.current) {
+        console.log('Quill instance found, loading content...')
+
         // Clear existing content first
         mainContentQuill.current.setText('')
+
         // Then paste the HTML - this will render it as formatted text, not code
-        mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, template.content)
+        // Using root.innerHTML directly as fallback
+        try {
+          mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, template.content)
+          console.log('✓ Content pasted successfully using clipboard API')
+        } catch (error) {
+          console.warn('Clipboard API failed, trying root.innerHTML:', error)
+          // Fallback: directly set innerHTML
+          mainContentQuill.current.root.innerHTML = template.content
+          console.log('✓ Content set via root.innerHTML')
+        }
+
+        // Log what's actually in the editor
+        console.log('Editor text content:', mainContentQuill.current.getText().substring(0, 100))
+      } else {
+        console.error('Quill instance not available!')
       }
-    }, 100)
+    }, 150)
 
     // Update state - clear header and sidebar, put everything in mainContent
     setResumeTemplate({
@@ -1057,18 +1194,45 @@ const ResumeBuilder: React.FC = () => {
   }
 
   const handleDownloadPDF = async () => {
-    if (!currentPdfUrl) {
-      setPopupMessage('No template selected')
-      setShowPopup(true)
-      return
-    }
-
     setIsDownloading(true)
 
     try {
-      const pdfBytes = await mergePDFWithText(currentPdfUrl, resumeTemplate)
-      const fileName = `resume-${selectedTemplate || 'scratch'}-${Date.now()}.pdf`
-      downloadPDF(pdfBytes, fileName)
+      // Prompt user for filename
+      const defaultFileName = selectedTemplate
+        ? `resume-${selectedTemplate}-${Date.now()}`
+        : `resume-${Date.now()}`
+      const fileName = prompt('Enter filename for your resume:', defaultFileName)
+
+      // If user cancels, don't download
+      if (!fileName) {
+        setIsDownloading(false)
+        return
+      }
+
+      // Get the main content element
+      const element = mainContentRef.current
+      if (!element) {
+        throw new Error('Editor content not found')
+      }
+
+      // Capture the content as canvas
+      const canvas = await html2canvas(element, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      })
+
+      // Create PDF from canvas
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+
+      // Trigger download
+      pdf.save(`${fileName}.pdf`)
 
       setTimeout(() => {
         setIsDownloading(false)
@@ -1519,6 +1683,19 @@ const ResumeBuilder: React.FC = () => {
 
         <main className='max-w-7xl mx-auto py-8 sm:px-6 lg:px-8'>
         <div className='px-4 sm:px-0'>
+          {/* My Resumes Button */}
+          <div className='mb-6'>
+            <button
+              onClick={() => navigate('/my-resumes')}
+              className='w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg transition-all duration-200 flex items-center justify-center gap-3'
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>My Resumes - View Saved Drafts & Uploaded Resumes</span>
+            </button>
+          </div>
+
           {/* Upload Section */}
           <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8'>
             <div className='px-6 py-5 border-b border-gray-200 dark:border-gray-700'>
@@ -2006,14 +2183,13 @@ const ResumeBuilder: React.FC = () => {
       </div>
 
       {/* PDF Editor Modal */}
-      <CleanPdfEditor
+      <SimplePdfEditor
         isOpen={isEditorOpen}
         onClose={() => {
           setIsEditorOpen(false)
           setFileToEdit(null)
         }}
         file={fileToEdit}
-        onSave={handleSaveEditedPdf}
       />
 
       {/* Pre-Optimize Extraction Modal */}

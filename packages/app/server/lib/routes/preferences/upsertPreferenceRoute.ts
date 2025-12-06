@@ -54,19 +54,17 @@ async function embedText(ctx: any, text: string): Promise<number[]> {
 export const upsertPreferenceRoute: Route = async (ctx) => {
     try {
         const body = await ctx.req.json()
-        const { id, userId: incomingUserId, name, text, metadata } = body
-        // Try to resolve authenticated user from the AUTH binding (if present).
-        // Many routes use ctx.env.AUTH.getAccount(cookie) which returns { accountId }
-        let resolvedUserId: string | null = null
-        try {
-            const account = (ctx.env as any).AUTH ? await (ctx.env as any).AUTH.getAccount(ctx.req.header('Cookie')).catch(() => null) : null
-            if (account && account.accountId) resolvedUserId = String(account.accountId)
-        } catch (e) {
-            // ignore and fall back to incoming/userless flow
-            resolvedUserId = null
+        const { id, name, text, metadata } = body
+
+        // ENFORCE authentication - no fallback to 'public' or client-provided userId
+        const account = (ctx.env as any).AUTH ? await (ctx.env as any).AUTH.getAccount(ctx.req.header('Cookie')).catch(() => null) : null
+        if (!account || !account.accountId) {
+            return ctx.json({ error: 'Unauthorized - must be logged in to save preferences' }, 401)
         }
-        // Prefer the authenticated id, then the incoming userId from the client, otherwise fall back to 'public'
-        const userId = resolvedUserId || incomingUserId || 'public'
+
+        // ALWAYS use the authenticated user's ID - ignore any client-provided userId
+        const userId = String(account.accountId)
+
         if (!text || typeof text !== 'string') return ctx.json({ error: 'Missing or invalid text' }, 400)
 
         const prefId = id || uuidv4()

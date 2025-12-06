@@ -48,21 +48,27 @@ async function embedText (ctx: any, text: string): Promise<number[]> {
 
 export const searchPreferencesRoute: Route = async (ctx) => {
   try {
-    const { query, topK = 5, userId } = await ctx.req.json()
+    const { query, topK = 5 } = await ctx.req.json()
     if (!query || typeof query !== 'string') return ctx.json({ error: 'Missing query' }, 400)
+
+    // ENFORCE authentication - only search within the authenticated user's preferences
+    const account = (ctx.env as any).AUTH ? await (ctx.env as any).AUTH.getAccount(ctx.req.header('Cookie')).catch(() => null) : null
+    if (!account || !account.accountId) {
+      return ctx.json({ error: 'Unauthorized - must be logged in to search preferences' }, 401)
+    }
+
+    // ALWAYS use the authenticated user's ID - ignore any client-provided userId
+    const userId = String(account.accountId)
 
     const qEmb = await embedText(ctx, query)
 
     const db = (ctx.env as any).DB
     if (!db) return ctx.json({ error: 'D1 database binding (DB) not found in environment' }, 500)
 
-    // Fetch candidates (for small scale, fetch all or filter by userId)
-    const sql = userId
-      ? `SELECT id, user_id, name, pref_text, embedding, metadata FROM job_preferences WHERE user_id = ?`
-      : `SELECT id, user_id, name, pref_text, embedding, metadata FROM job_preferences`
+    // ALWAYS filter by authenticated user's ID
+    const sql = `SELECT id, user_id, name, pref_text, embedding, metadata FROM job_preferences WHERE user_id = ?`
 
-    const stmt = db.prepare(sql)
-    if (userId) stmt.bind(userId)
+    const stmt = db.prepare(sql).bind(userId)
     const res = await stmt.all()
     const rows: any[] = res.results || []
 
