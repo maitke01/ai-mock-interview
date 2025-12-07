@@ -242,7 +242,7 @@ CREATE INDEX IF NOT EXISTS idx_user_id ON job_preferences(user_id);
 
 **To See Live Logs:**
 ```bash
-cd /Users/gauravtadia/ai-mock-interview/packages/app
+cd /Users//ai-mock-interview/packages/app
 npx wrangler tail
 ```
 
@@ -276,14 +276,14 @@ When a new user creates an account:
 
 ### 1. **Check D1 Database**
 ```bash
-cd /Users/gauravtadia/ai-mock-interview/packages/app
+cd /Users//ai-mock-interview/packages/app
 npx wrangler d1 execute ai-mock-interview --remote --command "SELECT * FROM accounts"
 npx wrangler d1 execute ai-mock-interview --remote --command "SELECT * FROM job_preferences"
 ```
 
 ### 2. **Deploy Your Changes**
 ```bash
-cd /Users/gauravtadia/ai-mock-interview/packages/app
+cd /Users//ai-mock-interview/packages/app
 npm run deploy
 ```
 
@@ -334,7 +334,7 @@ user_id | pref_count
 If you need to add secrets (like `OPENAI_API_KEY`):
 
 ```bash
-cd /Users/gauravtadia/ai-mock-interview/packages/app
+cd /Users//ai-mock-interview/packages/app
 
 # Set secret
 npx wrangler secret put OPENAI_API_KEY

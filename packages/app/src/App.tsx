@@ -1,30 +1,22 @@
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
-import Dashboard from './components/Dashboard'
-import JobSearch from './components/JobSearch'
-import LandingPage from './components/LandingPage'
-import Login from './components/Login'
-import MockInterview from './components/MockInterview'
-import MyResumes from './components/MyResumes'
-import ResumeBuilder from './components/ResumeBuilder'
-import ScheduleInterview from './components/ScheduleInterview'
-import Signup from './components/Signup'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import LandingPage from './components/LandingPage';
+import LoginPage from './components/LoginPage';
+import SignupPage from './components/SignupPage';
+import ResumeBuilder from './components/ResumeBuilder';
 
-function App () {
+const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        <Route path='/' element={<LandingPage />} />
-        <Route path='/login' element={<Login />} />
-        <Route path='/signup' element={<Signup />} />
-        <Route path='/dashboard' element={<Dashboard />} />
-        <Route path='/resume' element={<ResumeBuilder />} />
-        <Route path='/my-resumes' element={<MyResumes />} />
-        <Route path='/interview' element={<MockInterview />} />
-        <Route path='/schedule-interview' element={<ScheduleInterview />} />
-        <Route path='/job-search' element={<JobSearch />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup"
+          element={<SignupPage />} />
+        <Route path="/resume-builder" element={<ResumeBuilder />} />
       </Routes>
     </Router>
-  )
-}
+  );
+};
 
-export default App
+export default App;
