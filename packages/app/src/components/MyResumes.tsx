@@ -72,9 +72,9 @@ const MyResumes: React.FC = () => {
   const handleEditResume = (resume: SavedResume) => {
     // Navigate to resume builder with the template ID or uploaded file
     if (resume.type === 'draft' && resume.templateId) {
-      navigate(`/resume?template=${resume.templateId}`)
+      navigate(`/resume-builder?template=${resume.templateId}`)
     } else if (resume.type === 'uploaded') {
-      navigate(`/resume?uploaded=${resume.id}`)
+      navigate(`/resume-builder?uploaded=${resume.id}`)
     }
   }
 
@@ -107,7 +107,7 @@ const MyResumes: React.FC = () => {
               All Your Resumes
             </h2>
             <button
-              onClick={() => navigate('/resume')}
+              onClick={() => navigate('/resume-builder')}
               className='bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-colors'
             >
               + Create New Resume
@@ -161,7 +161,7 @@ const MyResumes: React.FC = () => {
                 : `You don't have any ${filter} resumes yet`}
             </p>
             <button
-              onClick={() => navigate('/resume')}
+              onClick={() => navigate('/resume-builder')}
               className='bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-colors'
             >
               Create Resume
