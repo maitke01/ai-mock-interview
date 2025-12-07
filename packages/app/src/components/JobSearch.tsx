@@ -385,7 +385,6 @@ const JobSearch: React.FC = () => {
                 type='button'
                 className='mt-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
                 onClick={handleAnalyzeSkillGap}
-                disabled={!selectedResume || keywords.length === 0}
               >
                 Analyze Skill Gap against Selected Resume
               </button>
@@ -526,7 +525,7 @@ const JobSearch: React.FC = () => {
               <button className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent' onClick={() => { sessionStorage.removeItem('selectedResume'); setSelectedResume(null) }}>Close</button>
             </div>
             <div className='border border-gray-200 dark:border-gray-700 rounded p-3 overflow-y-auto text-sm bg-gray-50 dark:bg-gray-900'>
-              {!selectedResume && (<div className='text-xs text-gray-500'>No resume selected. Pick a resume in the Resume Builder and click Job Search.</div>)}
+              {!selectedResume && (<div className='text-xs text-gray-500'>No resume selected. Please upload your resume in the Resume Builder, then click Job Search.</div>)}
               {selectedResume && (
                 <div className='space-y-3'>
                   <div>
