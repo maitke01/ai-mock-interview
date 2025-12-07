@@ -81,7 +81,11 @@ const JobSearch: React.FC = () => {
   }
 
   const handleExtractKeywords = async () => {
-    if (!jobDescription.trim()) return
+    if (!jobDescription.trim()) {
+      setPopupMessage('Please paste a job description first.')
+      setShowPopup(true)
+      return
+    }
     setLoading(true)
     try {
       const response = await fetch('/api/extract-keywords', {
@@ -92,10 +96,14 @@ const JobSearch: React.FC = () => {
       const data = await response.json() as ResumeSuggestion
       setKeywords(data.keywords || [])
       setResumeSuggestion(data.resumeSuggestion || '')
+      setPopupMessage('Keywords extracted successfully!')
+      setShowPopup(true)
     } catch (e) {
       console.warn('Keyword extraction failed', e)
       setKeywords([])
       setResumeSuggestion('Error extracting keywords.')
+      setPopupMessage('Failed to extract keywords. Please try again.')
+      setShowPopup(true)
     }
     setLoading(false)
   }
@@ -131,7 +139,7 @@ const JobSearch: React.FC = () => {
 
   const handleSavePreference = async () => {
     if (!jobDescription || !jobDescription.trim()) {
-      setPopupMessage('Paste a job description first.')
+      setPopupMessage('Please paste a job description first.')
       setShowPopup(true)
       return
     }
@@ -149,7 +157,7 @@ const JobSearch: React.FC = () => {
           setSavedPreferences((prev) => [newPref, ...(prev || [])])
           setSelectedPrefId(newPref.id)
         } else {
-          setPopupMessage('Job preference saved')
+          setPopupMessage('Job preference saved!')
           setShowPopup(true)
           const newPref = { id: res?.data?.id || ('temp-' + Math.random().toString(36).slice(2, 9)), userId: undefined, name, text: jobDescription, metadata, createdAt: Date.now() }
           setSavedPreferences((prev) => [newPref, ...(prev || [])])
@@ -198,7 +206,7 @@ const JobSearch: React.FC = () => {
 
         const res = await deletePreference(String(p.id))
         if (res && res.success) {
-          setPopupMessage('Preference deleted')
+          setPopupMessage('Preference deleted!')
           setShowPopup(true)
           try {
             const refreshed = await listPreferences()
@@ -228,8 +236,9 @@ const JobSearch: React.FC = () => {
   }
 
   const handleAnalyzeSkillGap = () => {
+    
     if (!selectedResume) {
-      setPopupMessage('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
+      setPopupMessage('No resume selected. Please upload your resume in the Resume Builder, then click Job Search.')
       setShowPopup(true)
       return
     }
@@ -238,6 +247,7 @@ const JobSearch: React.FC = () => {
       setShowPopup(true)
       return
     }
+    
     const resumeTextSource = selectedResume.text ?? (typeof selectedResume.optimized === 'string' ? selectedResume.optimized : '')
     const resumeText = String(resumeTextSource).toLowerCase()
     const matched: string[] = []
@@ -375,7 +385,6 @@ const JobSearch: React.FC = () => {
                 type='button'
                 className='mt-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-2 rounded-md font-medium transition-colors w-full border-2 border-transparent'
                 onClick={handleAnalyzeSkillGap}
-                disabled={!selectedResume || keywords.length === 0}
               >
                 Analyze Skill Gap against Selected Resume
               </button>
@@ -465,7 +474,7 @@ const JobSearch: React.FC = () => {
                 <div className='mt-6 p-4 bg-gray-800/50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-lg'>
                   <div className='flex items-start justify-between'>
                     <div>
-                      <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
+                      <h4 className='text-sm font-semibold text-green-800 dark:text-green-300'>Skill Gap Analysis</h4>
                       <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
                       <div className='flex flex-wrap gap-2 mt-2'>
                         {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : matchedSkillsState.map((m, i) => (
@@ -496,11 +505,12 @@ const JobSearch: React.FC = () => {
                               setShowPopup(true)
                             }
                           }}
-                          className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                          className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+                          
                         >
                           Copy Missing Skills
                         </button>
-                        <button onClick={() => setShowAnalysis(false)} className='px-3 py-1 border border-gray-300 text-gray-200 rounded text-sm'>Dismiss</button>
+                        <button onClick={() => setShowAnalysis(false)} className='px-3 py-1 border border-gray-300 text-red-500 rounded text-sm'>Dismiss</button>
                       </div>
                     </div>
                   </div>
@@ -516,7 +526,7 @@ const JobSearch: React.FC = () => {
               <button className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent' onClick={() => { sessionStorage.removeItem('selectedResume'); setSelectedResume(null) }}>Close</button>
             </div>
             <div className='border border-gray-200 dark:border-gray-700 rounded p-3 overflow-y-auto text-sm bg-gray-50 dark:bg-gray-900'>
-              {!selectedResume && (<div className='text-xs text-gray-500'>No resume selected. Pick a resume in the Resume Builder and click Job Search.</div>)}
+              {!selectedResume && (<div className='text-xs text-gray-500'>No resume selected. Please upload your resume in the Resume Builder, then click Job Search.</div>)}
               {selectedResume && (
                 <div className='space-y-3'>
                   <div>
@@ -539,7 +549,13 @@ const JobSearch: React.FC = () => {
                 </div>
               )}
 
-              {showPopup && (
+            </div>
+          </div>
+        </div>
+        </main>
+      </div>
+       {/* Move popups outside all content containers */}
+      {showPopup && (
                 <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
                   <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
                     <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
@@ -566,11 +582,6 @@ const JobSearch: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-        </main>
-      </div>
     </div>
   )
 }
