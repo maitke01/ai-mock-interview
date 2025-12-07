@@ -238,7 +238,7 @@ const JobSearch: React.FC = () => {
   const handleAnalyzeSkillGap = () => {
     
     if (!selectedResume) {
-      setPopupMessage('No resume selected. Pick a resume in the Resume Builder and click Job Search.')
+      setPopupMessage('No resume selected. Please upload your resume in the Resume Builder, then click Job Search.')
       setShowPopup(true)
       return
     }
