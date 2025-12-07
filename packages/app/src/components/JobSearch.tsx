@@ -474,7 +474,7 @@ const JobSearch: React.FC = () => {
                 <div className='mt-6 p-4 bg-gray-800/50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-lg'>
                   <div className='flex items-start justify-between'>
                     <div>
-                      <h4 className='text-sm font-semibold text-green-600 dark:text-green-300'>Skill Gap Analysis</h4>
+                      <h4 className='text-sm font-semibold text-green-800 dark:text-green-300'>Skill Gap Analysis</h4>
                       <p className='text-xs text-gray-300 mt-1'>Matched Skills</p>
                       <div className='flex flex-wrap gap-2 mt-2'>
                         {matchedSkillsState.length === 0 ? <span className='text-xs text-gray-300'>None</span> : matchedSkillsState.map((m, i) => (
@@ -505,11 +505,12 @@ const JobSearch: React.FC = () => {
                               setShowPopup(true)
                             }
                           }}
-                          className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+                          className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+                          
                         >
                           Copy Missing Skills
                         </button>
-                        <button onClick={() => setShowAnalysis(false)} className='px-3 py-1 border border-gray-300 text-gray-200 rounded text-sm'>Dismiss</button>
+                        <button onClick={() => setShowAnalysis(false)} className='px-3 py-1 border border-gray-300 text-red-500 rounded text-sm'>Dismiss</button>
                       </div>
                     </div>
                   </div>
