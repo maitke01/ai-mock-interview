@@ -9,6 +9,7 @@ import { latexTemplates } from '../data/latexTemplates'
 import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 import CleanPdfEditor from './CleanPdfEditor'
 import TodoList from './TodoList'
+import { marked } from 'marked'
 
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
@@ -326,6 +327,9 @@ const ResumeBuilder: React.FC = () => {
 
   const handleTemplateSubmit = async () => {
     try {
+      setPopupMessage('Formatting resume with AI...')
+      setShowPopup(true)
+
       const response = await fetch('/api/format-resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -334,12 +338,50 @@ const ResumeBuilder: React.FC = () => {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const result = await response.json()
-      setPopupMessage('Resume submitted for AI formatting!')
+      console.log('API response:', result)
+
+      // API returns { success: true, formattedContent: { header, sidebar, mainContent } }
+      const formatted = result.formattedContent
+      if (formatted) {
+        // Convert markdown to HTML using marked
+        const toHtml = (text: string) => text ? marked.parse(text, { async: false }) as string : ''
+
+        const newTemplate = {
+          header: formatted.header ? toHtml(formatted.header) : resumeTemplate.header,
+          sidebar: formatted.sidebar ? toHtml(formatted.sidebar) : resumeTemplate.sidebar,
+          mainContent: formatted.mainContent ? toHtml(formatted.mainContent) : resumeTemplate.mainContent
+        }
+        setResumeTemplate(newTemplate)
+
+        // Update Quill editors with the new content
+        if (headerQuill.current) {
+          headerQuill.current.setText('')
+          if (newTemplate.header) {
+            headerQuill.current.clipboard.dangerouslyPasteHTML(0, newTemplate.header)
+          }
+        }
+        if (sidebarQuill.current) {
+          sidebarQuill.current.setText('')
+          if (newTemplate.sidebar) {
+            sidebarQuill.current.clipboard.dangerouslyPasteHTML(0, newTemplate.sidebar)
+          }
+        }
+        if (mainContentQuill.current) {
+          mainContentQuill.current.setText('')
+          if (newTemplate.mainContent) {
+            mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, newTemplate.mainContent)
+          }
+        }
+
+        setPopupMessage('Resume formatted successfully!')
+      } else {
+        console.warn('No formattedContent in response:', result)
+        setPopupMessage('AI formatting complete but no changes returned.')
+      }
       setShowPopup(true)
-      console.log('Formatted resume:', result)
     } catch (error) {
       console.error('Error submitting resume:', error)
-      setPopupMessage('Failed to submit resume. Please try again.')
+      setPopupMessage('Failed to format resume. Please try again.')
       setShowPopup(true)
     }
   }
