@@ -612,6 +612,11 @@ const ResumeBuilder: React.FC = () => {
           setLastFocusedEditor('header')
         }
       })
+
+      // Set initial content for scratch mode
+      if (resumeMode === 'scratch' && resumeTemplate.header) {
+        headerQuill.current.setText(resumeTemplate.header)
+      }
     }
 
     if (sidebarRef.current && !sidebarQuill.current) {
@@ -633,6 +638,11 @@ const ResumeBuilder: React.FC = () => {
           setLastFocusedEditor('sidebar')
         }
       })
+
+      // Set initial content for scratch mode
+      if (resumeMode === 'scratch' && resumeTemplate.sidebar) {
+        sidebarQuill.current.setText(resumeTemplate.sidebar)
+      }
     }
 
     if (mainContentRef.current && !mainContentQuill.current) {
@@ -642,7 +652,7 @@ const ResumeBuilder: React.FC = () => {
         formats: quillFormats,
         placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
       })
-      
+
       const handleTextChange = (delta: any, oldDelta: any, source: string) => {
         if (mainContentQuill.current) {
           handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
@@ -655,6 +665,11 @@ const ResumeBuilder: React.FC = () => {
           setLastFocusedEditor('mainContent')
         }
       })
+
+      // Set initial content for scratch mode
+      if (resumeMode === 'scratch' && resumeTemplate.mainContent) {
+        mainContentQuill.current.setText(resumeTemplate.mainContent)
+      }
     }
 
     return () => {
@@ -1814,45 +1829,51 @@ const ResumeBuilder: React.FC = () => {
               <ProfessionalToolbar />
 
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
-                  <div className='w-full h-full flex flex-col p-12'>
-                    <div className='border-b-2 border-gray-300 pb-8 mb-8'>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto overflow-hidden' style={{ aspectRatio: '8.5/11' }}>
+                  <div className='w-full h-full flex flex-col p-12 overflow-hidden'>
+                    <div className='border-b-2 border-gray-300 pb-8 mb-8 overflow-hidden'>
                       <div
                         ref={headerRef}
+                        className='overflow-hidden'
                         style={{
                           // fontFamily, // Quill controls this now
                           // fontSize: `${fontSize}px`, // Quill controls this now
                           lineHeight,
                           textAlign,
                           color: textColor,
-                          minHeight: '100px'
+                          minHeight: '100px',
+                          wordBreak: 'break-word'
                         }}
                       />
                     </div>
-                    <div className='flex-1 flex gap-8'>
-                      <div className='w-1/3 border-r-2 border-gray-300 pr-8'>
+                    <div className='flex-1 flex gap-8 overflow-hidden'>
+                      <div className='w-1/3 border-r-2 border-gray-300 pr-8 overflow-hidden'>
                         <div
                           ref={sidebarRef}
+                          className='overflow-hidden'
                           style={{
                             // fontFamily, // Quill controls this now
                             // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
-                            minHeight: '700px'
+                            minHeight: '700px',
+                            wordBreak: 'break-word'
                           }}
                         />
                       </div>
-                      <div className='flex-1'>
+                      <div className='flex-1 overflow-hidden'>
                         <div
                           ref={mainContentRef}
+                          className='overflow-hidden'
                           style={{
                             // fontFamily, // Quill controls this now
                             // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
-                            minHeight: '700px'
+                            minHeight: '700px',
+                            wordBreak: 'break-word'
                           }}
                         />
                       </div>
@@ -1939,17 +1960,18 @@ const ResumeBuilder: React.FC = () => {
               <ProfessionalToolbar />
 
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
-                  <div className='w-full h-full p-12'>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto overflow-hidden' style={{ aspectRatio: '8.5/11' }}>
+                  <div className='w-full h-full p-12 overflow-hidden'>
                     {/* Single page editor - no boxes */}
                     <div
                       ref={mainContentRef}
-                      className='focus:ring-2 focus:ring-blue-300 rounded-lg w-full h-full'
+                      className='focus:ring-2 focus:ring-blue-300 rounded-lg w-full h-full overflow-hidden'
                       style={{
                         lineHeight,
                         textAlign,
                         color: textColor,
-                        minHeight: '900px'
+                        minHeight: '900px',
+                        wordBreak: 'break-word'
                       }}
                     />
                     {/* Hidden refs for compatibility */}
