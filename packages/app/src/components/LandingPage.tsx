@@ -152,7 +152,7 @@ const LandingPage: React.FC = () => {
               })}
             </div>
           </div>
-          
+
           <div className="relative z-10 text-center max-w-5xl">
             <h1 className={`text-7xl md:text-8xl font-extrabold mb-8 drop-shadow-2xl transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-black'}`}>
               AI Resume & Interview Trainer
@@ -175,16 +175,15 @@ const LandingPage: React.FC = () => {
           <div
             id="accomplish"
             data-animate
-            className={`max-w-4xl transition-all duration-1000 ${
-              visibleSections.has('accomplish') ? 'slide-in-left' : 'opacity-0'
-            }`}
+            className={`max-w-4xl transition-all duration-1000 ${visibleSections.has('accomplish') ? 'slide-in-left' : 'opacity-0'
+              }`}
           >
             <h2 className={`text-6xl md:text-7xl font-bold mb-12 drop-shadow-lg transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
               What You Can Accomplish
             </h2>
             <p className={`text-2xl md:text-3xl leading-relaxed drop-shadow-md transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-            Build a professional, keyword-optimized resume from scratch, practice realistic mock interviews to train your body and tone, 
-            search for jobs with real-time suggestions, and receive instant feedback to improve your performance — all in one place.            </p>
+              Build a professional, keyword-optimized resume from scratch, practice realistic mock interviews to train your body and tone,
+              search for jobs with real-time suggestions, and receive instant feedback to improve your performance — all in one place.            </p>
           </div>
         </section>
 
@@ -193,18 +192,16 @@ const LandingPage: React.FC = () => {
           <div
             id="opportunity"
             data-animate
-            className={`max-w-4xl transition-all duration-1000 ${
-              visibleSections.has('opportunity') ? 'fade-in' : 'opacity-0'
-            }`}
+            className={`max-w-4xl transition-all duration-1000 ${visibleSections.has('opportunity') ? 'fade-in' : 'opacity-0'
+              }`}
           >
             <h2 className={`text-6xl md:text-7xl font-bold mb-12 drop-shadow-lg transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
               The Opportunity We Provide
             </h2>
 
             <div
-              className={`text-2xl md:text-3xl leading-relaxed drop-shadow-md word-by-word transition-colors duration-[2500ms] ${
-                visibleSections.has('opportunity') ? '' : 'hidden'
-              } ${fadeToBlack ? 'text-white' : 'text-white'}`}
+              className={`text-2xl md:text-3xl leading-relaxed drop-shadow-md word-by-word transition-colors duration-[2500ms] ${visibleSections.has('opportunity') ? '' : 'hidden'
+                } ${fadeToBlack ? 'text-white' : 'text-white'}`}
             >
               {visibleSections.has('opportunity') &&
                 'Gain a competitive edge in the job market. Our tools give you the confidence and preparation needed to impress recruiters and hiring managers, turning interviews into job offers.'
@@ -225,9 +222,8 @@ const LandingPage: React.FC = () => {
             data-animate
             className={`max-w-4xl transition-all duration-1000`}
           >
-            <h2 className={`text-6xl md:text-7xl font-bold mb-12 drop-shadow-lg text-center transition-colors duration-[2500ms] ${
-              visibleSections.has('how-it-works') ? 'fade-up' : 'opacity-0'
-            } ${fadeToBlack ? 'text-white' : 'text-white'}`}>
+            <h2 className={`text-6xl md:text-7xl font-bold mb-12 drop-shadow-lg text-center transition-colors duration-[2500ms] ${visibleSections.has('how-it-works') ? 'fade-up' : 'opacity-0'
+              } ${fadeToBlack ? 'text-white' : 'text-white'}`}>
               How It Works
             </h2>
             <ul className={`text-xl md:text-2xl space-y-8 drop-shadow-md transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
@@ -260,9 +256,8 @@ const LandingPage: React.FC = () => {
           <div
             id="creators"
             data-animate
-            className={`max-w-5xl w-full transition-all duration-1000 ${
-              visibleSections.has('creators') ? 'fade-in' : 'opacity-0'
-            }`}
+            className={`max-w-5xl w-full transition-all duration-1000 ${visibleSections.has('creators') ? 'fade-in' : 'opacity-0'
+              }`}
           >
             <h2 className={`text-6xl md:text-7xl font-bold mb-20 drop-shadow-lg text-center transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
               Meet the Creators
@@ -272,42 +267,42 @@ const LandingPage: React.FC = () => {
             <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
                 <h3 className="text-4xl font-bold mb-3">Gaurav Tadia</h3>
-                <p className="text-xl mb-4 opacity-90">Co-Founder & Lead AI Engineer</p>
+                <p className="text-xl mb-4 opacity-90">Lead AI Engineer</p>
                 <p className="text-lg md:text-xl opacity-90">
-                  With 10+ years in machine learning and NLP, he has built AI systems for Fortune 500 companies.
+                  created the landing page, the user to-do list, and multiple Resume Builder features, including document upload, PDF editing, templates, and a rich-text toolbar. He also refined the sharing functionality and header design, and developed the “My Resume” section for both draft and completed versions.
                 </p>
               </div>
             </div>
 
-            {/* Creator 2 */}
+            {/* Creator 2: Minliang */}
             <div className="flex flex-col md:flex-row-reverse items-center gap-12 mb-16 text-right md:text-right">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
-                <p className="text-xl mb-4 opacity-90">Position (Head of Product Design)</p>
+                <h3 className="text-4xl font-bold mb-3">Minliang Xu</h3>
+                <p className="text-xl mb-4 opacity-90">Head of Product UI Design</p>
                 <p className="text-lg md:text-xl opacity-90">
-                designs award-winning products with a focus on intuitive user experience.
-                </p>
-              </div>
-            </div>
-            
-            {/* Creator 3 */}
-            <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
-              <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
-                <p className="text-xl mb-4 opacity-90">Postion (Co-Founder & Career Coach)</p>
-                <p className="text-lg md:text-xl opacity-90">
-                  A former HR director, he has helped thousands of candidates land their dream roles.
+                  Designed the UI for the Login, Sign Up, Dashboard, Mock Interview, Schedule Interview, and Job Search pages. He also built consistent functional headers and connected all major pages to ensure smooth navigation. In addition, he assisted with dashboard functionality and the Schedule Interview workflow to improve overall usability.
                 </p>
               </div>
             </div>
 
-            {/* Creator 4 */}
+            {/* Creator 3: Rebecca */}
+            <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
+              <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
+                <h3 className="text-4xl font-bold mb-3">Rebecca Moses</h3>
+                <p className="text-xl mb-4 opacity-90">Full Stack Developer</p>
+                <p className="text-lg md:text-xl opacity-90">
+                  developed the Job Search page, implementing key features such as keyword extraction, skill-gap analysis, and job preference saving/deleting. She integrated resume data, synced real-time updates from the backend, and connected Job Search results to the Dashboard to display ATS score updates, keyword matches, and job-role insights.
+                </p>
+              </div>
+            </div>
+
+            {/* Creator 4: Matthew */}
             <div className="flex flex-col md:flex-row-reverse items-center gap-12 text-right md:text-right">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
-                <p className="text-xl mb-4 opacity-90">Position (Lead Frontend Engineer)</p>
+                <h3 className="text-4xl font-bold mb-3">Matthew Aitken</h3>
+                <p className="text-xl mb-4 opacity-90">Leader and Fullstack Engineer</p>
                 <p className="text-lg md:text-xl opacity-90">
-                  Specializes in creating fluid, responsive user interfaces for modern web applications.
+                  Built the authentication service for user login and registration. He created the initial version of the resume builder, added AI-powered enhancements, fixed bugs, and supported development of the Mock Interview system, helping power some of the app’s core intelligent features.
                 </p>
               </div>
             </div>
