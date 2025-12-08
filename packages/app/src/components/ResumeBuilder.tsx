@@ -409,19 +409,6 @@ const ResumeBuilder: React.FC = () => {
       setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
       setLastOptimizedFile(fileName)
 
-      // persist optimized resume for the Job Search flow so selecting it immediately works
-      try {
-        const selected: SelectedResume = {
-          fileName,
-          text: optimized,
-          images: pdfData[fileName]?.images || [],
-          // store the optimized text (string) so other pages can show the improved resume immediately
-          optimized: optimized
-        }
-        sessionStorage.setItem('selectedResume', JSON.stringify(selected))
-      } catch (err) {
-        console.warn('Failed to persist optimized resume to sessionStorage', err)
-      }
 
       // prefer higher of server-returned readability and a local readability computed from the
       // selected/extracted text (resume-style text often scores higher when newlines/bullets
@@ -494,7 +481,6 @@ const ResumeBuilder: React.FC = () => {
 
         setAiOptimizedResumes(prev => ({ ...prev, [fileName]: fallbackText }))
         setLastOptimizedFile(fileName)
-        try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
 
         if (typeof (window as any)?.updateReadabilityScore === 'function') {
           console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
@@ -608,11 +594,6 @@ const ResumeBuilder: React.FC = () => {
 
     // Close modal
     setIsOptimizeModalOpen(false);
-
-    // Persist selected resume so Dashboard/JobSearch immediately see the optimized text
-    try {
-      sessionStorage.setItem('selectedResume', JSON.stringify({ fileName: fileToOptimize.name, text: optimizedTextPreview, images: pdfData[fileToOptimize.name]?.images || [], optimized: optimizedTextPreview }))
-    } catch (e) { /* noop */ }
 
     // Notify Dashboard of current scores (compute readability from applied optimized text)
     try {
@@ -1846,18 +1827,13 @@ const ResumeBuilder: React.FC = () => {
                               <button
                                 onClick={e => {
                                   e.stopPropagation()
-                                  const selected: SelectedResume = {
-                                    fileName: file.name,
-                                    text: pdfData[file.name]?.text || '',
-                                    images: pdfData[file.name]?.images || [],
-                                    optimized: aiOptimizedResumes[file.name] || false
+                                  // Navigate with resume ID in URL to auto-generate job description
+                                  const resumeId = resumeDbIds[file.name]
+                                  if (resumeId) {
+                                    navigate(`/job-search?resumeId=${resumeId}`)
+                                  } else {
+                                    navigate('/job-search')
                                   }
-                                  try {
-                                    sessionStorage.setItem('selectedResume', JSON.stringify(selected))
-                                  } catch (err) {
-                                    console.warn('Failed to persist selected resume to sessionStorage', err)
-                                  }
-                                  navigate('/job-search')
                                 }}
                                 className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
                               >

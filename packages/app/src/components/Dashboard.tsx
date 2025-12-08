@@ -22,7 +22,6 @@ const Dashboard: React.FC = () => {
 
   const scheduledInterviews = interviewsData?.interviews || []
 
-  // Recompute resume completion score using available stored data: selectedResume (sessionStorage) and keywordMatch
   function recomputeResumeCompletion() {
     try {
       const raw = sessionStorage.getItem('selectedResume')

@@ -22,6 +22,7 @@ import { listResumesRoute } from './lib/routes/resume/listResumesRoute'
 import { optimizeResumeRoute } from './lib/routes/resume/optimizeResumeRoute'
 import { readabilityRoute } from './lib/routes/resume/readabilityRoute'
 import { saveExtractedTextRoute } from './lib/routes/resume/saveExtractedTextRoute'
+import { generateJobDescriptionRoute } from './lib/routes/resume/generateJobDescriptionRoute'
 import { upsertPreferenceRoute } from './lib/routes/preferences/upsertPreferenceRoute'
 import { searchPreferencesRoute } from './lib/routes/preferences/searchPreferencesRoute'
 import { listPreferencesRoute } from './lib/routes/preferences/listPreferencesRoute'
@@ -56,6 +57,7 @@ const app = new Hono({ strict: false })
   .delete('/api/delete-mock-interview/:id', deleteMockInterviewRoute)
   .post('/api/readability', readabilityRoute)
   .post('/api/save-extracted-text', saveExtractedTextRoute)
+  .post('/api/generate-job-description', generateJobDescriptionRoute)
   // Mock interview session routes
   .post('/api/mock-interview-session/start', startMockInterviewSessionRoute)
   .post('/api/mock-interview-session/:sessionId/respond', submitMockInterviewResponseRoute)

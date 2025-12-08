@@ -1,12 +1,24 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { usePreferences } from '../hooks/usePreferences'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
 import EditableTemplateEditor from './EditableTemplateEditor'
 import Header from './Header'
 import TodoList from './TodoList'
 
+interface DbResume {
+  id: number
+  file_name: string
+  original_file_name: string
+  file_size: number
+  mime_type: string
+  total_pages: number | null
+  upload_date: number
+  last_accessed: number
+}
+
 const JobSearch: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [jobDescription, setJobDescription] = useState('')
   const [jobUrl, setJobUrl] = useState('')
@@ -26,19 +38,117 @@ const JobSearch: React.FC = () => {
   const confirmActionRef = useRef<(() => Promise<void>) | null>(null)
   const [lastEmbeddingPreview, setLastEmbeddingPreview] = useState<number | null>(null)
   const [mainContentMargin, setMainContentMargin] = useState(320);
+  const [availableResumes, setAvailableResumes] = useState<DbResume[]>([])
+  const [loadingResumes, setLoadingResumes] = useState(true)
+  const [generatingJobDesc, setGeneratingJobDesc] = useState(false)
+  const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null)
 
   const { savePreference, deletePreference, listPreferences, loading: prefLoading } = usePreferences()
   const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
   const [selectedPrefId, setSelectedPrefId] = useState<string | null>(null)
 
+  // Fetch resumes from backend on mount
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('selectedResume')
-      if (raw) setSelectedResume(JSON.parse(raw) as SelectedResume)
-    } catch (err) {
-      console.warn('Failed to parse selectedResume from sessionStorage', err)
+    let mounted = true
+    async function fetchResumes() {
+      setLoadingResumes(true)
+      try {
+        const response = await fetch('/api/list-resumes')
+        const data = await response.json()
+        if (!mounted) return
+        if (data.success && Array.isArray(data.resumes)) {
+          setAvailableResumes(data.resumes)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch resumes from backend', err)
+      }
+      if (mounted) setLoadingResumes(false)
     }
+    fetchResumes()
+    return () => { mounted = false }
   }, [])
+
+  // Check URL params for resumeId to auto-generate job description
+  useEffect(() => {
+    const resumeIdParam = searchParams.get('resumeId')
+    if (resumeIdParam) {
+      const resumeId = parseInt(resumeIdParam, 10)
+      if (!isNaN(resumeId)) {
+        // Clear the URL param after reading it
+        setSearchParams({}, { replace: true })
+        fetchResumeAndGenerateJobDesc(resumeId)
+      }
+    }
+  }, [searchParams, setSearchParams])
+
+  const fetchResumeAndGenerateJobDesc = async (resumeId: number) => {
+    setGeneratingJobDesc(true)
+    setSelectedResumeId(resumeId)
+    try {
+      // Fetch the full resume with extracted text from backend
+      const response = await fetch(`/api/get-resume/${resumeId}`)
+      const data = await response.json()
+      if (data.success && data.resume) {
+        const resumeText = data.resume.extracted_text || ''
+        if (!resumeText.trim()) {
+          setPopupMessage('No extracted text found for this resume. Please optimize it first in the Resume Builder.')
+          setShowPopup(true)
+          setGeneratingJobDesc(false)
+          setSelectedResumeId(null)
+          return
+        }
+        // Update selected resume for skill gap analysis (stored in component state only)
+        const selected: SelectedResume = {
+          fileName: data.resume.original_file_name || data.resume.file_name,
+          text: resumeText
+        }
+        setSelectedResume(selected)
+        // Generate job description
+        await generateJobDescriptionFromResume(resumeText)
+      } else {
+        setPopupMessage('Failed to fetch resume: ' + (data.error || 'Unknown error'))
+        setShowPopup(true)
+      }
+    } catch (e) {
+      console.warn('Failed to fetch resume', e)
+      setPopupMessage('Failed to fetch resume. Please try again.')
+      setShowPopup(true)
+    }
+    setGeneratingJobDesc(false)
+    setSelectedResumeId(null)
+  }
+
+  const generateJobDescriptionFromResume = async (resumeText: string) => {
+    if (!resumeText.trim()) {
+      setPopupMessage('No resume text available to generate job description.')
+      setShowPopup(true)
+      return
+    }
+    try {
+      const response = await fetch('/api/generate-job-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumeText })
+      })
+      const data = await response.json()
+      if (data.success && data.jobDescription) {
+        setJobDescription(data.jobDescription)
+        setPopupMessage('Job description generated from your resume!')
+        setShowPopup(true)
+      } else {
+        setPopupMessage('Failed to generate job description: ' + (data.error || 'Unknown error'))
+        setShowPopup(true)
+      }
+    } catch (e) {
+      console.warn('Generate job description failed', e)
+      setPopupMessage('Failed to generate job description. Please try again.')
+      setShowPopup(true)
+    }
+  }
+
+  const handleSelectResume = async (resume: DbResume) => {
+    await fetchResumeAndGenerateJobDesc(resume.id)
+  }
 
   const normalizeText = (t: any) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase()
 
@@ -304,7 +414,6 @@ const JobSearch: React.FC = () => {
 
   const handleSaveEditedResume = (updated: SelectedResume) => {
     setSelectedResume(updated)
-    try { sessionStorage.setItem('selectedResume', JSON.stringify(updated)) } catch (e) { console.warn('Failed to persist selectedResume', e) }
   }
 
   const toRender = (displayPreferences && displayPreferences.length > 0) ? displayPreferences : (savedPreferences || [])
@@ -354,6 +463,44 @@ const JobSearch: React.FC = () => {
                 placeholder='https://example.com/job/123'
                 className='w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 mb-3'
               />
+
+              {/* Resume selector buttons */}
+              {loadingResumes ? (
+                <div className='mb-4 text-sm text-gray-500 dark:text-gray-400'>Loading your resumes...</div>
+              ) : availableResumes.length > 0 ? (
+                <div className='mb-4'>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    Generate Job Description from Resume:
+                  </label>
+                  <div className='flex flex-wrap gap-2'>
+                    {availableResumes.map((resume) => (
+                      <button
+                        key={resume.id}
+                        type='button'
+                        onClick={() => handleSelectResume(resume)}
+                        disabled={generatingJobDesc}
+                        className={`px-3 py-2 text-sm rounded-md font-medium transition-all ${
+                          selectedResumeId === resume.id
+                            ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        } ${generatingJobDesc ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {generatingJobDesc && selectedResumeId === resume.id ? (
+                          <span className='flex items-center gap-2'>
+                            <span className='inline-block animate-spin'>⏳</span>
+                            Generating...
+                          </span>
+                        ) : (
+                          resume.original_file_name || resume.file_name
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                    Click a resume to auto-generate a matching job description
+                  </p>
+                </div>
+              ) : null}
 
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                 Paste Job Description
@@ -523,7 +670,7 @@ const JobSearch: React.FC = () => {
           <div className='bg-white dark:bg-gray-800 shadow rounded-lg p-6 w-full mt-6'>
             <div className='flex items-center justify-between mb-3'>
               <h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Selected Resume</h2>
-              <button className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent' onClick={() => { sessionStorage.removeItem('selectedResume'); setSelectedResume(null) }}>Close</button>
+              <button className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent' onClick={() => { setSelectedResume(null); setSelectedResumeId(null) }}>Close</button>
             </div>
             <div className='border border-gray-200 dark:border-gray-700 rounded p-3 overflow-y-auto text-sm bg-gray-50 dark:bg-gray-900'>
               {!selectedResume && (<div className='text-xs text-gray-500'>No resume selected. Please upload your resume in the Resume Builder, then click Job Search.</div>)}
