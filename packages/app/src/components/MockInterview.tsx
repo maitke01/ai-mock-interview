@@ -198,9 +198,9 @@ const MockInterview: React.FC = () => {
           <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* Video Interface Section */}
           <div className='lg:col-span-2'>
-            <div className='bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden'>
+            <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden'>
               <div className='p-6'>
-                <h2 className='text-xl font-semibold mb-4'>Interview Session</h2>
+                <h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>Interview Session</h2>
 
                 {/* Video Display */}
                 <div className='relative bg-gray-900 rounded-lg overflow-hidden mb-6' style={{ aspectRatio: '16/9' }}>
@@ -282,28 +282,30 @@ const MockInterview: React.FC = () => {
                   <button
                     onClick={handleEndSession}
                     disabled={!sessionId || endSession.isPending}
-                    className='w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                    className='w-14 h-14 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg'
+                    style={{ backgroundColor: '#ef4444' }}
                     title='End Session'
                   >
-                    <svg className='w-6 h-6 text-white' fill='currentColor' viewBox='0 0 24 24'>
+                    <svg className='w-6 h-6' fill='white' viewBox='0 0 24 24'>
                       <rect x='6' y='6' width='12' height='12' />
                     </svg>
                   </button>
                   <button
                     onClick={handleMicrophoneClick}
                     disabled={!isInitialized || isTranscribing || submitResponse.isPending}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-                      isRecording
-                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                    className='w-14 h-14 rounded-full flex items-center justify-center transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed'
+                    style={{
+                      backgroundColor: isRecording
+                        ? '#ef4444'
                         : isInitialized && !submitResponse.isPending
-                        ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    } ${isTranscribing || submitResponse.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        ? '#3b82f6'
+                        : '#9ca3af'
+                    }}
                     title={isRecording ? 'Stop Recording' : 'Start Recording'}
                   >
                     {isTranscribing
                       ? (
-                        <svg className='w-6 h-6 animate-spin' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <svg className='w-6 h-6 animate-spin' fill='none' stroke='white' viewBox='0 0 24 24'>
                           <path
                             strokeLinecap='round'
                             strokeLinejoin='round'
@@ -313,7 +315,7 @@ const MockInterview: React.FC = () => {
                         </svg>
                       )
                       : (
-                        <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <svg className='w-6 h-6' fill='none' stroke='white' viewBox='0 0 24 24'>
                           <path
                             strokeLinecap='round'
                             strokeLinejoin='round'
@@ -340,14 +342,14 @@ const MockInterview: React.FC = () => {
                   <div
                     className={`text-sm px-3 py-2 rounded-lg ${
                       status === 'error'
-                        ? 'bg-red-100 text-red-700'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                         : status === 'recording'
-                        ? 'bg-red-100 text-red-700'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                         : status === 'transcribing'
-                        ? 'bg-yellow-100 text-yellow-700'
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                         : status === 'ready'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                     }`}
                   >
                     {getStatusDisplay()}
@@ -357,14 +359,14 @@ const MockInterview: React.FC = () => {
                 {/* Answer Input */}
                 <div>
                   <div className='flex items-center justify-between mb-2'>
-                    <label className='block text-sm font-medium text-gray-700'>Your Answer</label>
+                    <label className='block text-sm font-medium text-gray-700 dark:text-gray-300'>Your Answer</label>
                     {transcript && (
                       <button
                         onClick={() => {
                           clearTranscript()
                           setInputValue('')
                         }}
-                        className='text-xs text-blue-600 hover:text-blue-800'
+                        className='text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300'
                       >
                         Clear transcript
                       </button>
@@ -375,13 +377,14 @@ const MockInterview: React.FC = () => {
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder='Type your answer here or use the microphone to speak...'
                     rows={4}
-                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-vertical'
+                    className='w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-vertical bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400'
                     disabled={submitResponse.isPending}
                   />
                   <button
                     onClick={handleSubmitResponse}
                     disabled={!sessionId || !inputValue.trim() || submitResponse.isPending}
-                    className='mt-3 w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+                    className='mt-3 w-full px-6 py-3 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+                    style={{ backgroundColor: '#2563eb', color: 'white' }}
                   >
                     {submitResponse.isPending ? (
                       <>
@@ -391,12 +394,12 @@ const MockInterview: React.FC = () => {
                             cx='12'
                             cy='12'
                             r='10'
-                            stroke='currentColor'
+                            stroke='white'
                             strokeWidth='4'
                           ></circle>
                           <path
                             className='opacity-75'
-                            fill='currentColor'
+                            fill='white'
                             d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
                           ></path>
                         </svg>
@@ -404,7 +407,7 @@ const MockInterview: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <svg className='w-5 h-5' fill='none' stroke='white' viewBox='0 0 24 24'>
                           <path
                             strokeLinecap='round'
                             strokeLinejoin='round'
@@ -425,18 +428,18 @@ const MockInterview: React.FC = () => {
           <div className='lg:col-span-1 space-y-4'>
             {/* Conversation History */}
             {conversationHistory.length > 0 && (
-              <div className='bg-white rounded-lg shadow-sm border border-gray-200 p-6'>
-                <h2 className='text-xl font-semibold mb-4'>Conversation History</h2>
+              <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6'>
+                <h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>Conversation History</h2>
                 <div className='space-y-4 max-h-96 overflow-y-auto'>
                   {conversationHistory.map((turn, index) => (
                     <div key={index} className='space-y-2'>
-                      <div className='bg-blue-50 rounded-lg p-3'>
-                        <p className='text-xs font-semibold text-blue-900 mb-1'>You:</p>
-                        <p className='text-sm text-gray-700'>{turn.userText}</p>
+                      <div className='bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3'>
+                        <p className='text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1'>You:</p>
+                        <p className='text-sm text-gray-700 dark:text-gray-300'>{turn.userText}</p>
                       </div>
-                      <div className='bg-gray-50 rounded-lg p-3'>
-                        <p className='text-xs font-semibold text-gray-900 mb-1'>AI Interviewer:</p>
-                        <p className='text-sm text-gray-700'>{turn.aiText}</p>
+                      <div className='bg-gray-50 dark:bg-gray-700 rounded-lg p-3'>
+                        <p className='text-xs font-semibold text-gray-900 dark:text-gray-200 mb-1'>AI Interviewer:</p>
+                        <p className='text-sm text-gray-700 dark:text-gray-300'>{turn.aiText}</p>
                       </div>
                     </div>
                   ))}
@@ -444,37 +447,37 @@ const MockInterview: React.FC = () => {
               </div>
             )}
 
-            <div className='bg-white rounded-lg shadow-sm border border-gray-200 p-6'>
-              <h2 className='text-xl font-semibold mb-4'>AI Feedback</h2>
+            <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6'>
+              <h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>AI Feedback</h2>
 
               {/* Metrics */}
               <div className='space-y-4 mb-6'>
                 <div>
                   <div className='flex items-center justify-between mb-2'>
-                    <span className='text-sm font-medium text-gray-700'>Content Relevance</span>
-                    <span className='text-sm font-semibold text-blue-600'>0%</span>
+                    <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Content Relevance</span>
+                    <span className='text-sm font-semibold text-blue-600 dark:text-blue-400'>0%</span>
                   </div>
-                  <div className='w-full bg-gray-200 rounded-full h-2'>
+                  <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
                     <div className='bg-blue-600 h-2 rounded-full' style={{ width: '0%' }}></div>
                   </div>
                 </div>
 
                 <div>
                   <div className='flex items-center justify-between mb-2'>
-                    <span className='text-sm font-medium text-gray-700'>Clarity & Structure</span>
-                    <span className='text-sm font-semibold text-green-600'>0%</span>
+                    <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Clarity & Structure</span>
+                    <span className='text-sm font-semibold text-green-600 dark:text-green-400'>0%</span>
                   </div>
-                  <div className='w-full bg-gray-200 rounded-full h-2'>
+                  <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
                     <div className='bg-green-600 h-2 rounded-full' style={{ width: '0%' }}></div>
                   </div>
                 </div>
 
                 <div>
                   <div className='flex items-center justify-between mb-2'>
-                    <span className='text-sm font-medium text-gray-700'>Confidence Level</span>
-                    <span className='text-sm font-semibold text-purple-600'>0%</span>
+                    <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Confidence Level</span>
+                    <span className='text-sm font-semibold text-purple-600 dark:text-purple-400'>0%</span>
                   </div>
-                  <div className='w-full bg-gray-200 rounded-full h-2'>
+                  <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
                     <div className='bg-purple-600 h-2 rounded-full' style={{ width: '0%' }}></div>
                   </div>
                 </div>
@@ -482,11 +485,11 @@ const MockInterview: React.FC = () => {
 
               {/* Live Suggestions */}
               <div>
-                <h3 className='text-sm font-semibold text-gray-900 mb-3'>Live Suggestions</h3>
+                <h3 className='text-sm font-semibold text-gray-900 dark:text-white mb-3'>Live Suggestions</h3>
                 <ul className='space-y-2'>
                   <li className='flex items-start gap-2'>
                     <svg
-                      className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0'
+                      className='w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0'
                       fill='none'
                       stroke='currentColor'
                       viewBox='0 0 24 24'
@@ -498,11 +501,11 @@ const MockInterview: React.FC = () => {
                         d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
                       />
                     </svg>
-                    <span className='text-sm text-gray-600'>Maintain eye contact with the camera</span>
+                    <span className='text-sm text-gray-600 dark:text-gray-400'>Maintain eye contact with the camera</span>
                   </li>
                   <li className='flex items-start gap-2'>
                     <svg
-                      className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0'
+                      className='w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0'
                       fill='none'
                       stroke='currentColor'
                       viewBox='0 0 24 24'
@@ -514,11 +517,11 @@ const MockInterview: React.FC = () => {
                         d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
                       />
                     </svg>
-                    <span className='text-sm text-gray-600'>Speak at a steady pace</span>
+                    <span className='text-sm text-gray-600 dark:text-gray-400'>Speak at a steady pace</span>
                   </li>
                   <li className='flex items-start gap-2'>
                     <svg
-                      className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0'
+                      className='w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0'
                       fill='none'
                       stroke='currentColor'
                       viewBox='0 0 24 24'
@@ -530,7 +533,7 @@ const MockInterview: React.FC = () => {
                         d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
                       />
                     </svg>
-                    <span className='text-sm text-gray-600'>Use specific examples from your experience</span>
+                    <span className='text-sm text-gray-600 dark:text-gray-400'>Use specific examples from your experience</span>
                   </li>
                 </ul>
               </div>
