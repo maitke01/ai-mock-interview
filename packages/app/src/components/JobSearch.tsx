@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { usePreferences } from '../hooks/usePreferences'
 import { useNavigate } from 'react-router-dom'
+import { setUserItem } from '../utils/userStorage'
 import type { ResumeSuggestion, SelectedResume } from '../types/resume'
 import EditableTemplateEditor from './EditableTemplateEditor'
 import Header from './Header'
@@ -127,7 +128,12 @@ const JobSearch: React.FC = () => {
   const handleToggleFavorite = async (p: any) => {
     if (!p || !p.id) return
     const newMeta = { ...(p.metadata || {}), favorite: !(p.metadata && p.metadata.favorite) }
-    setSavedPreferences((prev) => (prev || []).map((it) => (String(it.id) === String(p.id) ? { ...it, metadata: newMeta } : (newMeta.favorite ? { ...it, metadata: { ...(it.metadata || {}), favorite: false } } : it))))
+    // Optimistic UI update: mark this preference as favorite and clear others when starring
+    setSavedPreferences((prev) => (prev || []).map((it) => (
+      String(it.id) === String(p.id)
+        ? { ...it, metadata: newMeta }
+        : (newMeta.favorite ? { ...it, metadata: { ...(it.metadata || {}), favorite: false } } : it)
+    )))
     try {
       const key = 'pendingJobPreferences'
       const raw = localStorage.getItem(key)
@@ -150,7 +156,144 @@ const JobSearch: React.FC = () => {
           else localStorage.removeItem(key)
         }
       } catch (e) { /* ignore */ }
+
+      // If we've just starred this preference, ensure all other preferences are un-starred on the server
+      if (newMeta.favorite) {
+        try {
+          // collect other favorites and clear them
+          const others = (savedPreferences || []).filter((it) => String(it.id) !== String(p.id) && it.metadata && it.metadata.favorite)
+          await Promise.all(others.map(async (other) => {
+            try {
+              const cleared = { ...(other.metadata || {}), favorite: false }
+              await savePreference({ id: other.id, userId: other.userId, name: other.name, text: other.text, metadata: cleared })
+            } catch (err) {
+              // best-effort
+            }
+          }))
+        } catch (err) { /* ignore */ }
+
+        // Try to obtain the updated pref record (either from the save response or by reloading listPreferences)
+        let prefRecord: any = null
+        try {
+          if (res && res.data && (res.data.id || res.data.metadata)) prefRecord = res.data
+        } catch { prefRecord = null }
+        if (!prefRecord) {
+          try {
+            const refreshed = await listPreferences()
+            if (refreshed && refreshed.success) prefRecord = (refreshed.results || []).find((it: any) => String(it.id) === String(p.id)) || null
+          } catch { prefRecord = null }
+        }
+
+        // If we have a prefRecord, use its metadata.keywords; otherwise fall back to p.metadata/newMeta
+        const prefKeywords = prefRecord?.metadata && Array.isArray(prefRecord.metadata.keywords) ? prefRecord.metadata.keywords : (Array.isArray(p.metadata?.keywords) ? p.metadata.keywords : (Array.isArray(newMeta?.keywords) ? newMeta.keywords : []))
+
+        // Load keywords into UI
+        try { setKeywords(prefKeywords || []) } catch { }
+
+        // Compute and persist keyword match using prefKeywords
+        try {
+          const resumeTextSource = selectedResume?.text ?? (typeof selectedResume?.optimized === 'string' ? selectedResume?.optimized : '')
+          const resumeText = String(resumeTextSource || '').toLowerCase()
+          const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim()
+          const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
+          const wordBoundaryMatch = (phrase: string, text: string) => {
+            const p = phrase.trim()
+            if (!p) return false
+            const re = new RegExp('\\\\b' + escapeRegExp(p) + '\\\\b', 'i')
+            if (re.test(text)) return true
+            const parts = p.split(/\\\\s+/).filter(Boolean)
+            return parts.every(part => {
+              const re2 = new RegExp('\\\\b' + escapeRegExp(part) + '\\\\b', 'i')
+              return re2.test(text)
+            })
+          }
+
+          const matched: string[] = []
+          const missing: string[] = []
+          for (const kwItem of (prefKeywords || [])) {
+            const k = normalize(String(kwItem))
+            if (!k) continue
+            if (wordBoundaryMatch(k, resumeText)) {
+              matched.push(kwItem)
+              continue
+            }
+            if (k.endsWith('s')) {
+              const sing = k.slice(0, -1)
+              if (wordBoundaryMatch(sing, resumeText)) {
+                matched.push(kwItem)
+                continue
+              }
+            }
+            missing.push(kwItem)
+          }
+
+          const score = (prefKeywords && prefKeywords.length > 0) ? Math.round((matched.length / prefKeywords.length) * 100) : 0
+          try {
+            void setUserItem('keywordMatch', String(score)).catch(() => { })
+            void setUserItem('matchedSkills', JSON.stringify(matched)).catch(() => { })
+            void setUserItem('missingSkills', JSON.stringify(missing)).catch(() => { })
+          } catch (err) { /* ignore */ }
+          try { window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } })) } catch { }
+        } catch (err) { /* ignore */ }
+      }
     } catch (e) { console.warn('Failed to persist favorite toggle', e) }
+
+    // After persisting the favorite change, make sure listeners update.
+    try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
+
+    // If this preference was starred, load its extracted keywords into the UI and recompute keyword match
+    try {
+      if (newMeta.favorite) {
+        const kw = Array.isArray(p.metadata?.keywords) ? p.metadata.keywords : (Array.isArray(newMeta?.keywords) ? newMeta.keywords : [])
+        try { setKeywords(kw || []) } catch { }
+
+        // Recompute a keyword match score against the selected resume and persist it so Dashboard updates
+        try {
+          const resumeTextSource = selectedResume?.text ?? (typeof selectedResume?.optimized === 'string' ? selectedResume?.optimized : '')
+          const resumeText = String(resumeTextSource || '').toLowerCase()
+          const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+          const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const wordBoundaryMatch = (phrase: string, text: string) => {
+            const p = phrase.trim()
+            if (!p) return false
+            const re = new RegExp('\\b' + escapeRegExp(p) + '\\b', 'i')
+            if (re.test(text)) return true
+            const parts = p.split(/\\s+/).filter(Boolean)
+            return parts.every(part => {
+              const re2 = new RegExp('\\b' + escapeRegExp(part) + '\\b', 'i')
+              return re2.test(text)
+            })
+          }
+
+          const matched: string[] = []
+          const missing: string[] = []
+          for (const kwItem of (kw || [])) {
+            const k = normalize(String(kwItem))
+            if (!k) continue
+            if (wordBoundaryMatch(k, resumeText)) {
+              matched.push(kwItem)
+              continue
+            }
+            if (k.endsWith('s')) {
+              const sing = k.slice(0, -1)
+              if (wordBoundaryMatch(sing, resumeText)) {
+                matched.push(kwItem)
+                continue
+              }
+            }
+            missing.push(kwItem)
+          }
+
+          const score = (kw && kw.length > 0) ? Math.round((matched.length / kw.length) * 100) : 0
+          try {
+            void setUserItem('keywordMatch', String(score)).catch(() => { })
+            void setUserItem('matchedSkills', JSON.stringify(matched)).catch(() => { })
+            void setUserItem('missingSkills', JSON.stringify(missing)).catch(() => { })
+          } catch (err) { /* ignore */ }
+          try { window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } })) } catch { }
+        } catch (err) { /* ignore */ }
+      }
+    } catch (err) { /* ignore */ }
   }
 
   const handleSavePreference = async () => {
@@ -303,9 +446,9 @@ const JobSearch: React.FC = () => {
     const score = keywords.length > 0 ? Math.round((matched.length / keywords.length) * 100) : 0
 
     try {
-      localStorage.setItem('keywordMatch', String(score))
-      localStorage.setItem('matchedSkills', JSON.stringify(matched))
-      localStorage.setItem('missingSkills', JSON.stringify(missing))
+      void setUserItem('keywordMatch', String(score)).catch(() => { })
+      void setUserItem('matchedSkills', JSON.stringify(matched)).catch(() => { })
+      void setUserItem('missingSkills', JSON.stringify(missing)).catch(() => { })
     } catch (e) {
       console.warn('Failed to persist skill gap results', e)
     }
