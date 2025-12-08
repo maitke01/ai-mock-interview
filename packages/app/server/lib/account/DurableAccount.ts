@@ -156,10 +156,62 @@ export class DurableAccount extends DurableObject<Env> {
       resumeId
     ).one()
 
+    // Also get extracted text from resume_sections if available
+    const sections = this.ctx.storage.sql.exec<{
+      extracted_text: string | null
+    }>(
+      `SELECT extracted_text FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    const extractedText = sections.length > 0 ? sections[0].extracted_text : null
+
+    // Convert ArrayBuffer to base64 for JSON serialization
+    const fileDataBase64 = this.arrayBufferToBase64(resume.file_data)
+
     return {
       success: true,
-      resume
+      resume: {
+        ...resume,
+        file_data: fileDataBase64,
+        extracted_text: extractedText
+      }
     }
+  }
+
+  private arrayBufferToBase64 (buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  }
+
+  saveExtractedText (resumeId: number, extractedText: string) {
+    // Check if a section entry already exists
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    if (existing.length > 0) {
+      // Update existing
+      this.ctx.storage.sql.exec(
+        `UPDATE resume_sections SET extracted_text = ?, updated_date = strftime('%s', 'now') WHERE resume_id = ?`,
+        extractedText,
+        resumeId
+      )
+    } else {
+      // Insert new
+      this.ctx.storage.sql.exec(
+        `INSERT INTO resume_sections (resume_id, extracted_text) VALUES (?, ?)`,
+        resumeId,
+        extractedText
+      )
+    }
+
+    return { success: true }
   }
 
   scheduleMockInterview (data: {
