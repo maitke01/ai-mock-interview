@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useTodos, type Task } from './useTodo'
+import { useTodos } from './useTodo'
 
 
 interface TodoListProps {

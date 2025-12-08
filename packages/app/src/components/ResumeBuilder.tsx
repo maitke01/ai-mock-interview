@@ -678,25 +678,42 @@ const ResumeBuilder: React.FC = () => {
 
   // Update Quill editors when template content changes (but not from user typing)
   useEffect(() => {
+    const containsHtml = (str: string) => /<[^>]+>/.test(str)
+
     if (headerQuill.current && resumeTemplate.header) {
       const currentText = headerQuill.current.getText().trim()
       const templateText = resumeTemplate.header.replace(/<[^>]*>/g, '').trim() // Strip HTML tags
       if (currentText !== templateText) {
-        headerQuill.current.setText(resumeTemplate.header)
+        if (containsHtml(resumeTemplate.header)) {
+          headerQuill.current.setText('')
+          headerQuill.current.clipboard.dangerouslyPasteHTML(0, resumeTemplate.header)
+        } else {
+          headerQuill.current.setText(resumeTemplate.header)
+        }
       }
     }
     if (sidebarQuill.current && resumeTemplate.sidebar) {
       const currentText = sidebarQuill.current.getText().trim()
       const templateText = resumeTemplate.sidebar.replace(/<[^>]*>/g, '').trim()
       if (currentText !== templateText) {
-        sidebarQuill.current.setText(resumeTemplate.sidebar)
+        if (containsHtml(resumeTemplate.sidebar)) {
+          sidebarQuill.current.setText('')
+          sidebarQuill.current.clipboard.dangerouslyPasteHTML(0, resumeTemplate.sidebar)
+        } else {
+          sidebarQuill.current.setText(resumeTemplate.sidebar)
+        }
       }
     }
     if (mainContentQuill.current && resumeTemplate.mainContent) {
       const currentText = mainContentQuill.current.getText().trim()
       const templateText = resumeTemplate.mainContent.replace(/<[^>]*>/g, '').trim()
       if (currentText !== templateText) {
-        mainContentQuill.current.setText(resumeTemplate.mainContent)
+        if (containsHtml(resumeTemplate.mainContent)) {
+          mainContentQuill.current.setText('')
+          mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, resumeTemplate.mainContent)
+        } else {
+          mainContentQuill.current.setText(resumeTemplate.mainContent)
+        }
       }
     }
   }, [selectedTemplate]) // Only run when template changes, not on every text change
