@@ -38,6 +38,8 @@ import { addTodoRoute } from './lib/routes/todo/addTodoRoute'
 import { updateTodoRoute } from './lib/routes/todo/updateTodoRoute'
 import { deleteTodoRoute } from './lib/routes/todo/deleteTodoRoute'
 import { clearCompletedTodosRoute } from './lib/routes/todo/clearCompletedTodosRoute'
+import { saveSkillGapRoute } from './lib/routes/skillgap/saveSkillGapRoute'
+import { getLatestSkillGapRoute } from './lib/routes/skillgap/getLatestSkillGapRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -87,6 +89,9 @@ const app = new Hono({ strict: false })
   .patch('/api/todo/:id', updateTodoRoute)
   .delete('/api/todo/:id', deleteTodoRoute)
   .post('/api/todos/clear-completed', clearCompletedTodosRoute)
+  // Skill gap routes
+  .post('/api/skill-gap/save', saveSkillGapRoute)
+  .get('/api/skill-gap/latest', getLatestSkillGapRoute)
 
 export default {
   fetch: app.fetch

@@ -5,6 +5,7 @@ import type { ResumeSuggestion, SelectedResume } from '../types/resume'
 import EditableTemplateEditor from './EditableTemplateEditor'
 import Header from './Header'
 import TodoList from './TodoList'
+import { useJobSearchStore } from '../stores/jobSearchStore'
 
 interface DbResume {
   id: number
@@ -44,6 +45,24 @@ const JobSearch: React.FC = () => {
 
   const { savePreference, deletePreference, listPreferences, loading: prefLoading } = usePreferences()
   const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
+
+  // Zustand store for skill gap and pending preferences
+  const {
+    skillGapResult,
+    saveSkillGapResult,
+    addPendingPreference,
+    updatePendingPreference,
+    removePendingPreference,
+    loadPendingPreferences,
+    syncPendingPreferences,
+    pendingPreferences,
+  } = useJobSearchStore()
+
+  // Load pending preferences on mount and attempt sync
+  useEffect(() => {
+    loadPendingPreferences()
+    syncPendingPreferences()
+  }, [loadPendingPreferences, syncPendingPreferences])
 
   // Fetch resumes from backend on mount
   useEffect(() => {
@@ -220,28 +239,28 @@ const JobSearch: React.FC = () => {
     if (!p || !p.id) return
     const newMeta = { ...(p.metadata || {}), favorite: !(p.metadata && p.metadata.favorite) }
     setSavedPreferences((prev) => (prev || []).map((it) => (String(it.id) === String(p.id) ? { ...it, metadata: newMeta } : (newMeta.favorite ? { ...it, metadata: { ...(it.metadata || {}), favorite: false } } : it))))
-    try {
-      const key = 'pendingJobPreferences'
-      const raw = localStorage.getItem(key)
-      const arr = raw ? (JSON.parse(raw) as any[]) : []
-      const idx = arr.findIndex((it) => String(it.id) === String(p.id))
-      if (idx !== -1) arr[idx].metadata = { ...(arr[idx].metadata || {}), ...newMeta }
-      else arr.unshift({ id: p.id, userId: p.userId ?? 'public', name: p.name ?? null, text: p.text ?? null, metadata: newMeta, createdAt: Date.now() })
-      localStorage.setItem(key, JSON.stringify(arr))
-    } catch (e) { console.warn('Failed to update pending preferences for favorite toggle', e) }
+
+    // Use Zustand store for pending preferences
+    const existingPending = pendingPreferences.find((it) => String(it.id) === String(p.id))
+    if (existingPending) {
+      updatePendingPreference(String(p.id), { metadata: newMeta })
+    } else {
+      addPendingPreference({
+        id: String(p.id),
+        userId: p.userId ?? 'public',
+        name: p.name ?? null,
+        text: p.text ?? null,
+        metadata: newMeta,
+        createdAt: Date.now(),
+      })
+    }
 
     try {
       const res = await savePreference({ id: p.id, userId: p.userId, name: p.name, text: p.text, metadata: newMeta })
-      if (res && res.success) try {
-        const key = 'pendingJobPreferences'
-        const raw = localStorage.getItem(key)
-        if (raw) {
-          const arr = JSON.parse(raw) as any[]
-          const filtered = arr.filter((it) => String(it.id) !== String(p.id))
-          if (filtered.length) localStorage.setItem(key, JSON.stringify(filtered))
-          else localStorage.removeItem(key)
-        }
-      } catch (e) { /* ignore */ }
+      if (res && res.success) {
+        // Remove from pending since it was successfully saved
+        removePendingPreference(String(p.id))
+      }
     } catch (e) { console.warn('Failed to persist favorite toggle', e) }
   }
 
@@ -292,18 +311,9 @@ const JobSearch: React.FC = () => {
         // optimistic UI remove
         setSavedPreferences((prev) => (prev || []).filter((it) => String(it.id) !== String(p.id)))
 
-        // If this looks like a local-only pref, remove from pending local storage
+        // If this looks like a local-only pref, remove from pending via Zustand store
         if (String(p.id).startsWith('local-') || p.userId === 'public') {
-          try {
-            const key = 'pendingJobPreferences'
-            const raw = localStorage.getItem(key)
-            if (raw) {
-              const arr = JSON.parse(raw || '[]') as any[]
-              const filtered = arr.filter((it) => String(it.id) !== String(p.id))
-              if (filtered.length) localStorage.setItem(key, JSON.stringify(filtered))
-              else localStorage.removeItem(key)
-            }
-          } catch (e) { console.warn('Failed to cleanup local pending preference', e) }
+          removePendingPreference(String(p.id))
           setPopupMessage('Preference removed')
           setShowPopup(true)
           try { window.dispatchEvent(new CustomEvent('preferencesUpdated')) } catch { }
@@ -392,15 +402,12 @@ const JobSearch: React.FC = () => {
 
     const score = keywords.length > 0 ? Math.round((matched.length / keywords.length) * 100) : 0
 
-    try {
-      localStorage.setItem('keywordMatch', String(score))
-      localStorage.setItem('matchedSkills', JSON.stringify(matched))
-      localStorage.setItem('missingSkills', JSON.stringify(missing))
-    } catch (e) {
-      console.warn('Failed to persist skill gap results', e)
-    }
-
-    try { window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail: { keywordMatch: score } })) } catch { }
+    // Save to backend via Zustand store
+    saveSkillGapResult({
+      keywordMatch: score,
+      matchedSkills: matched,
+      missingSkills: missing,
+    })
 
     setMatchedSkillsState(matched)
     setMissingSkillsState(missing)
