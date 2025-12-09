@@ -11,6 +11,7 @@ import { getMockInterviewSessionRoute } from './lib/routes/interview/getMockInte
 import { endMockInterviewSessionRoute } from './lib/routes/interview/endMockInterviewSessionRoute'
 import { listMockInterviewSessionsRoute } from './lib/routes/interview/listMockInterviewSessionsRoute'
 import { getSessionFeedbackRoute } from './lib/routes/interview/getSessionFeedbackRoute'
+import { listSessionsWithFeedbackRoute } from './lib/routes/interview/listSessionsWithFeedbackRoute'
 import { loginRoute } from './lib/routes/login/loginRoute'
 import { registerRoute } from './lib/routes/login/registerRoute'
 import { addResumeRoute } from './lib/routes/resume/addResumeRoute'
@@ -62,6 +63,7 @@ const app = new Hono({ strict: false })
   // Mock interview session routes
   .post('/api/mock-interview-session/start', startMockInterviewSessionRoute)
   .get('/api/mock-interview-session/list', listMockInterviewSessionsRoute)
+  .get('/api/mock-interview-session/performance', listSessionsWithFeedbackRoute)
   .post('/api/mock-interview-session/:sessionId/respond', submitMockInterviewResponseRoute)
   .get('/api/mock-interview-session/:sessionId/feedback', getSessionFeedbackRoute)
   .get('/api/mock-interview-session/:sessionId', getMockInterviewSessionRoute)

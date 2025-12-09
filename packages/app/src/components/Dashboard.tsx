@@ -2,7 +2,8 @@ import { X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDeleteInterview, useInterviews } from '../hooks/useInterviews'
+import { useDeleteInterview, useInterviews, useSessionsPerformance } from '../hooks/useInterviews'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Header from './Header'
 import TodoList from './TodoList'
 
@@ -19,8 +20,16 @@ const Dashboard: React.FC = () => {
   const [popupMessage, setPopupMessage] = useState('')
   const { data: interviewsData, isLoading: interviewsLoading } = useInterviews({ upcoming: true })
   const deleteInterviewMutation = useDeleteInterview()
+  const { data: performanceData } = useSessionsPerformance()
 
   const scheduledInterviews = interviewsData?.interviews || []
+
+  // Transform performance data for the chart
+  const chartData = performanceData?.sessions?.map((session, index) => ({
+    name: `Session ${index + 1}`,
+    contentQuality: session.feedback?.contentQuality ?? 0,
+    confidence: session.feedback?.confidenceLevel ?? 0,
+  })) || []
 
   function recomputeResumeCompletion() {
     try {
@@ -358,8 +367,8 @@ const Dashboard: React.FC = () => {
                   <h3 className='text-xl font-semibold text-gray-900 dark:text-white'>Recent Interview Performance</h3>
                 </div>
                 <div className='px-6 py-4'>
-                  <div className='h-48 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center relative'>
-                    <div className='absolute top-4 right-4 flex space-x-4 text-xs'>
+                  <div className='h-48 bg-gray-50 dark:bg-gray-700 rounded-lg relative'>
+                    <div className='absolute top-4 right-4 flex space-x-4 text-xs z-10'>
                       <div className='flex items-center space-x-1'>
                         <div className='w-3 h-3 bg-blue-500 dark:bg-blue-400 rounded-full'></div>
                         <span className='text-gray-600 dark:text-gray-400'>Content Quality</span>
@@ -369,15 +378,63 @@ const Dashboard: React.FC = () => {
                         <span className='text-gray-600 dark:text-gray-400'>Confidence</span>
                       </div>
                     </div>
-                    <div className='text-center text-gray-500 dark:text-gray-400'>
-                      <div className='text-sm mb-2'>Performance trending upward</div>
-                      <div className='flex justify-between w-full px-8 text-xs text-gray-400 dark:text-gray-500'>
-                        <span>Session 1</span>
-                        <span>Session 2</span>
-                        <span>Session 3</span>
-                        <span>Session 4</span>
+                    {chartData.length > 0 ? (
+                      <ResponsiveContainer width='100%' height='100%'>
+                        <LineChart data={chartData} margin={{ top: 40, right: 30, left: 0, bottom: 10 }}>
+                          <CartesianGrid strokeDasharray='3 3' stroke='#374151' opacity={0.3} />
+                          <XAxis
+                            dataKey='name'
+                            tick={{ fontSize: 12, fill: '#9CA3AF' }}
+                            axisLine={{ stroke: '#4B5563' }}
+                            tickLine={{ stroke: '#4B5563' }}
+                          />
+                          <YAxis
+                            domain={[0, 100]}
+                            tick={{ fontSize: 12, fill: '#9CA3AF' }}
+                            axisLine={{ stroke: '#4B5563' }}
+                            tickLine={{ stroke: '#4B5563' }}
+                            width={35}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#1F2937',
+                              border: '1px solid #374151',
+                              borderRadius: '8px',
+                              color: '#F9FAFB'
+                            }}
+                            labelStyle={{ color: '#F9FAFB' }}
+                            formatter={(value: number) => [`${value}%`, '']}
+                          />
+                          <Line
+                            type='monotone'
+                            dataKey='contentQuality'
+                            stroke='#3B82F6'
+                            strokeWidth={2}
+                            dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name='Content Quality'
+                          />
+                          <Line
+                            type='monotone'
+                            dataKey='confidence'
+                            stroke='#F97316'
+                            strokeWidth={2}
+                            dot={{ fill: '#F97316', strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name='Confidence'
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className='h-full flex items-center justify-center text-center text-gray-500 dark:text-gray-400'>
+                        <div>
+                          <div className='text-sm mb-2'>No interview performance data yet</div>
+                          <div className='text-xs text-gray-400 dark:text-gray-500'>
+                            Complete mock interviews to see your progress
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>

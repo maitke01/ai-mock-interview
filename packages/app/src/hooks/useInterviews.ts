@@ -403,8 +403,19 @@ interface SessionFeedback {
   contentRelevance: number
   clarityStructure: number
   confidenceLevel: number
+  contentQuality?: number
   turnsScored: number
   totalTurns: number
+}
+
+interface SessionWithFeedback extends InterviewSession {
+  feedback: SessionFeedback | null
+}
+
+interface ListSessionsWithFeedbackResponse {
+  success: boolean
+  sessions?: SessionWithFeedback[]
+  error?: string
 }
 
 interface GetSessionFeedbackResponse {
@@ -432,5 +443,21 @@ export const useSessionFeedback = (sessionId: number | null) => {
     },
     enabled: !!sessionId,
     refetchInterval: 5000, // Poll every 5 seconds to get updated scores
+  })
+}
+
+/**
+ * Get all sessions with their feedback scores for performance charting
+ */
+export const useSessionsPerformance = () => {
+  return useQuery({
+    queryKey: ['sessionsPerformance'],
+    queryFn: async (): Promise<ListSessionsWithFeedbackResponse> => {
+      const response = await fetch('/api/mock-interview-session/performance')
+      if (!response.ok) {
+        throw new Error('Failed to fetch sessions performance')
+      }
+      return response.json()
+    }
   })
 }

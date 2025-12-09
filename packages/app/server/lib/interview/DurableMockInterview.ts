@@ -483,6 +483,81 @@ The candidate has just responded. Continue the interview naturally.`
   }
 
   /**
+   * List all sessions with aggregated feedback scores for charting
+   */
+  async listSessionsWithFeedback(accountId: number) {
+    try {
+      const sessions = this.ctx.storage.sql
+        .exec<InterviewSession>(
+          `SELECT * FROM interview_sessions
+           WHERE account_id = ? AND total_turns > 0
+           ORDER BY started_at ASC`,
+          accountId
+        )
+        .toArray()
+
+      // Get feedback scores for each session
+      const sessionsWithFeedback = sessions.map(session => {
+        const turns = this.ctx.storage.sql
+          .exec<ConversationTurn>(
+            `SELECT * FROM conversation_turns WHERE session_id = ?`,
+            session.id
+          )
+          .toArray()
+
+        // Calculate averages for turns that have scores
+        const turnsWithScores = turns.filter(
+          t => t.content_relevance !== null && t.clarity_structure !== null && t.confidence_level !== null
+        )
+
+        if (turnsWithScores.length === 0) {
+          return {
+            ...session,
+            feedback: null,
+          }
+        }
+
+        const avgContentRelevance = Math.round(
+          turnsWithScores.reduce((sum, t) => sum + (t.content_relevance || 0), 0) / turnsWithScores.length
+        )
+        const avgClarityStructure = Math.round(
+          turnsWithScores.reduce((sum, t) => sum + (t.clarity_structure || 0), 0) / turnsWithScores.length
+        )
+        const avgConfidenceLevel = Math.round(
+          turnsWithScores.reduce((sum, t) => sum + (t.confidence_level || 0), 0) / turnsWithScores.length
+        )
+
+        return {
+          ...session,
+          feedback: {
+            contentRelevance: avgContentRelevance,
+            clarityStructure: avgClarityStructure,
+            confidenceLevel: avgConfidenceLevel,
+            // Content Quality is average of content relevance and clarity
+            contentQuality: Math.round((avgContentRelevance + avgClarityStructure) / 2),
+            turnsScored: turnsWithScores.length,
+            totalTurns: turns.length,
+          },
+        }
+      })
+
+      // Filter out sessions without feedback scores
+      const sessionsWithScores = sessionsWithFeedback.filter(s => s.feedback !== null)
+
+      return {
+        success: true,
+        sessions: sessionsWithScores,
+      }
+    } catch (error) {
+      console.error('Error listing sessions with feedback:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
    * Generate feedback score for a specific metric using AI
    * The AI is instructed to end its response with a number 0-100
    */
