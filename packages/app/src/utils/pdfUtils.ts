@@ -76,3 +76,79 @@ export function downloadPDF(pdfBytes: Uint8Array | ArrayBuffer, fileName = 'docu
 function stripTags(input: string) {
   return input.replace(/<[^>]*>/g, '').replace(/\r?\n/g, ' ')
 }
+
+/**
+ * Creates a PDF from plain text content
+ */
+export async function createPDFFromText(text: string) {
+  const pdfDoc = await PDFDocument.create()
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+
+  const margin = 50
+  const fontSize = 11
+  const lineHeight = fontSize * 1.4
+  const pageWidth = 612 // Letter size
+  const pageHeight = 792
+  const maxWidth = pageWidth - margin * 2
+
+  // Strip HTML tags and remove non-WinAnsi characters (emojis, etc.)
+  const cleanText = text
+    .replace(/<[^>]*>/g, '')
+    .replace(/[^\x00-\xFF]/g, '')
+    .trim()
+  const lines = cleanText.split(/\r?\n/)
+
+  let currentPage = pdfDoc.addPage([pageWidth, pageHeight])
+  let yPosition = pageHeight - margin
+
+  for (const line of lines) {
+    // Word wrap long lines
+    const words = line.split(' ')
+    let currentLine = ''
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word
+      const textWidth = helvetica.widthOfTextAtSize(testLine, fontSize)
+
+      if (textWidth > maxWidth && currentLine) {
+        // Draw current line and start new one
+        if (yPosition < margin + lineHeight) {
+          currentPage = pdfDoc.addPage([pageWidth, pageHeight])
+          yPosition = pageHeight - margin
+        }
+        currentPage.drawText(currentLine, {
+          x: margin,
+          y: yPosition,
+          size: fontSize,
+          font: helvetica,
+          color: rgb(0, 0, 0)
+        })
+        yPosition -= lineHeight
+        currentLine = word
+      } else {
+        currentLine = testLine
+      }
+    }
+
+    // Draw remaining text in current line
+    if (currentLine || line === '') {
+      if (yPosition < margin + lineHeight) {
+        currentPage = pdfDoc.addPage([pageWidth, pageHeight])
+        yPosition = pageHeight - margin
+      }
+      if (currentLine) {
+        currentPage.drawText(currentLine, {
+          x: margin,
+          y: yPosition,
+          size: fontSize,
+          font: helvetica,
+          color: rgb(0, 0, 0)
+        })
+      }
+      yPosition -= lineHeight
+    }
+  }
+
+  const pdfBytes = await pdfDoc.save()
+  return pdfBytes
+}

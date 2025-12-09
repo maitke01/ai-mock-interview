@@ -5,11 +5,12 @@ import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
 import Header from './Header'
 import { latexTemplates } from '../data/latexTemplates'
-import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 import CleanPdfEditor from './CleanPdfEditor'
 import TodoList from './TodoList'
 import { marked } from 'marked'
 import { useResumeScoresStore } from '../stores/resumeScoresStore'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
@@ -55,7 +56,6 @@ const ResumeBuilder: React.FC = () => {
   const [isPreOptimizeModalOpen, setIsPreOptimizeModalOpen] = useState(false)
   const [isExtractingInModal, setIsExtractingInModal] = useState(false)
   // Template states
-  const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
   const [resumeTemplate, setResumeTemplate] = useState({
     header: 'Your Name\nEmail | Phone',
     sidebar: 'EDUCATION\nUniversity Name\nDegree, Year\n\nSKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nLANGUAGES\n• English\n• Spanish',
@@ -69,7 +69,6 @@ const ResumeBuilder: React.FC = () => {
 
   // Loading states
   const [isSaving, setIsSaving] = useState(false)
-  const [isDownloading, setIsDownloading] = useState(false)
 
   // Formatting states
   const [fontSize, setFontSize] = useState('12')
@@ -318,6 +317,63 @@ const ResumeBuilder: React.FC = () => {
 
   const handleTemplateChange = (section: 'header' | 'sidebar' | 'mainContent', value: string) => {
     setResumeTemplate(prev => ({ ...prev, [section]: value }))
+  }
+
+  // Download resume content as PDF by rendering HTML to canvas
+  const downloadAsPdf = async (content: string, fileName: string) => {
+    // Create a hidden container to render the content
+    const container = document.createElement('div')
+    container.style.position = 'absolute'
+    container.style.left = '-9999px'
+    container.style.top = '0'
+    container.style.width = '8.5in'
+    container.style.padding = '0.5in'
+    container.style.backgroundColor = 'white'
+    container.style.fontFamily = 'Arial, sans-serif'
+    container.style.fontSize = '12px'
+    container.style.lineHeight = '1.5'
+    container.style.color = '#000'
+    container.innerHTML = content
+    document.body.appendChild(container)
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'in',
+        format: 'letter'
+      })
+
+      const imgWidth = 8.5
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+      // Handle multi-page if content is long
+      let heightLeft = imgHeight
+      let position = 0
+      const pageHeight = 11
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+
+      const pdfFileName = fileName.replace(/\.[^.]+$/, '.pdf')
+      pdf.save(pdfFileName)
+    } finally {
+      document.body.removeChild(container)
+    }
   }
 
   const handleTemplateSubmit = async () => {
@@ -981,7 +1037,6 @@ const ResumeBuilder: React.FC = () => {
             mainContent: data.content.mainContent || ''
           })
           setSelectedTemplate(id)
-          setCurrentPdfUrl('')
           return
         }
       }
@@ -992,7 +1047,6 @@ const ResumeBuilder: React.FC = () => {
     // No saved draft, load fresh template
     loadTemplateIntoEditor(template)
     setSelectedTemplate(id)
-    setCurrentPdfUrl('')
   }
 
   const loadTemplateIntoEditor = (template: typeof latexTemplates[0]) => {
@@ -1012,33 +1066,6 @@ const ResumeBuilder: React.FC = () => {
       sidebar: '',
       mainContent: template.content
     })
-  }
-
-  const handleDownloadPDF = async () => {
-    if (!currentPdfUrl) {
-      setPopupMessage('No template selected')
-      setShowPopup(true)
-      return
-    }
-
-    setIsDownloading(true)
-
-    try {
-      const pdfBytes = await mergePDFWithText(currentPdfUrl, resumeTemplate)
-      const fileName = `resume-${selectedTemplate || 'scratch'}-${Date.now()}.pdf`
-      downloadPDF(pdfBytes, fileName)
-
-      setTimeout(() => {
-        setIsDownloading(false)
-        setPopupMessage('Resume downloaded successfully!')
-        setShowPopup(true)
-      }, 500)
-    } catch (error) {
-      console.error('Error downloading PDF:', error)
-      setIsDownloading(false)
-      setPopupMessage('Failed to generate PDF. Please try again.')
-      setShowPopup(true)
-    }
   }
 
   useEffect(() => {
@@ -1665,6 +1692,30 @@ const ResumeBuilder: React.FC = () => {
                               >
                                 Job Search
                               </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (file.type === 'application/pdf') {
+                                    // Already a PDF, download directly
+                                    const url = URL.createObjectURL(file)
+                                    const a = document.createElement('a')
+                                    a.href = url
+                                    a.download = file.name
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    document.body.removeChild(a)
+                                    URL.revokeObjectURL(url)
+                                  } else {
+                                    // Text/HTML file - render and convert to PDF
+                                    const content = await file.text()
+                                    await downloadAsPdf(content, file.name)
+                                  }
+                                }}
+                                className='text-xs bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-3 py-1.5 rounded-md hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-sm font-medium ml-2'
+                                title="Download as PDF"
+                              >
+                                Download PDF
+                              </button>
                               {file.type === 'application/pdf' && (
                                 <>
                                   <button
@@ -1776,7 +1827,6 @@ const ResumeBuilder: React.FC = () => {
                   onClick={() => {
                     setResumeMode("scratch")
                     setSelectedTemplate(null)
-                    setCurrentPdfUrl(null)
                     setSelectedUploadedFile(null)
                     setHasSelectedMode(true)
                   }}
@@ -1824,7 +1874,6 @@ const ResumeBuilder: React.FC = () => {
                   onClick={() => {
                     setResumeMode("uploaded")
                     setSelectedTemplate(null)
-                    setCurrentPdfUrl(null)
                     setHasSelectedMode(true)
                   }}
                   disabled={resumeFiles.length === 0}
@@ -2025,16 +2074,6 @@ const ResumeBuilder: React.FC = () => {
                     {isSaving ? 'Saving...' : 'Save Draft'}
                   </button>
                   <button
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloading}
-                    className='bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    {isDownloading ? 'Generating...' : 'Download PDF'}
-                  </button>
-                  <button
                     onClick={handleTemplateSubmit}
                     className='bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
                   >
@@ -2046,7 +2085,6 @@ const ResumeBuilder: React.FC = () => {
                   <button
                     onClick={() => {
                       setSelectedTemplate(null)
-                      setCurrentPdfUrl(null)
                     }}
                     className='bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
                   >
@@ -2065,7 +2103,7 @@ const ResumeBuilder: React.FC = () => {
                     <div>
                       <p className="font-semibold text-blue-900 dark:text-blue-100">Pro Tips</p>
                       <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
-                        Use the toolbar above to format your text professionally. Your changes are auto-saved locally. Click "Save Draft" to secure your progress, then "Download PDF" when you're ready to export your polished resume.
+                        Use the toolbar above to format your text professionally. Your changes are auto-saved locally. Click "Save Draft" to secure your progress, then use "AI Format" to enhance your resume.
                       </p>
                     </div>
                   </div>
