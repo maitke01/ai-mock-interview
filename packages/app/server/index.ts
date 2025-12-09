@@ -60,10 +60,10 @@ const app = new Hono({ strict: false })
   .post('/api/generate-job-description', generateJobDescriptionRoute)
   // Mock interview session routes
   .post('/api/mock-interview-session/start', startMockInterviewSessionRoute)
+  .get('/api/mock-interview-session/list', listMockInterviewSessionsRoute)
   .post('/api/mock-interview-session/:sessionId/respond', submitMockInterviewResponseRoute)
   .get('/api/mock-interview-session/:sessionId', getMockInterviewSessionRoute)
   .post('/api/mock-interview-session/:sessionId/end', endMockInterviewSessionRoute)
-  .get('/api/mock-interview-session/list', listMockInterviewSessionsRoute)
 
 export default {
   fetch: app.fetch

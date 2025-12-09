@@ -6,6 +6,8 @@ import {
   useStartInterviewSession,
   useSubmitInterviewResponse,
   useEndInterviewSession,
+  useInterviewSessions,
+  useInterviewSession,
   type ConversationTurn
 } from '../hooks/useInterviews'
 import Header from './Header'
@@ -18,7 +20,14 @@ const MockInterview: React.FC = () => {
   const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([])
   const [mainContentMargin, setMainContentMargin] = useState(320)
   const [currentVideo, setCurrentVideo] = useState<string | null>(null)
+  const [selectedPastSessionId, setSelectedPastSessionId] = useState<number | null>(null)
+  const [userStream, setUserStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const userVideoRef = useRef<HTMLVideoElement>(null)
+
+  // Fetch past sessions
+  const { data: sessionsData, isLoading: isLoadingSessions } = useInterviewSessions()
+  const { data: pastSessionData } = useInterviewSession(selectedPastSessionId)
 
   const {
     isInitialized,
@@ -41,6 +50,31 @@ const MockInterview: React.FC = () => {
   useEffect(() => {
     void initialize()
   }, [initialize])
+
+  // Initialize webcam
+  useEffect(() => {
+    const initWebcam = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 320, height: 240, facingMode: 'user' },
+          audio: false
+        })
+        setUserStream(stream)
+        if (userVideoRef.current) {
+          userVideoRef.current.srcObject = stream
+        }
+      } catch (err) {
+        console.error('Failed to access webcam:', err)
+      }
+    }
+    void initWebcam()
+
+    return () => {
+      if (userStream) {
+        userStream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [])
 
   // Start interview session on mount
   useEffect(() => {
@@ -274,6 +308,25 @@ const MockInterview: React.FC = () => {
                     <span className='text-white text-sm font-medium'>
                       {isRecording ? formatElapsed(elapsed) : '00:00'}
                     </span>
+                  </div>
+
+                  {/* User Webcam PiP */}
+                  <div className='absolute bottom-4 left-4 w-32 h-24 rounded-lg overflow-hidden border-2 border-white/30 shadow-lg bg-gray-800'>
+                    <video
+                      ref={userVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className='w-full h-full object-cover mirror'
+                      style={{ transform: 'scaleX(-1)' }}
+                    />
+                    {!userStream && (
+                      <div className='absolute inset-0 flex items-center justify-center bg-gray-800'>
+                        <svg className='w-8 h-8 text-gray-500' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                          <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -537,6 +590,112 @@ const MockInterview: React.FC = () => {
                   </li>
                 </ul>
               </div>
+            </div>
+
+            {/* Past Conversations Section */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6'>
+              <h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>Past Conversations</h2>
+
+              {isLoadingSessions ? (
+                <div className='flex items-center justify-center py-4'>
+                  <svg className='w-6 h-6 animate-spin text-blue-600' fill='none' viewBox='0 0 24 24'>
+                    <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4'></circle>
+                    <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'></path>
+                  </svg>
+                </div>
+              ) : sessionsData?.sessions && sessionsData.sessions.length > 0 ? (
+                <div className='space-y-3'>
+                  {/* Session List */}
+                  <div className='space-y-2 max-h-48 overflow-y-auto'>
+                    {sessionsData.sessions
+                      .filter(s => s.id !== sessionId && s.total_turns !== 0) // Exclude current session
+                      .map((session) => (
+                        <button
+                          key={session.id}
+                          onClick={() => setSelectedPastSessionId(selectedPastSessionId === session.id ? null : session.id)}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            selectedPastSessionId === session.id
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                              : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <div className='flex items-center justify-between'>
+                            <div className='flex items-center gap-2'>
+                              <span className={`w-2 h-2 rounded-full ${
+                                session.status === 'completed' ? 'bg-green-500' :
+                                session.status === 'active' ? 'bg-blue-500' :
+                                'bg-gray-400'
+                              }`}></span>
+                              <span className='text-sm font-medium text-gray-900 dark:text-white'>
+                                Session #{session.id}
+                              </span>
+                            </div>
+                            <span className='text-xs text-gray-500 dark:text-gray-400'>
+                              {session.total_turns} turn{session.total_turns !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                            {new Date(session.started_at * 1000).toLocaleDateString()} at{' '}
+                            {new Date(session.started_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+
+                  {/* Selected Session Conversation */}
+                  {selectedPastSessionId && pastSessionData?.session && (
+                    <div className='mt-4 pt-4 border-t border-gray-200 dark:border-gray-600'>
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-white mb-3'>
+                        Conversation from Session #{selectedPastSessionId}
+                      </h3>
+                      <div className='space-y-3 max-h-64 overflow-y-auto'>
+                        {pastSessionData.session.turns.map((turn, index) => (
+                          <div key={index} className='space-y-2'>
+                            <div className='bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3'>
+                              <p className='text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1'>You:</p>
+                              <p className='text-sm text-gray-700 dark:text-gray-300'>{turn.user_text}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (turn.video_url) {
+                                  setCurrentVideo(turn.video_url)
+                                }
+                              }}
+                              className={`w-full text-left bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors ${
+                                turn.video_url
+                                  ? 'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer'
+                                  : 'cursor-default'
+                              }`}
+                            >
+                              <div className='flex items-center justify-between mb-1'>
+                                <p className='text-xs font-semibold text-gray-900 dark:text-gray-200'>AI Interviewer:</p>
+                                {turn.video_url && (
+                                  <span className='text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1'>
+                                    <svg className='w-3 h-3' fill='currentColor' viewBox='0 0 24 24'>
+                                      <path d='M8 5v14l11-7z' />
+                                    </svg>
+                                    Play
+                                  </span>
+                                )}
+                              </div>
+                              <p className='text-sm text-gray-700 dark:text-gray-300'>{turn.ai_response_text}</p>
+                            </button>
+                          </div>
+                        ))}
+                        {pastSessionData.session.turns.length === 0 && (
+                          <p className='text-sm text-gray-500 dark:text-gray-400 text-center py-2'>
+                            No conversation turns in this session
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className='text-sm text-gray-500 dark:text-gray-400 text-center py-4'>
+                  No past conversations yet. Start your first interview!
+                </p>
+              )}
             </div>
           </div>
         </div>
