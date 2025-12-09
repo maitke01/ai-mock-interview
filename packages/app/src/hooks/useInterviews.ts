@@ -398,3 +398,39 @@ export const useInterviewSessions = () => {
     }
   })
 }
+
+interface SessionFeedback {
+  contentRelevance: number
+  clarityStructure: number
+  confidenceLevel: number
+  turnsScored: number
+  totalTurns: number
+}
+
+interface GetSessionFeedbackResponse {
+  success: boolean
+  feedback?: SessionFeedback
+  error?: string
+}
+
+/**
+ * Get aggregated feedback scores for a session
+ */
+export const useSessionFeedback = (sessionId: number | null) => {
+  return useQuery({
+    queryKey: ['sessionFeedback', sessionId],
+    queryFn: async (): Promise<GetSessionFeedbackResponse> => {
+      if (!sessionId) {
+        throw new Error('Session ID is required')
+      }
+
+      const response = await fetch(`/api/mock-interview-session/${sessionId}/feedback`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch session feedback')
+      }
+      return response.json()
+    },
+    enabled: !!sessionId,
+    refetchInterval: 5000, // Poll every 5 seconds to get updated scores
+  })
+}

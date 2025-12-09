@@ -22,6 +22,9 @@ type ConversationTurn = {
   ai_response_text: string
   video_url: string | null
   audio_url: string | null
+  content_relevance: number | null
+  clarity_structure: number | null
+  confidence_level: number | null
   created_at: number
 }
 
@@ -55,10 +58,24 @@ export class DurableMockInterview extends DurableObject<Env> {
         ai_response_text TEXT NOT NULL,
         video_url TEXT,
         audio_url TEXT,
+        content_relevance INTEGER,
+        clarity_structure INTEGER,
+        confidence_level INTEGER,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         FOREIGN KEY (session_id) REFERENCES interview_sessions(id) ON DELETE CASCADE
       ) strict;
     `)
+
+    // Migration: Add feedback columns if they don't exist
+    try {
+      this.ctx.storage.sql.exec(`ALTER TABLE conversation_turns ADD COLUMN content_relevance INTEGER`)
+    } catch { /* Column already exists */ }
+    try {
+      this.ctx.storage.sql.exec(`ALTER TABLE conversation_turns ADD COLUMN clarity_structure INTEGER`)
+    } catch { /* Column already exists */ }
+    try {
+      this.ctx.storage.sql.exec(`ALTER TABLE conversation_turns ADD COLUMN confidence_level INTEGER`)
+    } catch { /* Column already exists */ }
 
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS generated_videos (
@@ -336,6 +353,17 @@ The candidate has just responded. Continue the interview naturally.`
         data.sessionId
       )
 
+      // Trigger async feedback scoring
+      // Get the previous AI question (or use a default for first turn)
+      const previousAiQuestion = conversationHistory && conversationHistory.length > 0
+        ? conversationHistory[conversationHistory.length - 1]?.content || 'Tell me about yourself.'
+        : 'Tell me about yourself.'
+
+      // Use waitUntil to run feedback scoring asynchronously without blocking the response
+      this.ctx.waitUntil(
+        this.generateFeedbackScores(turn.id, data.userText, previousAiQuestion)
+      )
+
       return {
         success: true,
         turn: {
@@ -447,6 +475,178 @@ The candidate has just responded. Continue the interview naturally.`
       }
     } catch (error) {
       console.error('Error listing sessions:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Generate feedback score for a specific metric using AI
+   * The AI is instructed to end its response with a number 0-100
+   */
+  private async generateFeedbackScore(
+    metric: 'content_relevance' | 'clarity_structure' | 'confidence_level',
+    userText: string,
+    aiQuestion: string
+  ): Promise<number> {
+    const prompts = {
+      content_relevance: `You are evaluating a job interview response for CONTENT RELEVANCE.
+
+The interviewer asked: "${aiQuestion}"
+
+The candidate responded: "${userText}"
+
+Evaluate how relevant and on-topic the candidate's response is to the question asked. Consider:
+- Does the response directly address the question?
+- Are the examples and points made relevant to what was asked?
+- Does the candidate stay focused on the topic?
+
+Provide a brief 1-2 sentence evaluation, then end your response with ONLY a number from 0-100 representing the score. The number must be the last thing in your response.`,
+
+      clarity_structure: `You are evaluating a job interview response for CLARITY AND STRUCTURE.
+
+The interviewer asked: "${aiQuestion}"
+
+The candidate responded: "${userText}"
+
+Evaluate how clear and well-structured the candidate's response is. Consider:
+- Is the response easy to follow and understand?
+- Is it well-organized with a logical flow?
+- Does the candidate communicate their points clearly?
+
+Provide a brief 1-2 sentence evaluation, then end your response with ONLY a number from 0-100 representing the score. The number must be the last thing in your response.`,
+
+      confidence_level: `You are evaluating a job interview response for CONFIDENCE LEVEL.
+
+The interviewer asked: "${aiQuestion}"
+
+The candidate responded: "${userText}"
+
+Evaluate how confident the candidate appears based on their written response. Consider:
+- Does the response sound assured and self-confident?
+- Does the candidate use decisive language vs hedging/uncertain language?
+- Does the candidate demonstrate conviction in their abilities and experience?
+
+Provide a brief 1-2 sentence evaluation, then end your response with ONLY a number from 0-100 representing the score. The number must be the last thing in your response.`,
+    }
+
+    const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [{ role: 'user', content: prompts[metric] }],
+      temperature: 0.3,
+      max_tokens: 150,
+    })
+
+    const responseText = typeof response === 'object' && 'response' in response
+      ? (response.response as string)
+      : String(response)
+
+    // Extract the last number from the response
+    const numbers = responseText.match(/\d+/g)
+    if (numbers && numbers.length > 0) {
+      const score = parseInt(numbers[numbers.length - 1], 10)
+      // Clamp to 0-100 range
+      return Math.max(0, Math.min(100, score))
+    }
+
+    // Default to 50 if no number found
+    return 50
+  }
+
+  /**
+   * Generate all feedback scores for a turn asynchronously
+   * This runs in the background and updates the database when complete
+   */
+  async generateFeedbackScores(turnId: number, userText: string, previousAiQuestion: string) {
+    try {
+      // Run all three scoring calls in parallel
+      const [contentRelevance, clarityStructure, confidenceLevel] = await Promise.all([
+        this.generateFeedbackScore('content_relevance', userText, previousAiQuestion),
+        this.generateFeedbackScore('clarity_structure', userText, previousAiQuestion),
+        this.generateFeedbackScore('confidence_level', userText, previousAiQuestion),
+      ])
+
+      // Update the turn with the scores
+      this.ctx.storage.sql.exec(
+        `UPDATE conversation_turns
+         SET content_relevance = ?, clarity_structure = ?, confidence_level = ?
+         WHERE id = ?`,
+        contentRelevance,
+        clarityStructure,
+        confidenceLevel,
+        turnId
+      )
+
+      return {
+        success: true,
+        scores: {
+          contentRelevance,
+          clarityStructure,
+          confidenceLevel,
+        },
+      }
+    } catch (error) {
+      console.error('Error generating feedback scores:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Get aggregated feedback scores for a session
+   */
+  async getSessionFeedback(sessionId: number) {
+    try {
+      const turns = this.ctx.storage.sql
+        .exec<ConversationTurn>(
+          `SELECT * FROM conversation_turns WHERE session_id = ? ORDER BY turn_number ASC`,
+          sessionId
+        )
+        .toArray()
+
+      // Calculate averages for turns that have scores
+      const turnsWithScores = turns.filter(
+        t => t.content_relevance !== null && t.clarity_structure !== null && t.confidence_level !== null
+      )
+
+      if (turnsWithScores.length === 0) {
+        return {
+          success: true,
+          feedback: {
+            contentRelevance: 0,
+            clarityStructure: 0,
+            confidenceLevel: 0,
+            turnsScored: 0,
+            totalTurns: turns.length,
+          },
+        }
+      }
+
+      const avgContentRelevance = Math.round(
+        turnsWithScores.reduce((sum, t) => sum + (t.content_relevance || 0), 0) / turnsWithScores.length
+      )
+      const avgClarityStructure = Math.round(
+        turnsWithScores.reduce((sum, t) => sum + (t.clarity_structure || 0), 0) / turnsWithScores.length
+      )
+      const avgConfidenceLevel = Math.round(
+        turnsWithScores.reduce((sum, t) => sum + (t.confidence_level || 0), 0) / turnsWithScores.length
+      )
+
+      return {
+        success: true,
+        feedback: {
+          contentRelevance: avgContentRelevance,
+          clarityStructure: avgClarityStructure,
+          confidenceLevel: avgConfidenceLevel,
+          turnsScored: turnsWithScores.length,
+          totalTurns: turns.length,
+        },
+      }
+    } catch (error) {
+      console.error('Error getting session feedback:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

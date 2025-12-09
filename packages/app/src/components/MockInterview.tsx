@@ -8,6 +8,7 @@ import {
   useEndInterviewSession,
   useInterviewSessions,
   useInterviewSession,
+  useSessionFeedback,
   type ConversationTurn
 } from '../hooks/useInterviews'
 import Header from './Header'
@@ -28,6 +29,9 @@ const MockInterview: React.FC = () => {
   // Fetch past sessions
   const { data: sessionsData, isLoading: isLoadingSessions } = useInterviewSessions()
   const { data: pastSessionData } = useInterviewSession(selectedPastSessionId)
+
+  // Fetch feedback scores for current session (polls every 5 seconds)
+  const { data: feedbackData } = useSessionFeedback(sessionId)
 
   const {
     isInitialized,
@@ -524,35 +528,58 @@ const MockInterview: React.FC = () => {
             <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6'>
               <h2 className='text-xl font-semibold mb-4 text-gray-900 dark:text-white'>AI Feedback</h2>
 
+              {/* Scoring info */}
+              {feedbackData?.feedback && feedbackData.feedback.totalTurns > 0 && (
+                <p className='text-xs text-gray-500 dark:text-gray-400 mb-4'>
+                  Based on {feedbackData.feedback.turnsScored} of {feedbackData.feedback.totalTurns} response{feedbackData.feedback.totalTurns !== 1 ? 's' : ''}
+                  {feedbackData.feedback.turnsScored < feedbackData.feedback.totalTurns && ' (scoring in progress...)'}
+                </p>
+              )}
+
               {/* Metrics */}
               <div className='space-y-4 mb-6'>
                 <div>
                   <div className='flex items-center justify-between mb-2'>
                     <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Content Relevance</span>
-                    <span className='text-sm font-semibold text-blue-600 dark:text-blue-400'>0%</span>
+                    <span className='text-sm font-semibold text-blue-600 dark:text-blue-400'>
+                      {feedbackData?.feedback?.contentRelevance ?? 0}%
+                    </span>
                   </div>
                   <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
-                    <div className='bg-blue-600 h-2 rounded-full' style={{ width: '0%' }}></div>
+                    <div
+                      className='bg-blue-600 h-2 rounded-full transition-all duration-500'
+                      style={{ width: `${feedbackData?.feedback?.contentRelevance ?? 0}%` }}
+                    ></div>
                   </div>
                 </div>
 
                 <div>
                   <div className='flex items-center justify-between mb-2'>
                     <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Clarity & Structure</span>
-                    <span className='text-sm font-semibold text-green-600 dark:text-green-400'>0%</span>
+                    <span className='text-sm font-semibold text-green-600 dark:text-green-400'>
+                      {feedbackData?.feedback?.clarityStructure ?? 0}%
+                    </span>
                   </div>
                   <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
-                    <div className='bg-green-600 h-2 rounded-full' style={{ width: '0%' }}></div>
+                    <div
+                      className='bg-green-600 h-2 rounded-full transition-all duration-500'
+                      style={{ width: `${feedbackData?.feedback?.clarityStructure ?? 0}%` }}
+                    ></div>
                   </div>
                 </div>
 
                 <div>
                   <div className='flex items-center justify-between mb-2'>
                     <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Confidence Level</span>
-                    <span className='text-sm font-semibold text-purple-600 dark:text-purple-400'>0%</span>
+                    <span className='text-sm font-semibold text-purple-600 dark:text-purple-400'>
+                      {feedbackData?.feedback?.confidenceLevel ?? 0}%
+                    </span>
                   </div>
                   <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
-                    <div className='bg-purple-600 h-2 rounded-full' style={{ width: '0%' }}></div>
+                    <div
+                      className='bg-purple-600 h-2 rounded-full transition-all duration-500'
+                      style={{ width: `${feedbackData?.feedback?.confidenceLevel ?? 0}%` }}
+                    ></div>
                   </div>
                 </div>
               </div>
