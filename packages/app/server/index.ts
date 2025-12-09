@@ -25,6 +25,10 @@ import { optimizeResumeRoute } from './lib/routes/resume/optimizeResumeRoute'
 import { readabilityRoute } from './lib/routes/resume/readabilityRoute'
 import { saveExtractedTextRoute } from './lib/routes/resume/saveExtractedTextRoute'
 import { generateJobDescriptionRoute } from './lib/routes/resume/generateJobDescriptionRoute'
+import { scoreResumeRoute } from './lib/routes/resume/scoreResumeRoute'
+import { getResumeScoresRoute } from './lib/routes/resume/getResumeScoresRoute'
+import { saveDraftRoute } from './lib/routes/resume/saveDraftRoute'
+import { getDraftRoute } from './lib/routes/resume/getDraftRoute'
 import { upsertPreferenceRoute } from './lib/routes/preferences/upsertPreferenceRoute'
 import { searchPreferencesRoute } from './lib/routes/preferences/searchPreferencesRoute'
 import { listPreferencesRoute } from './lib/routes/preferences/listPreferencesRoute'
@@ -60,6 +64,10 @@ const app = new Hono({ strict: false })
   .post('/api/readability', readabilityRoute)
   .post('/api/save-extracted-text', saveExtractedTextRoute)
   .post('/api/generate-job-description', generateJobDescriptionRoute)
+  .post('/api/score-resume', scoreResumeRoute)
+  .get('/api/resume-scores', getResumeScoresRoute)
+  .post('/api/save-draft', saveDraftRoute)
+  .get('/api/get-draft/:templateName', getDraftRoute)
   // Mock interview session routes
   .post('/api/mock-interview-session/start', startMockInterviewSessionRoute)
   .get('/api/mock-interview-session/list', listMockInterviewSessionsRoute)

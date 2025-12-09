@@ -214,6 +214,133 @@ export class DurableAccount extends DurableObject<Env> {
     return { success: true }
   }
 
+  saveDraftContent (resumeId: number, content: {
+    headerContent?: string
+    sidebarContent?: string
+    mainContent?: string
+  }) {
+    const { headerContent, sidebarContent, mainContent } = content
+
+    // Check if a section entry already exists
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    if (existing.length > 0) {
+      // Update existing
+      this.ctx.storage.sql.exec(
+        `UPDATE resume_sections
+         SET header_content = ?, sidebar_content = ?, main_content = ?, updated_date = strftime('%s', 'now')
+         WHERE resume_id = ?`,
+        headerContent ?? null,
+        sidebarContent ?? null,
+        mainContent ?? null,
+        resumeId
+      )
+    } else {
+      // Insert new
+      this.ctx.storage.sql.exec(
+        `INSERT INTO resume_sections (resume_id, header_content, sidebar_content, main_content) VALUES (?, ?, ?, ?)`,
+        resumeId,
+        headerContent ?? null,
+        sidebarContent ?? null,
+        mainContent ?? null
+      )
+    }
+
+    return { success: true }
+  }
+
+  getDraftContent (resumeId: number) {
+    const result = this.ctx.storage.sql.exec<{
+      header_content: string | null
+      sidebar_content: string | null
+      main_content: string | null
+    }>(
+      `SELECT header_content, sidebar_content, main_content FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, content: null }
+    }
+
+    return {
+      success: true,
+      content: {
+        headerContent: result[0].header_content,
+        sidebarContent: result[0].sidebar_content,
+        mainContent: result[0].main_content,
+      }
+    }
+  }
+
+  // Get draft by template name (for scratch/modern/classic templates)
+  getDraftByTemplateName (templateName: string) {
+    const result = this.ctx.storage.sql.exec<{
+      id: number
+      header_content: string | null
+      sidebar_content: string | null
+      main_content: string | null
+    }>(
+      `SELECT ur.id, rs.header_content, rs.sidebar_content, rs.main_content
+       FROM uploaded_resumes ur
+       LEFT JOIN resume_sections rs ON rs.resume_id = ur.id
+       WHERE ur.file_name = ?
+       ORDER BY ur.upload_date DESC
+       LIMIT 1`,
+      `draft-${templateName}`
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, resumeId: null, content: null }
+    }
+
+    return {
+      success: true,
+      resumeId: result[0].id,
+      content: {
+        headerContent: result[0].header_content,
+        sidebarContent: result[0].sidebar_content,
+        mainContent: result[0].main_content,
+      }
+    }
+  }
+
+  // Create or update a draft by template name
+  saveDraftByTemplateName (templateName: string, content: {
+    headerContent?: string
+    sidebarContent?: string
+    mainContent?: string
+  }) {
+    const fileName = `draft-${templateName}`
+
+    // Check if draft already exists
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM uploaded_resumes WHERE file_name = ?`,
+      fileName
+    ).toArray()
+
+    let resumeId: number
+    if (existing.length > 0) {
+      resumeId = existing[0].id
+    } else {
+      // Create a new resume entry for this draft
+      const result = this.ctx.storage.sql.exec<{ id: number }>(
+        `INSERT INTO uploaded_resumes (file_name, original_file_name, file_size, mime_type, file_data)
+         VALUES (?, ?, 0, 'text/plain', X'')
+         RETURNING id`,
+        fileName,
+        fileName
+      ).one()
+      resumeId = result.id
+    }
+
+    // Save the content
+    return this.saveDraftContent(resumeId, content)
+  }
+
   scheduleMockInterview (data: {
     title: string
     description?: string
@@ -420,6 +547,85 @@ export class DurableAccount extends DurableObject<Env> {
       success: true,
       interviewId: result.id
     }
+  }
+
+  saveResumeScores (resumeId: number, scores: {
+    atsScore: number
+    readabilityScore: number
+    completionScore: number
+  }) {
+    const { atsScore, readabilityScore, completionScore } = scores
+    const resultData = JSON.stringify({ atsScore, readabilityScore, completionScore })
+
+    // Check if scores already exist for this resume
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM ai_results WHERE resume_id = ? AND result_type = 'scores'`,
+      resumeId
+    ).toArray()
+
+    if (existing.length > 0) {
+      // Update existing scores
+      this.ctx.storage.sql.exec(
+        `UPDATE ai_results SET result_data = ?, created_date = strftime('%s', 'now') WHERE resume_id = ? AND result_type = 'scores'`,
+        resultData,
+        resumeId
+      )
+    } else {
+      // Insert new scores
+      this.ctx.storage.sql.exec(
+        `INSERT INTO ai_results (resume_id, result_type, result_data) VALUES (?, 'scores', ?)`,
+        resumeId,
+        resultData
+      )
+    }
+
+    return { success: true }
+  }
+
+  getResumeScores (resumeId: number) {
+    const result = this.ctx.storage.sql.exec<{ result_data: string }>(
+      `SELECT result_data FROM ai_results WHERE resume_id = ? AND result_type = 'scores'`,
+      resumeId
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, scores: null }
+    }
+
+    const scores = JSON.parse(result[0].result_data) as {
+      atsScore: number
+      readabilityScore: number
+      completionScore: number
+    }
+
+    return { success: true, scores }
+  }
+
+  getAllResumeScores () {
+    // Get the most recent resume's scores (for dashboard display)
+    const result = this.ctx.storage.sql.exec<{
+      resume_id: number
+      result_data: string
+    }>(
+      `SELECT ar.resume_id, ar.result_data
+       FROM ai_results ar
+       JOIN uploaded_resumes ur ON ar.resume_id = ur.id
+       WHERE ar.result_type = 'scores'
+       ORDER BY ur.upload_date DESC
+       LIMIT 1`
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, scores: null, resumeId: null }
+    }
+
+    const scores = JSON.parse(result[0].result_data) as {
+      atsScore: number
+      readabilityScore: number
+      completionScore: number
+    }
+
+    return { success: true, scores, resumeId: result[0].resume_id }
   }
 
   deleteMockInterview (interviewId: number) {

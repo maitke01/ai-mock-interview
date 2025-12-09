@@ -98,12 +98,12 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
       {/* Open Button */}
       <button
         onClick={() => setSidebarOpen(true)}
-        className={`fixed top-1/2 left-0 -translate-y-1/2 z-40 bg-blue-600 text-white p-4 rounded-r-xl shadow-2xl hover:bg-blue-700 transition-all duration-300 hover:pl-5 ${
+        className={`fixed top-1/2 left-0 -translate-y-1/2 z-40 !bg-blue-600 p-4 rounded-r-xl shadow-2xl hover:!bg-blue-700 transition-all duration-300 hover:pl-5 ${
           isSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         title="Open To-Do List"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
       </button>
@@ -112,7 +112,7 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
       <div
         ref={sidebarRef}
         style={{ width: `${sidebarWidth}px` }}
-        className={`fixed top-0 left-0 h-full bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col transition-all duration-300 ${
+        className={`fixed top-0 left-0 h-full !bg-white dark:!bg-gray-900 shadow-2xl z-50 flex flex-col transition-all duration-300 ${
           isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
         }`}
       >
@@ -126,10 +126,10 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-2 rounded-full transition-all duration-200 hover:shadow-[0_0_15px_rgba(255,255,255,0.6)]"
+            className="p-2 rounded-full transition-all duration-200 !bg-transparent hover:shadow-[0_0_15px_rgba(255,255,255,0.6)] hover:!bg-blue-700"
             title="Close To-Do List"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
@@ -149,7 +149,7 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
             >
               {f}
               {f === 'active' && activeTodosCount > 0 && (
-                <span className="ml-1 text-xs bg-blue-600 text-white rounded-full px-2 py-0.5">
+                <span className="ml-1 text-xs !bg-blue-600 text-white rounded-full px-2 py-0.5">
                   {activeTodosCount}
                 </span>
               )}
@@ -264,7 +264,7 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
               </select>
               <button
                 onClick={handleAddTodo}
-                className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg"
+                className="px-6 py-2 !bg-blue-600 text-white text-sm font-medium rounded-lg hover:!bg-blue-700 transition-all shadow-md hover:shadow-lg"
               >
                 Add
               </button>
@@ -277,9 +277,9 @@ const TodoList: React.FC<TodoListProps> = ({ onWidthChange }) => {
       <div
         onMouseDown={() => setIsResizing(true)}
         style={{ left: `${sidebarWidth}px` }}
-        className="fixed top-0 h-full w-1 cursor-ew-resize z-50 hover:bg-blue-500 transition-colors group"
+        className="fixed top-0 h-full w-1 cursor-ew-resize z-50 hover:!bg-blue-500 transition-colors group"
       >
-        <div className="absolute top-1/2 -translate-y-1/2 -right-1 w-3 h-12 bg-blue-500 rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div className="absolute top-1/2 -translate-y-1/2 -right-1 w-3 h-12 !bg-blue-500 rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
       </div>
     </>
   );

@@ -6,21 +6,23 @@ import { useDeleteInterview, useInterviews, useSessionsPerformance } from '../ho
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Header from './Header'
 import TodoList from './TodoList'
+import { useResumeScoresStore } from '../stores/resumeScoresStore'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
-  const [atsScore, setAtsScore] = useState<number | null>(null)
-  const [resumeCompletion, setResumeCompletion] = useState<number>(0)
-  const [keywordMatch, setKeywordMatch] = useState<number | null>(null)
-  const [jobRoleMatch, setJobRoleMatch] = useState<number>(0)
   const [mainContentMargin, setMainContentMargin] = useState(320)
-  const [readabilityScore, setReadabilityScore] = useState<number | null>(null)
   const [interviewToCancel, setInterviewToCancel] = useState<number | null>(null)
   const [showPopup, setShowPopup] = useState(false)
   const [popupMessage, setPopupMessage] = useState('')
   const { data: interviewsData, isLoading: interviewsLoading } = useInterviews({ upcoming: true })
   const deleteInterviewMutation = useDeleteInterview()
   const { data: performanceData } = useSessionsPerformance()
+
+  // Get scores from Zustand store (fetched from backend)
+  const { scores, fetchScores } = useResumeScoresStore()
+  const atsScore = scores.atsScore
+  const readabilityScore = scores.readabilityScore
+  const resumeCompletion = scores.completionScore ?? 0
 
   const scheduledInterviews = interviewsData?.interviews || []
 
@@ -31,123 +33,19 @@ const Dashboard: React.FC = () => {
     confidence: session.feedback?.confidenceLevel ?? 0,
   })) || []
 
-  function recomputeResumeCompletion() {
-    try {
-      const raw = sessionStorage.getItem('selectedResume')
-      let selected: any = null
-      if (raw) selected = JSON.parse(raw)
-
-      // Heuristic weights (kept consistent with ResumeBuilder):
-      // - has resume text: 20
-      // - optimized resume present: 40
-      // - keywordMatch (0-100) contributes up to 40
-      let score = 0
-      const hasText = selected && (selected.text || '').toString().trim().length > 0
-      const hasOptimized = selected && typeof selected.optimized === 'string' && (selected.optimized as string).trim().length > 0
-
-      if (hasText) score += 20
-      if (hasOptimized) score += 40
-
-      const kmRaw = localStorage.getItem('keywordMatch')
-      const km = kmRaw !== null ? Number(kmRaw) : (keywordMatch ?? null)
-      if (km !== null && !Number.isNaN(km)) {
-        const kmContribution = Math.round(Math.max(0, Math.min(100, Number(km))) * 0.4) // scale to 0-40
-        score += kmContribution
-      }
-
-      if (score > 100) score = 100
-      console.debug('Dashboard: recomputeResumeCompletion', { hasText, hasOptimized, km: kmRaw ?? keywordMatch, score })
-      setResumeCompletion(score)
-      try { localStorage.setItem('resumeCompletion', String(score)) } catch (e) { /* noop */ }
-    } catch (e) {
-      console.warn('Failed to recompute resume completion', e)
-    }
-  }
-
+  // Fetch scores from backend on mount and poll if scores are null
   useEffect(() => {
-    const s = localStorage.getItem('atsScore')
-    if (s !== null) setAtsScore(Number(s))
+    fetchScores()
 
-    const rc = localStorage.getItem('resumeCompletion')
-    if (rc !== null) setResumeCompletion(Number(rc))
-
-    const km = localStorage.getItem('keywordMatch')
-    if (km !== null) setKeywordMatch(Number(km))
-    if (km !== null) setJobRoleMatch(Number(km))
-
-    const rs = localStorage.getItem('readabilityScore')
-    if (rs !== null) setReadabilityScore(Number(rs))
-
-    // Ensure derived completion is calculated on mount
-    recomputeResumeCompletion()
-  }, [])
-
-  useEffect(() => {
-    ; (window as any).updateAtsScore = (n: number) => {
-      setAtsScore(n)
-      localStorage.setItem('atsScore', String(n))
-    }
-
-      ; (window as any).updateReadabilityScore = (n: number) => {
-        setReadabilityScore(n)
-        localStorage.setItem('readabilityScore', String(n))
+    // Poll every 3 seconds if scores are null (scoring may be in progress)
+    const interval = setInterval(() => {
+      if (scores.atsScore === null) {
+        fetchScores()
       }
+    }, 3000)
 
-      ; (window as any).updateResumeCompletion = (n: number) => {
-        setResumeCompletion(n)
-        try { localStorage.setItem('resumeCompletion', String(n)) } catch (e) { /* noop */ }
-        // keep derived state consistent
-        try { recomputeResumeCompletion() } catch (e) { /* noop */ }
-      }
-
-    const onScores = (evt: any) => {
-      try {
-        const d = evt?.detail || {}
-        if (d.atsScore !== undefined && d.atsScore !== null) {
-          const a = Number(d.atsScore)
-          if (Number.isFinite(a)) {
-            setAtsScore(a)
-            localStorage.setItem('atsScore', String(a))
-          }
-        }
-        if (d.readabilityScore !== undefined && d.readabilityScore !== null) {
-          const r = Number(d.readabilityScore)
-          if (Number.isFinite(r)) {
-            setReadabilityScore(r)
-            localStorage.setItem('readabilityScore', String(r))
-          }
-        }
-        if (d.keywordMatch !== undefined && d.keywordMatch !== null) {
-          const k = Number(d.keywordMatch)
-          if (Number.isFinite(k)) {
-            setKeywordMatch(k)
-            localStorage.setItem('keywordMatch', String(k))
-            // keep job role match in sync with keywordMatch
-            try { setJobRoleMatch(k) } catch (e) { /* noop */ }
-          }
-        }
-        if (d.resumeCompletion !== undefined && d.resumeCompletion !== null) {
-          const rc = Number(d.resumeCompletion)
-          if (Number.isFinite(rc)) {
-            setResumeCompletion(rc)
-            localStorage.setItem('resumeCompletion', String(rc))
-          }
-        }
-        // After applying any direct values, recompute a derived resumeCompletion so the dashboard reflects combined progress
-        recomputeResumeCompletion()
-      } catch (e) {
-        console.warn('resumeScoresUpdated handler error', e)
-      }
-    }
-
-    window.addEventListener('resumeScoresUpdated', onScores)
-
-    return () => {
-      window.removeEventListener('resumeScoresUpdated', onScores)
-    }
-  }, [])
-
-  // recomputeResumeCompletion is defined above and hoisted; calling that implementation here when needed
+    return () => clearInterval(interval)
+  }, [fetchScores, scores.atsScore])
 
 
   const formatDateTime = (scheduledDate: number) => {
@@ -238,15 +136,6 @@ const Dashboard: React.FC = () => {
                       <div className='bg-blue-600 dark:bg-blue-500 h-3 rounded-full' style={{ width: '0%' }}></div>
                     </div>
                   </div>
-                  <div>
-                    <div className='flex justify-between items-center mb-2'>
-                      <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>Job Role Match</span>
-                      <span className='text-sm font-medium text-gray-900 dark:text-white'>{jobRoleMatch ?? 0}%</span>
-                    </div>
-                    <div className='w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3'>
-                      <div className='bg-blue-600 dark:bg-blue-500 h-3 rounded-full' style={{ width: `${jobRoleMatch}%` }}></div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -335,16 +224,16 @@ const Dashboard: React.FC = () => {
                       <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>ATS Score</div>
                     </div>
 
-                    {/* make clickable for Keyword Match */}
+                    {/* make clickable for Completion */}
                     <div
                       className='text-center bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors'
                       onClick={() => {
-                        setPopupMessage(`Your Keyword Match Score is ${keywordMatch ?? 0}/100. This shows how well your resume matches the keywords from job descriptions you've analyzed.`)
+                        setPopupMessage(`Your Completion Score is ${resumeCompletion}/100. This AI-powered score evaluates how complete your resume is, including contact info, work experience, education, skills, and detailed accomplishments.`)
                         setShowPopup(true)
                       }}>
-                      <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{keywordMatch ?? 0}</div>
+                      <div className='text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1'>{resumeCompletion}</div>
                       <div className='text-xs text-gray-500 dark:text-gray-400 mb-1'>/100</div>
-                      <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Keyword Match</div>
+                      <div className='text-sm font-medium text-gray-700 dark:text-gray-300'>Completion</div>
                     </div>
 
                     {/* make clickable for Readability */}

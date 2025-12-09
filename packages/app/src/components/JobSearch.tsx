@@ -36,7 +36,6 @@ const JobSearch: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false)
   const [confirmMessage, setConfirmMessage] = useState('')
   const confirmActionRef = useRef<(() => Promise<void>) | null>(null)
-  const [lastEmbeddingPreview, setLastEmbeddingPreview] = useState<number | null>(null)
   const [mainContentMargin, setMainContentMargin] = useState(320);
   const [availableResumes, setAvailableResumes] = useState<DbResume[]>([])
   const [loadingResumes, setLoadingResumes] = useState(true)
@@ -45,7 +44,6 @@ const JobSearch: React.FC = () => {
 
   const { savePreference, deletePreference, listPreferences, loading: prefLoading } = usePreferences()
   const [savedPreferences, setSavedPreferences] = useState<Array<any>>([])
-  const [selectedPrefId, setSelectedPrefId] = useState<string | null>(null)
 
   // Fetch resumes from backend on mount
   useEffect(() => {
@@ -265,13 +263,11 @@ const JobSearch: React.FC = () => {
           setShowPopup(true)
           const newPref = { id: res?.data?.id || ('local-' + Math.random().toString(36).slice(2, 9)), userId: 'public', name, text: jobDescription, metadata, createdAt: Date.now() }
           setSavedPreferences((prev) => [newPref, ...(prev || [])])
-          setSelectedPrefId(newPref.id)
         } else {
           setPopupMessage('Job preference saved!')
           setShowPopup(true)
           const newPref = { id: res?.data?.id || ('temp-' + Math.random().toString(36).slice(2, 9)), userId: undefined, name, text: jobDescription, metadata, createdAt: Date.now() }
           setSavedPreferences((prev) => [newPref, ...(prev || [])])
-          setSelectedPrefId(newPref.id)
           try { window.dispatchEvent(new CustomEvent('preferencesUpdated', { detail: { id: res?.data?.id || null } })) } catch { }
         }
       } else {
@@ -535,11 +531,6 @@ const JobSearch: React.FC = () => {
               >
                 Analyze Skill Gap against Selected Resume
               </button>
-              {lastEmbeddingPreview !== null && (
-                <div className='mt-2 text-xs text-gray-600 dark:text-gray-300'>
-                  Embedding computed (length: {lastEmbeddingPreview}).
-                </div>
-              )}
               <div className='mt-4'>
                 <h4 className='text-sm font-semibold text-gray-900 dark:text-white mb-2'>Saved Job Preferences</h4>
                 <div className='flex flex-col gap-2'>
@@ -578,7 +569,6 @@ const JobSearch: React.FC = () => {
                               } catch (e) { /* ignore and fallback */ }
                               setJobDescription(p.text || '')
                               try { setKeywords(Array.isArray(p.metadata?.keywords) ? p.metadata.keywords : []) } catch { setKeywords([]) }
-                              setSelectedPrefId(p.id)
                             }}
                           >
                             Load

@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { SelectedResume } from '../types/resume'
 import { extractImages, extractText } from 'unpdf'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
@@ -10,6 +9,7 @@ import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
 import CleanPdfEditor from './CleanPdfEditor'
 import TodoList from './TodoList'
 import { marked } from 'marked'
+import { useResumeScoresStore } from '../stores/resumeScoresStore'
 
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
@@ -18,6 +18,7 @@ type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
 const ResumeBuilder: React.FC = () => {
   const navigate = useNavigate()
+  const scoreResume = useResumeScoresStore((state) => state.scoreResume)
   const inputRef = useRef<HTMLInputElement>(null)
   const colorInputRef = useRef<HTMLInputElement>(null)
   const highlightInputRef = useRef<HTMLInputElement>(null)
@@ -36,7 +37,6 @@ const ResumeBuilder: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
   const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any } }>({})
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
-  const [optimizingFiles, setOptimizingFiles] = useState<string[]>([])
   const [extractingFiles, setExtractingFiles] = useState<string[]>([])
   const [lastOptimizedFile, setLastOptimizedFile] = useState<string | null>(null)
   // Database resume tracking - maps file name to database ID
@@ -131,17 +131,17 @@ const ResumeBuilder: React.FC = () => {
   }
 
   // Whitelist fonts for Quill
-  const Font = Quill.import('formats/font');
+  const Font = Quill.import('formats/font') as any;
   Font.whitelist = ['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 'Helvetica', 'Calibri', 'Tahoma', 'Comic Sans MS'];
   Quill.register(Font, true);
   
   // Register alignment
-  const Align = Quill.import('formats/align');
+  const Align = Quill.import('formats/align') as any;
   Align.whitelist = ['left', 'center', 'right', 'justify'];
   Quill.register(Align, true);
   
   // Register custom size attributor
-  const Size = Quill.import('attributors/style/size');
+  const Size = Quill.import('attributors/style/size') as any;
   Size.whitelist = ['8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '72px'];
   Quill.register(Size, true);
   // Using latexTemplates imported from data file
@@ -186,6 +186,11 @@ const ResumeBuilder: React.FC = () => {
               } catch (err) {
                 console.error('Failed to save extracted text:', err)
               }
+
+              // Trigger AI scoring via Zustand store
+              scoreResume(result.resumeId, content.text).catch(err =>
+                console.error('Failed to score resume:', err)
+              )
             }
           }
         } else {
@@ -311,16 +316,6 @@ const ResumeBuilder: React.FC = () => {
     setSelectedFiles(prev => prev.filter(f => f !== fileName))
   }
 
-  const extractSelected = async () => {
-    for (const fileName of selectedFiles) {
-      const file = resumeFiles.find(f => f.name === fileName)
-      if (file && file.type === 'application/pdf') {
-        const content = await extractPdfContent(file)
-        setPdfData(prev => ({ ...prev, [file.name]: content }))
-      }
-    }
-  }
-
   const handleTemplateChange = (section: 'header' | 'sidebar' | 'mainContent', value: string) => {
     setResumeTemplate(prev => ({ ...prev, [section]: value }))
   }
@@ -386,117 +381,6 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const optimizeResumeWithAI = async (fileName: string) => {
-    const data = pdfData[fileName]
-    if (!data || !data.text.trim()) {
-      setPopupMessage('No text content found to optimize')
-      setShowPopup(true)
-      return
-    }
-
-    setOptimizingFiles(prev => [...prev, fileName])
-    try {
-      const response = await fetch('/api/optimize-resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: data.text, metadata: data.metadata, fileName })
-      })
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-      const result = await response.json()
-      const optimized = result && result.optimizedResume ? result.optimizedResume : String(data.text)
-      // store optimized version and set preview target
-      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
-      setLastOptimizedFile(fileName)
-
-
-      // prefer higher of server-returned readability and a local readability computed from the
-      // selected/extracted text (resume-style text often scores higher when newlines/bullets
-      // are treated as sentence boundaries). This ensures the Dashboard reflects the uploaded/selected
-      // PDF content rather than a low server value.
-      // using component-level `computeReadability` helper
-
-      // Compute a boosted/local readability from the selected/extracted text so the
-      // Dashboard reflects the resume you uploaded/selected. Use the boosted helper
-      // to introduce small, deterministic variability for long resumes.
-      const finalReadability: number = computeBoostedReadability(data.text)
-
-      if (typeof (window as any)?.updateReadabilityScore === 'function') {
-        console.debug('ResumeBuilder: calling updateReadabilityScore with local', finalReadability)
-          ; (window as any).updateReadabilityScore(finalReadability)
-      } else {
-        console.debug('ResumeBuilder: updateReadabilityScore not available, writing to localStorage', finalReadability)
-        try { localStorage.setItem('readabilityScore', String(finalReadability)) } catch (e) { /* noop */ }
-      }
-
-      // Also request ATS score for the optimized resume and update dashboard
-      let finalAts: number | null = null
-      try {
-        // Request ATS score based on the selected/extracted text (the uploaded/selected PDF)
-        // so the Dashboard reflects the original resume content rather than only the optimized output.
-        const ares = await fetch('/api/ats-score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resumeText: data.text })
-        })
-        if (ares.ok) {
-          const ajson: any = await ares.json()
-          const atsRaw = ajson?.atsScore ?? ajson?.score ?? null
-          const ats = atsRaw !== null && atsRaw !== undefined ? Number(atsRaw) : null
-          if (ats !== null && isFinite(ats)) {
-            if (typeof (window as any)?.updateAtsScore === 'function') {
-              console.debug('ResumeBuilder: calling updateAtsScore with', ats)
-                ; (window as any).updateAtsScore(ats);
-            } else {
-              try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
-            }
-            // remember final ATS for event dispatch
-            finalAts = ats
-          }
-        } else {
-          console.warn('/api/ats-score returned non-ok status', ares.status)
-        }
-      } catch (err) {
-        console.warn('Failed to fetch ATS score', err)
-      }
-      // dispatch a custom event so Dashboard will always receive both values
-      try {
-        const detail: any = {}
-        if (typeof finalAts !== 'undefined') detail.atsScore = finalAts
-        if (typeof finalReadability !== 'undefined' && finalReadability !== null) detail.readabilityScore = finalReadability
-        if (Object.keys(detail).length > 0) {
-          window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail }))
-        }
-      } catch (e) {
-        console.warn('Failed to dispatch resumeScoresUpdated event', e)
-      }
-    } catch (error) {
-      console.error('Error optimizing resume:', error)
-      setPopupMessage('Network error while optimizing resume. A local readability estimate will be used.')
-      setShowPopup(true)
-      // Apply a local fallback so the dashboard reflects a change
-      try {
-        const fallbackText = data.text || ''
-        const localScore = computeBoostedReadability(fallbackText)
-
-        setAiOptimizedResumes(prev => ({ ...prev, [fileName]: fallbackText }))
-        setLastOptimizedFile(fileName)
-
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
-            ; (window as any).updateReadabilityScore(localScore)
-        } else if (localScore !== null) {
-          console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to localStorage', localScore)
-          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
-        }
-      } catch (e) {
-        console.warn('Failed to apply local fallback after optimize error', e)
-      }
-    } finally {
-      setOptimizingFiles(prev => prev.filter(n => n !== fileName))
-    }
-  }
-
   const handleOptimizeInModal = async () => {
     if (!fileToOptimize || !extractedTextForOptimize.trim()) {
       setPopupMessage('No text content to optimize')
@@ -531,11 +415,6 @@ const ResumeBuilder: React.FC = () => {
         // Always use the local computed readability from the extracted text when optimizing
         // in the modal so Dashboard reflects the uploaded/selected resume content.
         const finalScore = computeBoostedReadability(extractedTextForOptimize)
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          (window as any).updateReadabilityScore(finalScore)
-        } else {
-          try { localStorage.setItem('readabilityScore', String(finalScore)) } catch (e) { /* noop */ }
-        }
 
         // Also request ATS score for the selected/extracted resume text so Dashboard reflects
         // the uploaded/selected PDF content rather than only the optimized output.
@@ -550,11 +429,6 @@ const ResumeBuilder: React.FC = () => {
           const atsRaw = ajson?.atsScore ?? ajson?.score ?? null
           const ats = atsRaw !== null && atsRaw !== undefined ? Number(atsRaw) : null
           if (ats !== null && isFinite(ats)) {
-            if (typeof (window as any)?.updateAtsScore === 'function') {
-              (window as any).updateAtsScore(ats)
-            } else {
-              try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
-            }
             modalFinalAts = ats
           }
         } else {
@@ -594,21 +468,6 @@ const ResumeBuilder: React.FC = () => {
 
     // Close modal
     setIsOptimizeModalOpen(false);
-
-    // Notify Dashboard of current scores (compute readability from applied optimized text)
-    try {
-      const detail: any = {}
-      const rnum = computeBoostedReadability(optimizedTextPreview)
-      if (Number.isFinite(rnum)) detail.readabilityScore = rnum
-      const as = localStorage.getItem('atsScore')
-      if (as !== null) {
-        const anum = Number(as)
-        if (Number.isFinite(anum)) detail.atsScore = anum
-      }
-      if (Object.keys(detail).length > 0) window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail }))
-    } catch (e) {
-      console.warn('Failed to dispatch resumeScoresUpdated from applyOptimizedText', e)
-    }
   };
 
   const handleExtractAndOptimize = async () => {
@@ -698,7 +557,7 @@ const ResumeBuilder: React.FC = () => {
         placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
       })
 
-      const handleTextChange = (delta: any, oldDelta: any, source: string) => {
+      const handleTextChange = () => {
         if (mainContentQuill.current) {
           handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
         }
@@ -789,22 +648,13 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const applyFormat = (format: string, value: any) => {
-    const quill = getActiveQuill();
-    if (!quill) return;
-    const range = quill.getSelection();
-    // We can format even with no selection, for the cursor.
-    if (range) {
-      quill.format(format, value);
-    }
-  };
-
   const applyBold = () => {
     const quill = getActiveQuill()
     if (!quill) return
     
     const range = quill.getSelection();
     // We can format even with no selection, for the cursor.
+    // @ts-expect-error
     const currentFormat = quill.getFormat(range);
     quill.format('bold', !currentFormat.bold);
     
@@ -816,6 +666,7 @@ const ResumeBuilder: React.FC = () => {
     if (!quill) return
     
     const range = quill.getSelection();
+    // @ts-expect-error
     const currentFormat = quill.getFormat(range);
     quill.format('italic', !currentFormat.italic);
 
@@ -827,6 +678,7 @@ const ResumeBuilder: React.FC = () => {
     if (!quill) return
     
     const range = quill.getSelection();
+    // @ts-expect-error
     const currentFormat = quill.getFormat(range);
     quill.format('underline', !currentFormat.underline);
 
@@ -838,6 +690,7 @@ const ResumeBuilder: React.FC = () => {
     if (!quill) return
     
     const range = quill.getSelection();
+    // @ts-expect-error
     const currentFormat = quill.getFormat(range);
     quill.format('strike', !currentFormat.strike);
   }
@@ -907,28 +760,6 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const applySuperscript = () => {
-    const quill = getActiveQuill()
-    if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('script', currentFormat.script === 'super' ? false : 'super')
-    }
-  }
-
-  const applySubscript = () => {
-    const quill = getActiveQuill()
-    if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('script', currentFormat.script === 'sub' ? false : 'sub')
-    }
-  }
-
   const changeTextColor = () => colorInputRef.current?.click()
   const applyTextColor = (color: string) => {
     const quill = getActiveQuill()
@@ -970,16 +801,6 @@ const ResumeBuilder: React.FC = () => {
     const range = quill.getSelection()
     if (range) {
       quill.format('indent', '-1')
-    }
-  }
-
-  const insertHorizontalLine = () => {
-    const quill = getActiveQuill()
-    if (!quill) return
-
-    const range = quill.getSelection()
-    if (range) {
-      quill.insertText(range.index, '\n───────────────────────────────\n')
     }
   }
 
@@ -1091,6 +912,11 @@ const ResumeBuilder: React.FC = () => {
               body: JSON.stringify({ resumeId: result.resumeId, extractedText: fullResumeText })
             })
 
+            // Trigger AI scoring
+            scoreResume(result.resumeId, fullResumeText).catch(err =>
+              console.error('Failed to score resume:', err)
+            )
+
             // Add to resumeFiles so it shows in the list
             setResumeFiles(prev => [...prev, file])
             setPdfData(prev => ({
@@ -1114,59 +940,59 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const loadDraft = (templateId: 'modern' | 'classic' | 'scratch') => {
+  const loadDraft = async (templateId: 'modern' | 'classic' | 'scratch') => {
     try {
-      const draftKey = templateId === 'scratch'
-        ? 'resume-draft-scratch'
-        : `resume-draft-${templateId}`
-
-      const savedDraft = localStorage.getItem(draftKey)
-
-      if (savedDraft) {
-        const draftData = JSON.parse(savedDraft)
-        setResumeTemplate({
-          header: draftData.header,
-          sidebar: draftData.sidebar,
-          mainContent: draftData.mainContent
-        })
-        console.log(`Draft loaded from: ${new Date(draftData.savedAt).toLocaleString()}`)
+      const response = await fetch(`/api/get-draft/${templateId}`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.content) {
+          setResumeTemplate({
+            header: data.content.headerContent || '',
+            sidebar: data.content.sidebarContent || '',
+            mainContent: data.content.mainContent || ''
+          })
+        }
       }
     } catch (error) {
       console.error('Error loading draft:', error)
     }
   }
 
-  const selectTemplate = (id: string) => {
-    const draftKey = `resume-draft-${id}`
-    const savedDraft = localStorage.getItem(draftKey)
-
+  const selectTemplate = async (id: string) => {
     const template = latexTemplates.find(t => t.id === id)
     if (!template) {
       console.error('Template not found:', id)
       return
     }
 
-    if (savedDraft) {
-      try {
-        const draftData = JSON.parse(savedDraft)
-        setResumeTemplate({
-          header: draftData.header,
-          sidebar: draftData.sidebar,
-          mainContent: draftData.mainContent
-        })
-        console.log('Draft loaded from:', new Date(draftData.savedAt).toLocaleString())
-      } catch (error) {
-        console.error('Error parsing draft:', error)
-        // Load fresh template data
-        loadTemplateIntoEditor(template)
+    // Try to load saved draft from backend
+    try {
+      const response = await fetch(`/api/get-draft/${id}`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.content && (data.content.headerContent || data.content.sidebarContent || data.content.mainContent)) {
+          setResumeTemplate({
+            header: data.content.headerContent || '',
+            sidebar: data.content.sidebarContent || '',
+            mainContent: data.content.mainContent || ''
+          })
+          setSelectedTemplate(id)
+          setCurrentPdfUrl('')
+          return
+        }
       }
-    } else {
-      // Load fresh template data
-      loadTemplateIntoEditor(template)
+    } catch (error) {
+      console.error('Error loading draft:', error)
     }
 
+    // No saved draft, load fresh template
+    loadTemplateIntoEditor(template)
     setSelectedTemplate(id)
-    setCurrentPdfUrl('') // Clear PDF URL since we're using HTML templates now
+    setCurrentPdfUrl('')
   }
 
   const loadTemplateIntoEditor = (template: typeof latexTemplates[0]) => {
