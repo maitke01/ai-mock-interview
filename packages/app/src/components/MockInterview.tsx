@@ -490,10 +490,31 @@ const MockInterview: React.FC = () => {
                         <p className='text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1'>You:</p>
                         <p className='text-sm text-gray-700 dark:text-gray-300'>{turn.userText}</p>
                       </div>
-                      <div className='bg-gray-50 dark:bg-gray-700 rounded-lg p-3'>
-                        <p className='text-xs font-semibold text-gray-900 dark:text-gray-200 mb-1'>AI Interviewer:</p>
+                      <button
+                        onClick={() => {
+                          if (turn.videoUrl) {
+                            setCurrentVideo(turn.videoUrl)
+                          }
+                        }}
+                        className={`w-full text-left bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors ${
+                          turn.videoUrl
+                            ? 'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer'
+                            : 'cursor-default'
+                        }`}
+                      >
+                        <div className='flex items-center justify-between mb-1'>
+                          <p className='text-xs font-semibold text-gray-900 dark:text-gray-200'>AI Interviewer:</p>
+                          {turn.videoUrl && (
+                            <span className='text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1'>
+                              <svg className='w-3 h-3' fill='currentColor' viewBox='0 0 24 24'>
+                                <path d='M8 5v14l11-7z' />
+                              </svg>
+                              Play
+                            </span>
+                          )}
+                        </div>
                         <p className='text-sm text-gray-700 dark:text-gray-300'>{turn.aiText}</p>
-                      </div>
+                      </button>
                     </div>
                   ))}
                 </div>
