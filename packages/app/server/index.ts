@@ -33,6 +33,11 @@ import { upsertPreferenceRoute } from './lib/routes/preferences/upsertPreference
 import { searchPreferencesRoute } from './lib/routes/preferences/searchPreferencesRoute'
 import { listPreferencesRoute } from './lib/routes/preferences/listPreferencesRoute'
 import { deletePreferenceRoute } from './lib/routes/preferences/deletePreferenceRoute'
+import { listTodosRoute } from './lib/routes/todo/listTodosRoute'
+import { addTodoRoute } from './lib/routes/todo/addTodoRoute'
+import { updateTodoRoute } from './lib/routes/todo/updateTodoRoute'
+import { deleteTodoRoute } from './lib/routes/todo/deleteTodoRoute'
+import { clearCompletedTodosRoute } from './lib/routes/todo/clearCompletedTodosRoute'
 
 type Bindings = { Bindings: Env }
 
@@ -76,6 +81,12 @@ const app = new Hono({ strict: false })
   .get('/api/mock-interview-session/:sessionId/feedback', getSessionFeedbackRoute)
   .get('/api/mock-interview-session/:sessionId', getMockInterviewSessionRoute)
   .post('/api/mock-interview-session/:sessionId/end', endMockInterviewSessionRoute)
+  // Todo routes
+  .get('/api/todos', listTodosRoute)
+  .post('/api/todos', addTodoRoute)
+  .patch('/api/todo/:id', updateTodoRoute)
+  .delete('/api/todo/:id', deleteTodoRoute)
+  .post('/api/todos/clear-completed', clearCompletedTodosRoute)
 
 export default {
   fetch: app.fetch

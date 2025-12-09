@@ -56,11 +56,21 @@ export class DurableAccount extends DurableObject<Env> {
         FOREIGN KEY (resume_id) REFERENCES uploaded_resumes(id) ON DELETE SET NULL
       ) strict;
 
+      CREATE TABLE IF NOT EXISTS todos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        completed INTEGER DEFAULT 0,
+        priority TEXT DEFAULT 'medium',
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+      ) strict;
+
       CREATE INDEX IF NOT EXISTS idx_uploaded_resumes_upload_date ON uploaded_resumes(upload_date);
       CREATE INDEX IF NOT EXISTS idx_resume_sections_resume_id ON resume_sections(resume_id);
       CREATE INDEX IF NOT EXISTS idx_ai_results_resume_type ON ai_results(resume_id, result_type);
       CREATE INDEX IF NOT EXISTS idx_mock_interviews_scheduled_date ON mock_interviews(scheduled_date);
       CREATE INDEX IF NOT EXISTS idx_mock_interviews_status ON mock_interviews(status);
+      CREATE INDEX IF NOT EXISTS idx_todos_created_at ON todos(created_at);
   `)
   }
 
@@ -643,5 +653,153 @@ export class DurableAccount extends DurableObject<Env> {
       interviewId: result.id,
       title: result.title
     }
+  }
+
+  // Todo CRUD methods
+  addTodo (data: { text: string; priority?: 'low' | 'medium' | 'high' }) {
+    const { text, priority = 'medium' } = data
+
+    const result = this.ctx.storage.sql.exec<{ id: number; created_at: number }>(
+      `
+        INSERT INTO todos (text, priority)
+        VALUES (?, ?)
+        RETURNING id, created_at
+      `,
+      text,
+      priority
+    ).one()
+
+    return {
+      success: true,
+      todo: {
+        id: result.id,
+        text,
+        completed: false,
+        priority,
+        createdAt: result.created_at * 1000
+      }
+    }
+  }
+
+  listTodos () {
+    const todos = this.ctx.storage.sql.exec<{
+      id: number
+      text: string
+      completed: number
+      priority: string
+      created_at: number
+    }>(`
+      SELECT id, text, completed, priority, created_at
+      FROM todos
+      ORDER BY created_at DESC
+    `).toArray()
+
+    return {
+      success: true,
+      todos: todos.map(todo => ({
+        id: todo.id,
+        text: todo.text,
+        completed: todo.completed === 1,
+        priority: todo.priority as 'low' | 'medium' | 'high',
+        createdAt: todo.created_at * 1000
+      }))
+    }
+  }
+
+  updateTodo (todoId: number, data: {
+    text?: string
+    completed?: boolean
+    priority?: 'low' | 'medium' | 'high'
+  }) {
+    const updates: string[] = []
+    const params: any[] = []
+
+    if (data.text !== undefined) {
+      updates.push('text = ?')
+      params.push(data.text)
+    }
+    if (data.completed !== undefined) {
+      updates.push('completed = ?')
+      params.push(data.completed ? 1 : 0)
+    }
+    if (data.priority !== undefined) {
+      updates.push('priority = ?')
+      params.push(data.priority)
+    }
+
+    if (updates.length === 0) {
+      return { success: false, error: 'No updates provided' }
+    }
+
+    updates.push('updated_at = strftime(\'%s\', \'now\')')
+    params.push(todoId)
+
+    const result = this.ctx.storage.sql.exec<{
+      id: number
+      text: string
+      completed: number
+      priority: string
+      created_at: number
+    }>(
+      `
+        UPDATE todos
+        SET ${updates.join(', ')}
+        WHERE id = ?
+        RETURNING id, text, completed, priority, created_at
+      `,
+      ...params
+    ).one()
+
+    return {
+      success: true,
+      todo: {
+        id: result.id,
+        text: result.text,
+        completed: result.completed === 1,
+        priority: result.priority as 'low' | 'medium' | 'high',
+        createdAt: result.created_at * 1000
+      }
+    }
+  }
+
+  deleteTodo (todoId: number) {
+    const result = this.ctx.storage.sql.exec<{ id: number }>(
+      `
+        DELETE FROM todos
+        WHERE id = ?
+        RETURNING id
+      `,
+      todoId
+    ).one()
+
+    return {
+      success: true,
+      todoId: result.id
+    }
+  }
+
+  clearCompletedTodos () {
+    this.ctx.storage.sql.exec(`DELETE FROM todos WHERE completed = 1`)
+
+    return { success: true }
+  }
+
+  addDefaultTodos () {
+    const defaultTodos = [
+      { text: 'Upload your resume to get started', priority: 'high' },
+      { text: 'Review your resume ATS score', priority: 'medium' },
+      { text: 'Schedule a mock interview', priority: 'medium' },
+      { text: 'Practice common interview questions', priority: 'low' }
+    ]
+
+    for (const todo of defaultTodos) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO todos (text, priority) VALUES (?, ?)`,
+        todo.text,
+        todo.priority
+      )
+    }
+
+    return { success: true }
   }
 }

@@ -53,6 +53,16 @@ export const registerRoute: Route = async (ctx) => {
     return new Response('?', { status: 502 })
   }
 
+  // Add default todos for the new user
+  try {
+    const durableObjectId = ctx.env.DURABLE_ACCOUNT.idFromName(newAccount.id.toString())
+    const durableAccount = ctx.env.DURABLE_ACCOUNT.get(durableObjectId)
+    await durableAccount.addDefaultTodos()
+  } catch (e) {
+    console.error('Failed to add default todos:', e)
+    // Don't fail registration if default todos fail
+  }
+
   // 1 year in seconds
   const maxAge = 1 * 60 * 60 * 24 * 365
 
