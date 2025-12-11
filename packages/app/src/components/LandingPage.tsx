@@ -272,9 +272,9 @@ const LandingPage: React.FC = () => {
             <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
                 <h3 className="text-4xl font-bold mb-3">Gaurav Tadia</h3>
-                <p className="text-xl mb-4 opacity-90">Co-Founder & Lead AI Engineer</p>
+                <p className="text-xl mb-4 opacity-90">Lead AI Engineer</p>
                 <p className="text-lg md:text-xl opacity-90">
-                  With 10+ years in machine learning and NLP, he has built AI systems for Fortune 500 companies.
+                  Created the landing page, the user to-do list, and multiple Resume Builder features, including document upload, PDF editing, templates, and a rich-text toolbar. He also refined the sharing functionality and header design, and developed the “My Resume” section for both draft and completed versions.
                 </p>
               </div>
             </div>
@@ -282,10 +282,10 @@ const LandingPage: React.FC = () => {
             {/* Creator 2 */}
             <div className="flex flex-col md:flex-row-reverse items-center gap-12 mb-16 text-right md:text-right">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
-                <p className="text-xl mb-4 opacity-90">Position (Head of Product Design)</p>
+                <h3 className="text-4xl font-bold mb-3">Rebecca Moses</h3>
+                <p className="text-xl mb-4 opacity-90">Backend Developer</p>
                 <p className="text-lg md:text-xl opacity-90">
-                designs award-winning products with a focus on intuitive user experience.
+                developed the Job Search page, implementing key features such as keyword extraction, skill-gap analysis, and job preference saving/deleting. She integrated resume data, synced real-time updates from the backend, and connected Job Search results to the Dashboard to display ATS score updates, keyword matches, and job-role insights.
                 </p>
               </div>
             </div>
@@ -293,10 +293,10 @@ const LandingPage: React.FC = () => {
             {/* Creator 3 */}
             <div className="flex flex-col md:flex-row items-center gap-12 mb-16">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
-                <p className="text-xl mb-4 opacity-90">Postion (Co-Founder & Career Coach)</p>
+                <h3 className="text-4xl font-bold mb-3">Minliang Xu</h3>
+                <p className="text-xl mb-4 opacity-90">Head of UI Design</p>
                 <p className="text-lg md:text-xl opacity-90">
-                  A former HR director, he has helped thousands of candidates land their dream roles.
+                   Designed the UI for the Login, Sign Up, Dashboard, Mock Interview, Schedule Interview, and Job Search pages. He also built consistent functional headers and connected all major pages to ensure smooth navigation. In addition, he assisted with dashboard functionality and the Schedule Interview workflow to improve overall usability.
                 </p>
               </div>
             </div>
@@ -304,10 +304,10 @@ const LandingPage: React.FC = () => {
             {/* Creator 4 */}
             <div className="flex flex-col md:flex-row-reverse items-center gap-12 text-right md:text-right">
               <div className={`flex-1 transition-colors duration-[2500ms] ${fadeToBlack ? 'text-white' : 'text-white'}`}>
-                <h3 className="text-4xl font-bold mb-3">Creator name</h3>
-                <p className="text-xl mb-4 opacity-90">Position (Lead Frontend Engineer)</p>
+                <h3 className="text-4xl font-bold mb-3">Matthew Aitken</h3>
+                <p className="text-xl mb-4 opacity-90">Lead Fullstack Engineer</p>
                 <p className="text-lg md:text-xl opacity-90">
-                  Specializes in creating fluid, responsive user interfaces for modern web applications.
+                   Built the authentication service for user login and registration. He created the initial version of the resume builder, added AI-powered enhancements, fixed bugs, and supported development of the Mock Interview system, helping power some of the app’s core intelligent features.
                 </p>
               </div>
             </div>
