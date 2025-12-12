@@ -296,7 +296,7 @@ const LandingPage: React.FC = () => {
                 <h3 className="text-4xl font-bold mb-3">Minliang Xu</h3>
                 <p className="text-xl mb-4 opacity-90">Head of UI Design</p>
                 <p className="text-lg md:text-xl opacity-90">
-                   Designed the UI for the Login, Sign Up, Dashboard, Mock Interview, Schedule Interview, and Job Search pages. He also built consistent functional headers and connected all major pages to ensure smooth navigation. In addition, he assisted with dashboard functionality and the Schedule Interview workflow to improve overall usability.
+                   Designed the UI for the Login, Sign Up, Dashboard, Mock Interview, Schedule Interview, and Job Search pages. She also built consistent functional headers and connected all major pages to ensure smooth navigation. In addition, she assisted with dashboard functionality and the Schedule Interview workflow to improve overall usability.
                 </p>
               </div>
             </div>
