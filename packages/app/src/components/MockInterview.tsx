@@ -103,7 +103,7 @@ const MockInterview: React.FC = () => {
     }
   }, [transcript])
 
-  // Auto-play video (muted, looped) and audio when they change
+  // Auto-play video (muted, looped) when video URL changes
   useEffect(() => {
     if (currentVideo && videoRef.current) {
       videoRef.current.load()
@@ -113,13 +113,22 @@ const MockInterview: React.FC = () => {
     }
   }, [currentVideo])
 
-  // Play audio and stop video when audio ends
+  // Play audio and restart video when audio changes
+  // This handles both new videos and reused videos (same URL)
   useEffect(() => {
     if (currentAudio && audioRef.current) {
       audioRef.current.load()
       audioRef.current.play().catch(err => {
         console.error('Failed to play audio:', err)
       })
+
+      // Also restart the video (it may be the same URL, so we need to manually restart)
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0
+        videoRef.current.play().catch(err => {
+          console.error('Failed to play video:', err)
+        })
+      }
     }
   }, [currentAudio])
 

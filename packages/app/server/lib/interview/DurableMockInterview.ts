@@ -250,62 +250,82 @@ The candidate has just responded. Continue the interview naturally.`
       // Generate public URL for audio
       const audioUrl = `${data.r2PublicUrl}/${audioKey}`
 
-      // Generate video using Google Veo3
-      const veo3Prompt = `A professional woman sitting at a desk, framed from the waist up, facing directly toward the camera. She is in a modern office setting with soft, even lighting. She wears business attire. Her lips move naturally as if she is speaking to the camera, with subtle facial expressions and slight head movements. The background is clean and professional. She is saying "${aiText}".`
+      // Get or generate video URL
+      // Only generate video on the first turn, reuse it for subsequent turns
+      let videoUrl: string
 
-      // Initialize Google GenAI client
-      const ai = new GoogleGenAI({ apiKey: this.env.GOOGLE_GENAI_API_KEY })
+      if (session.total_turns === 0) {
+        // First turn - generate video using Google Veo3
+        const veo3Prompt = `A professional woman sitting at a desk, framed from the waist up, facing directly toward the camera. She is in a modern office setting with soft, even lighting. She wears business attire. Her lips move naturally as if she is speaking to the camera, with subtle facial expressions and slight head movements. The background is clean and professional. She is saying "${aiText}".`
 
-      // Start video generation
-      let operation = await ai.models.generateVideos({
-        model: 'veo-3.0-fast-generate-001',
-        prompt: veo3Prompt,
-        config: {
-          aspectRatio: '16:9',
-          durationSeconds: 8,
-        },
-      })
+        // Initialize Google GenAI client
+        const ai = new GoogleGenAI({ apiKey: this.env.GOOGLE_GENAI_API_KEY })
 
-      console.log('Veo3 initial operation:', JSON.stringify(operation, null, 2))
+        // Start video generation
+        let operation = await ai.models.generateVideos({
+          model: 'veo-3.0-fast-generate-001',
+          prompt: veo3Prompt,
+          config: {
+            aspectRatio: '16:9',
+            durationSeconds: 8,
+          },
+        })
 
-      // Poll for video generation completion
-      const maxAttempts = 60 // 10 minutes max (10 seconds * 60)
-      for (let attempt = 0; attempt < maxAttempts && !operation.done; attempt++) {
-        console.log(`Veo3 polling attempt ${attempt + 1}/${maxAttempts}, done: ${operation.done}`)
-        await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10 seconds between polls
-        operation = await ai.operations.getVideosOperation({ operation })
-        console.log('Veo3 operation status:', JSON.stringify(operation, null, 2))
+        console.log('Veo3 initial operation:', JSON.stringify(operation, null, 2))
+
+        // Poll for video generation completion
+        const maxAttempts = 60 // 10 minutes max (10 seconds * 60)
+        for (let attempt = 0; attempt < maxAttempts && !operation.done; attempt++) {
+          console.log(`Veo3 polling attempt ${attempt + 1}/${maxAttempts}, done: ${operation.done}`)
+          await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10 seconds between polls
+          operation = await ai.operations.getVideosOperation({ operation })
+          console.log('Veo3 operation status:', JSON.stringify(operation, null, 2))
+        }
+
+        if (!operation.done || !operation.response?.generatedVideos?.[0]) {
+          console.error('Veo3 final operation state:', JSON.stringify(operation, null, 2))
+          throw new Error('Veo3 video generation timed out or returned no video')
+        }
+
+        // Download the generated video
+        const generatedVideo = operation.response.generatedVideos[0]
+        const videoFile = generatedVideo.video
+
+        if (!videoFile?.uri) {
+          throw new Error('Veo3 video generation did not return a video URI')
+        }
+
+        // Fetch the video content from the URI with API key authentication
+        const videoResponse = await fetch(`${videoFile.uri}&key=${this.env.GOOGLE_GENAI_API_KEY}`)
+        if (!videoResponse.ok) {
+          throw new Error(`Failed to download video from Veo3: ${videoResponse.statusText}`)
+        }
+        const videoBytes = await videoResponse.arrayBuffer()
+
+        const videoKey = `sessions/${data.sessionId}/videos/${Date.now()}.mp4`
+
+        await this.env.MOCK_INTERVIEW_BUCKET.put(videoKey, videoBytes, {
+          httpMetadata: {
+            contentType: 'video/mp4',
+          },
+        })
+
+        videoUrl = `${data.r2PublicUrl}/${videoKey}`
+      } else {
+        // Subsequent turns - reuse video from first turn
+        const firstTurn = this.ctx.storage.sql
+          .exec<ConversationTurn>(
+            `SELECT video_url FROM conversation_turns WHERE session_id = ? AND turn_number = 1`,
+            data.sessionId
+          )
+          .one()
+
+        if (!firstTurn?.video_url) {
+          throw new Error('Could not find video from first turn')
+        }
+
+        videoUrl = firstTurn.video_url
       }
-
-      if (!operation.done || !operation.response?.generatedVideos?.[0]) {
-        console.error('Veo3 final operation state:', JSON.stringify(operation, null, 2))
-        throw new Error('Veo3 video generation timed out or returned no video')
-      }
-
-      // Download the generated video
-      const generatedVideo = operation.response.generatedVideos[0]
-      const videoFile = generatedVideo.video
-
-      if (!videoFile?.uri) {
-        throw new Error('Veo3 video generation did not return a video URI')
-      }
-
-      // Fetch the video content from the URI with API key authentication
-      const videoResponse = await fetch(`${videoFile.uri}&key=${this.env.GOOGLE_GENAI_API_KEY}`)
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video from Veo3: ${videoResponse.statusText}`)
-      }
-      const videoBytes = await videoResponse.arrayBuffer()
-
-      const videoKey = `sessions/${data.sessionId}/videos/${Date.now()}.mp4`
-
-      await this.env.MOCK_INTERVIEW_BUCKET.put(videoKey, videoBytes, {
-        httpMetadata: {
-          contentType: 'video/mp4',
-        },
-      })
-
-      const videoUrl = `${data.r2PublicUrl}/${videoKey}`
 
       // Save conversation turn to database
       const turnNumber = session.total_turns + 1
