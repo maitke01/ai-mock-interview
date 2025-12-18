@@ -9,7 +9,7 @@ declare namespace Cloudflare {
     DURABLE_ACCOUNT: DurableObjectNamespace<import('./server/index').DurableAccount>
     DURABLE_MOCK_INTERVIEW: DurableObjectNamespace<import('./server/index').DurableMockInterview>
     MOCK_INTERVIEW_BUCKET: R2Bucket
-    REPLICATE_API_TOKEN: string
+    GOOGLE_GENAI_API_KEY: string
     R2_PUBLIC_URL?: string
   }
 }

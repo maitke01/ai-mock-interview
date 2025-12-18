@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import Replicate from 'replicate'
+import { GoogleGenAI } from '@google/genai'
 
 // Type definitions for database queries
 type InterviewSession = {
@@ -250,72 +250,56 @@ The candidate has just responded. Continue the interview naturally.`
       // Generate public URL for audio
       const audioUrl = `${data.r2PublicUrl}/${audioKey}`
 
-      // Use a publicly accessible default avatar
-      // Option 1: Use a professional headshot from a public CDN
-      // You can replace this with your own R2-hosted avatar later
-      const avatarUrl = 'https://replicate.delivery/pbxt/IkgW9tngATq608Qf6haUXDpg81s5YBJfS9GaBiCFjdKXk4F5/art_1.png'
+      // Generate video using Google Veo3
+      const veo3Prompt = `A professional woman sitting at a desk, framed from the waist up, facing directly toward the camera. She is in a modern office setting with soft, even lighting. She wears business attire. Her lips move naturally as if she is speaking to the camera, with subtle facial expressions and slight head movements. The background is clean and professional. She is saying "${aiText}".`
 
-      // Alternative: If you want to use a custom avatar, upload it to R2 first:
-      // const avatarUrl = `${data.r2PublicUrl}/avatars/default-interviewer.png`
+      // Initialize Google GenAI client
+      const ai = new GoogleGenAI({ apiKey: this.env.GOOGLE_GENAI_API_KEY })
 
-      // Initialize Replicate client
-      const replicate = new Replicate({
-        auth: this.env.REPLICATE_API_TOKEN,
+      // Start video generation
+      let operation = await ai.models.generateVideos({
+        model: 'veo-3.0-fast-generate-001',
+        prompt: veo3Prompt,
+        config: {
+          aspectRatio: '16:9',
+          durationSeconds: 8,
+        },
       })
 
-      // Generate video using SadTalker
-      const replicateOutput = await replicate.run(
-        'cjwbw/sadtalker:a519cc0cfebaaeade068b23899165a11ec76aaa1d2b313d40d214f204ec957a3',
-        {
-          input: {
-            facerender: 'facevid2vid',
-            pose_style: 0,
-            preprocess: 'crop',
-            still_mode: true,
-            driven_audio: audioUrl,
-            source_image: avatarUrl,
-            use_enhancer: true,
-            use_eyeblink: true,
-            size_of_image: 256,
-            expression_scale: 1,
-          },
-        }
-      )
+      console.log('Veo3 initial operation:', JSON.stringify(operation, null, 2))
 
-      // Extract video URL from Replicate output
-      // The output can be: string, FileOutput with .url(), or object with url property
-      let replicateVideoUrl: string
-
-      if (typeof replicateOutput === 'string') {
-        replicateVideoUrl = replicateOutput
-      } else if (replicateOutput && typeof replicateOutput === 'object') {
-        // Handle FileOutput object with .url() method
-        if ('url' in replicateOutput) {
-          if (typeof replicateOutput.url === 'function') {
-            replicateVideoUrl = replicateOutput.url()
-          } else if (typeof replicateOutput.url === 'string') {
-            replicateVideoUrl = replicateOutput.url
-          } else {
-            throw new Error(`Unexpected url type in Replicate output: ${typeof replicateOutput.url}`)
-          }
-        } else {
-          // Try to stringify to see what we got
-          throw new Error(`Replicate output missing url property. Output: ${JSON.stringify(replicateOutput)}`)
-        }
-      } else {
-        throw new Error(`Unexpected Replicate output type: ${typeof replicateOutput}`)
+      // Poll for video generation completion
+      const maxAttempts = 60 // 10 minutes max (10 seconds * 60)
+      for (let attempt = 0; attempt < maxAttempts && !operation.done; attempt++) {
+        console.log(`Veo3 polling attempt ${attempt + 1}/${maxAttempts}, done: ${operation.done}`)
+        await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10 seconds between polls
+        operation = await ai.operations.getVideosOperation({ operation })
+        console.log('Veo3 operation status:', JSON.stringify(operation, null, 2))
       }
 
-      // Download video from Replicate and upload to R2
-      const videoResponse = await fetch(replicateVideoUrl)
+      if (!operation.done || !operation.response?.generatedVideos?.[0]) {
+        console.error('Veo3 final operation state:', JSON.stringify(operation, null, 2))
+        throw new Error('Veo3 video generation timed out or returned no video')
+      }
+
+      // Download the generated video
+      const generatedVideo = operation.response.generatedVideos[0]
+      const videoFile = generatedVideo.video
+
+      if (!videoFile?.uri) {
+        throw new Error('Veo3 video generation did not return a video URI')
+      }
+
+      // Fetch the video content from the URI with API key authentication
+      const videoResponse = await fetch(`${videoFile.uri}&key=${this.env.GOOGLE_GENAI_API_KEY}`)
       if (!videoResponse.ok) {
-        throw new Error(`Failed to download video from Replicate: ${videoResponse.statusText}`)
+        throw new Error(`Failed to download video from Veo3: ${videoResponse.statusText}`)
       }
+      const videoBytes = await videoResponse.arrayBuffer()
 
-      const videoData = await videoResponse.arrayBuffer()
       const videoKey = `sessions/${data.sessionId}/videos/${Date.now()}.mp4`
 
-      await this.env.MOCK_INTERVIEW_BUCKET.put(videoKey, videoData, {
+      await this.env.MOCK_INTERVIEW_BUCKET.put(videoKey, videoBytes, {
         httpMetadata: {
           contentType: 'video/mp4',
         },
