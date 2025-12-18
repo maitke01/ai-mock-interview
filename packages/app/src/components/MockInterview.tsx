@@ -23,7 +23,9 @@ const MockInterview: React.FC = () => {
   const [currentVideo, setCurrentVideo] = useState<string | null>(null)
   const [selectedPastSessionId, setSelectedPastSessionId] = useState<number | null>(null)
   const [userStream, setUserStream] = useState<MediaStream | null>(null)
+  const [currentAudio, setCurrentAudio] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
   const userVideoRef = useRef<HTMLVideoElement>(null)
 
   // Fetch past sessions
@@ -101,7 +103,7 @@ const MockInterview: React.FC = () => {
     }
   }, [transcript])
 
-  // Auto-play video when it changes
+  // Auto-play video (muted, looped) and audio when they change
   useEffect(() => {
     if (currentVideo && videoRef.current) {
       videoRef.current.load()
@@ -110,6 +112,23 @@ const MockInterview: React.FC = () => {
       })
     }
   }, [currentVideo])
+
+  // Play audio and stop video when audio ends
+  useEffect(() => {
+    if (currentAudio && audioRef.current) {
+      audioRef.current.load()
+      audioRef.current.play().catch(err => {
+        console.error('Failed to play audio:', err)
+      })
+    }
+  }, [currentAudio])
+
+  // Handle audio ended - pause the video
+  const handleAudioEnded = () => {
+    if (videoRef.current) {
+      videoRef.current.pause()
+    }
+  }
 
   const handleMicrophoneClick = () => {
     if (isRecording) {
@@ -142,8 +161,9 @@ const MockInterview: React.FC = () => {
             // Add to conversation history
             setConversationHistory(prev => [...prev, data.turn!])
 
-            // Set current video for playback
+            // Set current video and audio for playback
             setCurrentVideo(data.turn.videoUrl)
+            setCurrentAudio(data.turn.audioUrl)
 
             // Clear input
             setInputValue('')
@@ -243,15 +263,24 @@ const MockInterview: React.FC = () => {
                 {/* Video Display */}
                 <div className='relative bg-gray-900 rounded-lg overflow-hidden mb-6' style={{ aspectRatio: '16/9' }}>
                   {currentVideo ? (
-                    <video
-                      ref={videoRef}
-                      className='w-full h-full object-cover'
-                      controls
-                      playsInline
-                    >
-                      <source src={currentVideo} type='video/mp4' />
-                      Your browser does not support the video tag.
-                    </video>
+                    <>
+                      <video
+                        ref={videoRef}
+                        className='w-full h-full object-cover'
+                        playsInline
+                        muted
+                        loop
+                      >
+                        <source src={currentVideo} type='video/mp4' />
+                        Your browser does not support the video tag.
+                      </video>
+                      {/* Hidden audio element for TTS playback */}
+                      <audio
+                        ref={audioRef}
+                        onEnded={handleAudioEnded}
+                        src={currentAudio || undefined}
+                      />
+                    </>
                   ) : (
                     <div className='absolute inset-0 flex items-center justify-center'>
                       <div className='text-center'>
@@ -498,6 +527,7 @@ const MockInterview: React.FC = () => {
                         onClick={() => {
                           if (turn.videoUrl) {
                             setCurrentVideo(turn.videoUrl)
+                            setCurrentAudio(turn.audioUrl)
                           }
                         }}
                         className={`w-full text-left bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors ${
@@ -707,6 +737,7 @@ const MockInterview: React.FC = () => {
                               onClick={() => {
                                 if (turn.video_url) {
                                   setCurrentVideo(turn.video_url)
+                                  setCurrentAudio(turn.audio_url)
                                 }
                               }}
                               className={`w-full text-left bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors ${
