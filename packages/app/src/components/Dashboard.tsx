@@ -125,17 +125,7 @@ const Dashboard: React.FC = () => {
                       <div className='bg-blue-600 dark:bg-blue-500 h-3 rounded-full' style={{ width: '0%' }}></div>
                     </div>
                   </div>
-                  <div>
-                    <div className='flex justify-between items-center mb-2'>
-                      <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                        Job Application Readiness
-                      </span>
-                      <span className='text-sm font-medium text-gray-900 dark:text-white'>0%</span>
-                    </div>
-                    <div className='w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3'>
-                      <div className='bg-blue-600 dark:bg-blue-500 h-3 rounded-full' style={{ width: '0%' }}></div>
-                    </div>
-                  </div>
+      
                 </div>
               </div>
 
