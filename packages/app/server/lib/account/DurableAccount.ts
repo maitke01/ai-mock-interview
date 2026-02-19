@@ -56,11 +56,21 @@ export class DurableAccount extends DurableObject<Env> {
         FOREIGN KEY (resume_id) REFERENCES uploaded_resumes(id) ON DELETE SET NULL
       ) strict;
 
+      CREATE TABLE IF NOT EXISTS todos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        completed INTEGER DEFAULT 0,
+        priority TEXT DEFAULT 'medium',
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+      ) strict;
+
       CREATE INDEX IF NOT EXISTS idx_uploaded_resumes_upload_date ON uploaded_resumes(upload_date);
       CREATE INDEX IF NOT EXISTS idx_resume_sections_resume_id ON resume_sections(resume_id);
       CREATE INDEX IF NOT EXISTS idx_ai_results_resume_type ON ai_results(resume_id, result_type);
       CREATE INDEX IF NOT EXISTS idx_mock_interviews_scheduled_date ON mock_interviews(scheduled_date);
       CREATE INDEX IF NOT EXISTS idx_mock_interviews_status ON mock_interviews(status);
+      CREATE INDEX IF NOT EXISTS idx_todos_created_at ON todos(created_at);
   `)
   }
 
@@ -156,10 +166,189 @@ export class DurableAccount extends DurableObject<Env> {
       resumeId
     ).one()
 
+    // Also get extracted text from resume_sections if available
+    const sections = this.ctx.storage.sql.exec<{
+      extracted_text: string | null
+    }>(
+      `SELECT extracted_text FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    const extractedText = sections.length > 0 ? sections[0].extracted_text : null
+
+    // Convert ArrayBuffer to base64 for JSON serialization
+    const fileDataBase64 = this.arrayBufferToBase64(resume.file_data)
+
     return {
       success: true,
-      resume
+      resume: {
+        ...resume,
+        file_data: fileDataBase64,
+        extracted_text: extractedText
+      }
     }
+  }
+
+  private arrayBufferToBase64 (buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  }
+
+  saveExtractedText (resumeId: number, extractedText: string) {
+    // Check if a section entry already exists
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    if (existing.length > 0) {
+      // Update existing
+      this.ctx.storage.sql.exec(
+        `UPDATE resume_sections SET extracted_text = ?, updated_date = strftime('%s', 'now') WHERE resume_id = ?`,
+        extractedText,
+        resumeId
+      )
+    } else {
+      // Insert new
+      this.ctx.storage.sql.exec(
+        `INSERT INTO resume_sections (resume_id, extracted_text) VALUES (?, ?)`,
+        resumeId,
+        extractedText
+      )
+    }
+
+    return { success: true }
+  }
+
+  saveDraftContent (resumeId: number, content: {
+    headerContent?: string
+    sidebarContent?: string
+    mainContent?: string
+  }) {
+    const { headerContent, sidebarContent, mainContent } = content
+
+    // Check if a section entry already exists
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    if (existing.length > 0) {
+      // Update existing
+      this.ctx.storage.sql.exec(
+        `UPDATE resume_sections
+         SET header_content = ?, sidebar_content = ?, main_content = ?, updated_date = strftime('%s', 'now')
+         WHERE resume_id = ?`,
+        headerContent ?? null,
+        sidebarContent ?? null,
+        mainContent ?? null,
+        resumeId
+      )
+    } else {
+      // Insert new
+      this.ctx.storage.sql.exec(
+        `INSERT INTO resume_sections (resume_id, header_content, sidebar_content, main_content) VALUES (?, ?, ?, ?)`,
+        resumeId,
+        headerContent ?? null,
+        sidebarContent ?? null,
+        mainContent ?? null
+      )
+    }
+
+    return { success: true }
+  }
+
+  getDraftContent (resumeId: number) {
+    const result = this.ctx.storage.sql.exec<{
+      header_content: string | null
+      sidebar_content: string | null
+      main_content: string | null
+    }>(
+      `SELECT header_content, sidebar_content, main_content FROM resume_sections WHERE resume_id = ?`,
+      resumeId
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, content: null }
+    }
+
+    return {
+      success: true,
+      content: {
+        headerContent: result[0].header_content,
+        sidebarContent: result[0].sidebar_content,
+        mainContent: result[0].main_content,
+      }
+    }
+  }
+
+  // Get draft by template name (for scratch/modern/classic templates)
+  getDraftByTemplateName (templateName: string) {
+    const result = this.ctx.storage.sql.exec<{
+      id: number
+      header_content: string | null
+      sidebar_content: string | null
+      main_content: string | null
+    }>(
+      `SELECT ur.id, rs.header_content, rs.sidebar_content, rs.main_content
+       FROM uploaded_resumes ur
+       LEFT JOIN resume_sections rs ON rs.resume_id = ur.id
+       WHERE ur.file_name = ?
+       ORDER BY ur.upload_date DESC
+       LIMIT 1`,
+      `draft-${templateName}`
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, resumeId: null, content: null }
+    }
+
+    return {
+      success: true,
+      resumeId: result[0].id,
+      content: {
+        headerContent: result[0].header_content,
+        sidebarContent: result[0].sidebar_content,
+        mainContent: result[0].main_content,
+      }
+    }
+  }
+
+  // Create or update a draft by template name
+  saveDraftByTemplateName (templateName: string, content: {
+    headerContent?: string
+    sidebarContent?: string
+    mainContent?: string
+  }) {
+    const fileName = `draft-${templateName}`
+
+    // Check if draft already exists
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM uploaded_resumes WHERE file_name = ?`,
+      fileName
+    ).toArray()
+
+    let resumeId: number
+    if (existing.length > 0) {
+      resumeId = existing[0].id
+    } else {
+      // Create a new resume entry for this draft
+      const result = this.ctx.storage.sql.exec<{ id: number }>(
+        `INSERT INTO uploaded_resumes (file_name, original_file_name, file_size, mime_type, file_data)
+         VALUES (?, ?, 0, 'text/plain', X'')
+         RETURNING id`,
+        fileName,
+        fileName
+      ).one()
+      resumeId = result.id
+    }
+
+    // Save the content
+    return this.saveDraftContent(resumeId, content)
   }
 
   scheduleMockInterview (data: {
@@ -370,6 +559,85 @@ export class DurableAccount extends DurableObject<Env> {
     }
   }
 
+  saveResumeScores (resumeId: number, scores: {
+    atsScore: number
+    readabilityScore: number
+    completionScore: number
+  }) {
+    const { atsScore, readabilityScore, completionScore } = scores
+    const resultData = JSON.stringify({ atsScore, readabilityScore, completionScore })
+
+    // Check if scores already exist for this resume
+    const existing = this.ctx.storage.sql.exec<{ id: number }>(
+      `SELECT id FROM ai_results WHERE resume_id = ? AND result_type = 'scores'`,
+      resumeId
+    ).toArray()
+
+    if (existing.length > 0) {
+      // Update existing scores
+      this.ctx.storage.sql.exec(
+        `UPDATE ai_results SET result_data = ?, created_date = strftime('%s', 'now') WHERE resume_id = ? AND result_type = 'scores'`,
+        resultData,
+        resumeId
+      )
+    } else {
+      // Insert new scores
+      this.ctx.storage.sql.exec(
+        `INSERT INTO ai_results (resume_id, result_type, result_data) VALUES (?, 'scores', ?)`,
+        resumeId,
+        resultData
+      )
+    }
+
+    return { success: true }
+  }
+
+  getResumeScores (resumeId: number) {
+    const result = this.ctx.storage.sql.exec<{ result_data: string }>(
+      `SELECT result_data FROM ai_results WHERE resume_id = ? AND result_type = 'scores'`,
+      resumeId
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, scores: null }
+    }
+
+    const scores = JSON.parse(result[0].result_data) as {
+      atsScore: number
+      readabilityScore: number
+      completionScore: number
+    }
+
+    return { success: true, scores }
+  }
+
+  getAllResumeScores () {
+    // Get the most recent resume's scores (for dashboard display)
+    const result = this.ctx.storage.sql.exec<{
+      resume_id: number
+      result_data: string
+    }>(
+      `SELECT ar.resume_id, ar.result_data
+       FROM ai_results ar
+       JOIN uploaded_resumes ur ON ar.resume_id = ur.id
+       WHERE ar.result_type = 'scores'
+       ORDER BY ur.upload_date DESC
+       LIMIT 1`
+    ).toArray()
+
+    if (result.length === 0) {
+      return { success: true, scores: null, resumeId: null }
+    }
+
+    const scores = JSON.parse(result[0].result_data) as {
+      atsScore: number
+      readabilityScore: number
+      completionScore: number
+    }
+
+    return { success: true, scores, resumeId: result[0].resume_id }
+  }
+
   deleteMockInterview (interviewId: number) {
     const result = this.ctx.storage.sql.exec<{ id: number; title: string }>(
       `
@@ -385,5 +653,153 @@ export class DurableAccount extends DurableObject<Env> {
       interviewId: result.id,
       title: result.title
     }
+  }
+
+  // Todo CRUD methods
+  addTodo (data: { text: string; priority?: 'low' | 'medium' | 'high' }) {
+    const { text, priority = 'medium' } = data
+
+    const result = this.ctx.storage.sql.exec<{ id: number; created_at: number }>(
+      `
+        INSERT INTO todos (text, priority)
+        VALUES (?, ?)
+        RETURNING id, created_at
+      `,
+      text,
+      priority
+    ).one()
+
+    return {
+      success: true,
+      todo: {
+        id: result.id,
+        text,
+        completed: false,
+        priority,
+        createdAt: result.created_at * 1000
+      }
+    }
+  }
+
+  listTodos () {
+    const todos = this.ctx.storage.sql.exec<{
+      id: number
+      text: string
+      completed: number
+      priority: string
+      created_at: number
+    }>(`
+      SELECT id, text, completed, priority, created_at
+      FROM todos
+      ORDER BY created_at DESC
+    `).toArray()
+
+    return {
+      success: true,
+      todos: todos.map(todo => ({
+        id: todo.id,
+        text: todo.text,
+        completed: todo.completed === 1,
+        priority: todo.priority as 'low' | 'medium' | 'high',
+        createdAt: todo.created_at * 1000
+      }))
+    }
+  }
+
+  updateTodo (todoId: number, data: {
+    text?: string
+    completed?: boolean
+    priority?: 'low' | 'medium' | 'high'
+  }) {
+    const updates: string[] = []
+    const params: any[] = []
+
+    if (data.text !== undefined) {
+      updates.push('text = ?')
+      params.push(data.text)
+    }
+    if (data.completed !== undefined) {
+      updates.push('completed = ?')
+      params.push(data.completed ? 1 : 0)
+    }
+    if (data.priority !== undefined) {
+      updates.push('priority = ?')
+      params.push(data.priority)
+    }
+
+    if (updates.length === 0) {
+      return { success: false, error: 'No updates provided' }
+    }
+
+    updates.push('updated_at = strftime(\'%s\', \'now\')')
+    params.push(todoId)
+
+    const result = this.ctx.storage.sql.exec<{
+      id: number
+      text: string
+      completed: number
+      priority: string
+      created_at: number
+    }>(
+      `
+        UPDATE todos
+        SET ${updates.join(', ')}
+        WHERE id = ?
+        RETURNING id, text, completed, priority, created_at
+      `,
+      ...params
+    ).one()
+
+    return {
+      success: true,
+      todo: {
+        id: result.id,
+        text: result.text,
+        completed: result.completed === 1,
+        priority: result.priority as 'low' | 'medium' | 'high',
+        createdAt: result.created_at * 1000
+      }
+    }
+  }
+
+  deleteTodo (todoId: number) {
+    const result = this.ctx.storage.sql.exec<{ id: number }>(
+      `
+        DELETE FROM todos
+        WHERE id = ?
+        RETURNING id
+      `,
+      todoId
+    ).one()
+
+    return {
+      success: true,
+      todoId: result.id
+    }
+  }
+
+  clearCompletedTodos () {
+    this.ctx.storage.sql.exec(`DELETE FROM todos WHERE completed = 1`)
+
+    return { success: true }
+  }
+
+  addDefaultTodos () {
+    const defaultTodos = [
+      { text: 'Upload your resume to get started', priority: 'high' },
+      { text: 'Review your resume ATS score', priority: 'medium' },
+      { text: 'Schedule a mock interview', priority: 'medium' },
+      { text: 'Practice common interview questions', priority: 'low' }
+    ]
+
+    for (const todo of defaultTodos) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO todos (text, priority) VALUES (?, ?)`,
+        todo.text,
+        todo.priority
+      )
+    }
+
+    return { success: true }
   }
 }

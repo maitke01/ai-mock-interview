@@ -37,14 +37,31 @@
       {
         "class_name": "DurableAccount",
         "name": "DURABLE_ACCOUNT"
+      },
+      {
+        "class_name": "DurableMockInterview",
+        "name": "DURABLE_MOCK_INTERVIEW"
       }
     ]
   },
+  "r2_buckets": [
+    {
+      "binding": "MOCK_INTERVIEW_BUCKET",
+      "bucket_name": "mock-interview-videos",
+      "remote": true
+    }
+  ],
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": [
         "DurableAccount"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "DurableMockInterview"
       ]
     }
   ]

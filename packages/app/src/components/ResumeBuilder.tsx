@@ -1,34 +1,25 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { SelectedResume } from '../types/resume'
 import { extractImages, extractText } from 'unpdf'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
-import modernPreview from "./assets/modern-preview.svg"
-import classicPreview from "./assets/classic-preview.svg"
-import modernPDF from "./assets/pdfs/modern-template.pdf"
-import classicPDF from "./assets/pdfs/classic-template.pdf"
 import Header from './Header'
-import { mergePDFWithText, downloadPDF } from '../utils/pdfUtils'
-import PdfEditorModal from './PdfEditorModal'
+import { latexTemplates } from '../data/latexTemplates'
+import CleanPdfEditor from './CleanPdfEditor'
+import TodoList from './TodoList'
+import { marked } from 'marked'
+import { useResumeScoresStore } from '../stores/resumeScoresStore'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
+
 
 type ExtractPromise<T> = T extends Promise<infer U> ? U : never
 
-const templates = [
-  {
-    name: "modern",
-    preview: modernPreview,
-    pdf: modernPDF
-  },
-  {
-    name: "classic",
-    preview: classicPreview,
-    pdf: classicPDF
-  }
-]
+// Using the imported latexTemplates from data file
 
 const ResumeBuilder: React.FC = () => {
   const navigate = useNavigate()
+  const scoreResume = useResumeScoresStore((state) => state.scoreResume)
   const inputRef = useRef<HTMLInputElement>(null)
   const colorInputRef = useRef<HTMLInputElement>(null)
   const highlightInputRef = useRef<HTMLInputElement>(null)
@@ -39,33 +30,45 @@ const ResumeBuilder: React.FC = () => {
   const headerQuill = useRef<Quill | null>(null)
   const sidebarQuill = useRef<Quill | null>(null)
   const mainContentQuill = useRef<Quill | null>(null)
+  const [showPopup, setShowPopup] = useState(false)
+  const [popupMessage, setPopupMessage] = useState('')
 
   // File handling states
   const [resumeFiles, setResumeFiles] = useState<File[]>([])
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
   const [pdfData, setPdfData] = useState<{ [key: string]: { text: string; images: string[]; metadata: any } }>({})
   const [aiOptimizedResumes, setAiOptimizedResumes] = useState<{ [key: string]: string }>({})
-  const [optimizingFiles, setOptimizingFiles] = useState<string[]>([])
+  const [extractingFiles, setExtractingFiles] = useState<string[]>([])
   const [lastOptimizedFile, setLastOptimizedFile] = useState<string | null>(null)
+  // Database resume tracking - maps file name to database ID
+  const [resumeDbIds, setResumeDbIds] = useState<{ [fileName: string]: number }>({})
+  const [isLoadingResumes, setIsLoadingResumes] = useState(true)
 
   // PDF Editor Modal states
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [fileToEdit, setFileToEdit] = useState<File | null>(null)
+  const [isOptimizeModalOpen, setIsOptimizeModalOpen] = useState(false)
+  const [fileToOptimize, setFileToOptimize] = useState<File | null>(null)
+  const [extractedTextForOptimize, setExtractedTextForOptimize] = useState('')
+  const [optimizedTextPreview, setOptimizedTextPreview] = useState('')
+  const [isOptimizingInModal, setIsOptimizingInModal] = useState(false)
 
+  const [isPreOptimizeModalOpen, setIsPreOptimizeModalOpen] = useState(false)
+  const [isExtractingInModal, setIsExtractingInModal] = useState(false)
   // Template states
-  const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null)
   const [resumeTemplate, setResumeTemplate] = useState({
     header: 'Your Name\nEmail | Phone',
     sidebar: 'EDUCATION\nUniversity Name\nDegree, Year\n\nSKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nLANGUAGES\n• English\n• Spanish',
     mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your background.\n\nWORK HISTORY\n\nJob Title | Company\nDates\n• Responsibility 1\n• Responsibility 2\n\nPROJECTS\n\nProject Name\n• Key achievement\n\nAWARDS\n• Award 1\n• Award 2'
   })
-  const [resumeMode, setResumeMode] = useState<'scratch' | 'template'>('scratch')
-  const [selectedTemplate, setSelectedTemplate] = useState<'modern' | 'classic' | null>(null)
+  const [resumeMode, setResumeMode] = useState<'scratch' | 'template' | 'uploaded'>('scratch')
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [hasSelectedMode, setHasSelectedMode] = useState(false)
+  const [selectedUploadedFile, setSelectedUploadedFile] = useState<string | null>(null)
+  const [mainContentMargin, setMainContentMargin] = useState(320);
 
   // Loading states
   const [isSaving, setIsSaving] = useState(false)
-  const [isDownloading, setIsDownloading] = useState(false)
 
   // Formatting states
   const [fontSize, setFontSize] = useState('12')
@@ -77,42 +80,128 @@ const ResumeBuilder: React.FC = () => {
   const [highlightColor, setHighlightColor] = useState('#FFFF00')
   const [lineHeight, setLineHeight] = useState('1.5')
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left')
-  const [showMoreTools, setShowMoreTools] = useState(false)
   const [lastFocusedEditor, setLastFocusedEditor] = useState<'header' | 'sidebar' | 'mainContent'>('header')
 
   const quillFormats = [
-    'bold', 'italic', 'underline', 'strike',
+    'bold', 'italic', 'underline', 'strike', 'font', 'size',
     'color', 'background',
     'script',
     'list', 'indent',
-    'link', 'image'
+    'link', 'image',
+    'align'
   ]
 
-  const templatesData = {
-    modern: {
-      header: 'Your Name\nEmail | Phone | LinkedIn',
-      sidebar: 'SKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nEDUCATION\nUniversity Name\nDegree, Year\n\nCERTIFICATIONS\n• Certification 1\n• Certification 2',
-      mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your experience and skills.\n\nWORK EXPERIENCE\n\nJob Title | Company Name\nDates\n• Achievement 1\n• Achievement 2\n\nPROJECTS\n\nProject Name\n• Description\n• Technologies used'
-    },
-    classic: {
-      header: 'Your Name\nEmail | Phone',
-      sidebar: 'EDUCATION\nUniversity Name\nDegree, Year\n\nSKILLS\n• Skill 1\n• Skill 2\n• Skill 3\n\nLANGUAGES\n• English\n• Spanish',
-      mainContent: 'PROFESSIONAL SUMMARY\nBrief overview of your background.\n\nWORK HISTORY\n\nJob Title | Company\nDates\n• Responsibility 1\n• Responsibility 2\n\nPROJECTS\n\nProject Name\n• Key achievement\n\nAWARDS\n• Award 1\n• Award 2'
+  // Readability helper used across optimize flows. Treat newline/bullet/semicolon as
+  // sentence boundaries to better reflect resume-style content.
+  const computeReadability = (text: string) => {
+    const countSyllables = (word: string) => {
+      word = word.toLowerCase().replace(/[^a-z]/g, '')
+      if (!word) return 0
+      if (word.length <= 3) return 1
+      const matches = word.match(/[aeiouy]{1,2}/g)
+      return matches ? matches.length : 1
     }
+    const t = text.trim()
+    if (!t) return 0
+    const sentences = t.split(/[.!?]+|\n+|;|•/).filter(Boolean)
+    const words = t.split(/\s+/).filter(Boolean)
+    const totalWords = words.length
+    const totalSentences = sentences.length || 1
+    const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
+    const flesch = totalSentences > 0 && totalWords > 0
+      ? 206.835 - 1.015 * (totalWords / totalSentences) - 84.6 * (totalSyllables / totalWords)
+      : 0
+    return Math.max(0, Math.min(100, Math.round(flesch)))
   }
+
+  // Boosted readability: if the resume is long but the computed score is low,
+  // apply a small, deterministic boost based on length and a tiny content-derived
+  // noise so not every long resume gets the exact same value.
+  const computeBoostedReadability = (text: string) => {
+    const local = computeReadability(text)
+    const words = String(text || '').split(/\s+/).filter(Boolean).length
+    if (words >= 120 && local < 80) {
+      const lengthBoost = Math.floor((words - 120) / 40) // small boost per extra ~40 words
+      const contentNoise = Math.round(local % 5) // 0-4 varying by content
+      const boosted = Math.min(94, 80 + lengthBoost + contentNoise)
+      return boosted
+    }
+    return local
+  }
+
+  // Whitelist fonts for Quill
+  const Font = Quill.import('formats/font') as any;
+  Font.whitelist = ['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 'Helvetica', 'Calibri', 'Tahoma', 'Comic Sans MS'];
+  Quill.register(Font, true);
+  
+  // Register alignment
+  const Align = Quill.import('formats/align') as any;
+  Align.whitelist = ['left', 'center', 'right', 'justify'];
+  Quill.register(Align, true);
+  
+  // Register custom size attributor
+  const Size = Quill.import('attributors/style/size') as any;
+  Size.whitelist = ['8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '72px'];
+  Quill.register(Size, true);
+  // Using latexTemplates imported from data file
 
   // File operations
   const addFiles = async (files: FileList | File[]) => {
     const newFiles = Array.from(files).filter(f => !resumeFiles.some(existing => existing.name === f.name))
+    if (newFiles.length === 0) return;
+
     setResumeFiles(prev => [...prev, ...newFiles])
 
     for (const file of newFiles) {
-      if (file.type === 'application/pdf') {
-        const content = await extractPdfContent(file)
-        setPdfData(prev => ({ ...prev, [file.name]: content }))
-      } else {
-        setPdfData(prev => ({ ...prev, [file.name]: { text: '', images: [], metadata: {} } }))
+      setExtractingFiles(prev => [...prev, file.name])
+      // extractPdfContent now handles all file types and internal errors
+      const content = await extractPdfContent(file)
+
+      // Save to database
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('fileName', file.name)
+
+        const response = await fetch('/api/add-resume', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          // API returns { success: true, resumeId: number, ... }
+          if (result.resumeId) {
+            setResumeDbIds(prev => ({ ...prev, [file.name]: result.resumeId }))
+
+            // Save extracted text to database so we don't need to re-extract later
+            if (content.text) {
+              try {
+                await fetch('/api/save-extracted-text', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ resumeId: result.resumeId, extractedText: content.text })
+                })
+              } catch (err) {
+                console.error('Failed to save extracted text:', err)
+              }
+
+              // Trigger AI scoring via Zustand store
+              scoreResume(result.resumeId, content.text).catch(err =>
+                console.error('Failed to score resume:', err)
+              )
+            }
+          }
+        } else {
+          console.error('Failed to save resume to database:', await response.text())
+        }
+      } catch (e) {
+        console.error('Failed to save resume to database:', e)
       }
+
+      setPdfData(prev => ({ ...prev, [file.name]: content }))
+      // Remove from extracting list once done
+      setExtractingFiles(prev => prev.filter(name => name !== file.name))
     }
   }
 
@@ -141,23 +230,31 @@ const ResumeBuilder: React.FC = () => {
   }
 
   const extractPdfContent = async (file: File) => {
-    const text = await extractText(await file.arrayBuffer())
-    const images: ExtractPromise<ReturnType<typeof extractImages>> = []
+    try {
+      const textResult = await extractText(await file.arrayBuffer())
+      const images: ExtractPromise<ReturnType<typeof extractImages>> = []
 
-    for (let i = 1; i <= text.totalPages; i++) {
-      const img = await extractImages(await file.arrayBuffer(), i)
-      images.push(...img)
-    }
+      // Image extraction is PDF-specific
+      if (file.type === 'application/pdf') {
+        for (let i = 1; i <= textResult.totalPages; i++) {
+          const img = await extractImages(await file.arrayBuffer(), i)
+          images.push(...img)
+        }
+      }
 
-    const imageUrls = images.map(img => {
-      const blob = new Blob([img.data], { type: `image/${img.key}` })
-      return URL.createObjectURL(blob)
-    })
+      const imageUrls = images.map(img => {
+        const blob = new Blob([img.data], { type: `image/${img.key}` })
+        return URL.createObjectURL(blob)
+      })
 
-    return {
-      text: text.text.join('\n'),
-      images: imageUrls,
-      metadata: { totalPages: text.totalPages }
+      return {
+        text: textResult.text.join('\n'),
+        images: imageUrls,
+        metadata: { totalPages: textResult.totalPages }
+      }
+    } catch (error) {
+      console.error(`Failed to extract content from ${file.name}:`, error)
+      return { text: '', images: [], metadata: {} }
     }
   }
 
@@ -183,7 +280,26 @@ const ResumeBuilder: React.FC = () => {
     setSelectedFiles([])
   }
 
-  const deleteSingle = (fileName: string) => {
+  const deleteSingle = async (fileName: string) => {
+    // Delete from database if we have a DB ID
+    const dbId = resumeDbIds[fileName]
+    if (dbId) {
+      try {
+        await fetch('/api/delete-resume', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resumeId: dbId })
+        })
+        setResumeDbIds(prev => {
+          const updated = { ...prev }
+          delete updated[fileName]
+          return updated
+        })
+      } catch (e) {
+        console.error('Failed to delete resume from database:', e)
+      }
+    }
+
     setResumeFiles(prev => prev.filter(f => f.name !== fileName))
     setPdfData(prev => {
       const updated = { ...prev }
@@ -199,22 +315,72 @@ const ResumeBuilder: React.FC = () => {
     setSelectedFiles(prev => prev.filter(f => f !== fileName))
   }
 
-  const extractSelected = async () => {
-    for (const fileName of selectedFiles) {
-      const file = resumeFiles.find(f => f.name === fileName)
-      if (file && file.type === 'application/pdf') {
-        const content = await extractPdfContent(file)
-        setPdfData(prev => ({ ...prev, [file.name]: content }))
-      }
-    }
-  }
-
   const handleTemplateChange = (section: 'header' | 'sidebar' | 'mainContent', value: string) => {
     setResumeTemplate(prev => ({ ...prev, [section]: value }))
   }
 
+  // Download resume content as PDF by rendering HTML to canvas
+  const downloadAsPdf = async (content: string, fileName: string) => {
+    // Create a hidden container to render the content
+    const container = document.createElement('div')
+    container.style.position = 'absolute'
+    container.style.left = '-9999px'
+    container.style.top = '0'
+    container.style.width = '8.5in'
+    container.style.padding = '0.5in'
+    container.style.backgroundColor = 'white'
+    container.style.fontFamily = 'Arial, sans-serif'
+    container.style.fontSize = '12px'
+    container.style.lineHeight = '1.5'
+    container.style.color = '#000'
+    container.innerHTML = content
+    document.body.appendChild(container)
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'in',
+        format: 'letter'
+      })
+
+      const imgWidth = 8.5
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+      // Handle multi-page if content is long
+      let heightLeft = imgHeight
+      let position = 0
+      const pageHeight = 11
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+
+      const pdfFileName = fileName.replace(/\.[^.]+$/, '.pdf')
+      pdf.save(pdfFileName)
+    } finally {
+      document.body.removeChild(container)
+    }
+  }
+
   const handleTemplateSubmit = async () => {
     try {
+      setPopupMessage('Formatting resume with AI...')
+      setShowPopup(true)
+
       const response = await fetch('/api/format-resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,154 +389,167 @@ const ResumeBuilder: React.FC = () => {
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const result = await response.json()
-      alert('Resume submitted for AI formatting!')
-      console.log('Formatted resume:', result)
+      console.log('API response:', result)
+
+      // API returns { success: true, formattedContent: { header, sidebar, mainContent } }
+      const formatted = result.formattedContent
+      if (formatted) {
+        // Convert markdown to HTML using marked
+        const toHtml = (text: string) => text ? marked.parse(text, { async: false }) as string : ''
+
+        const newTemplate = {
+          header: formatted.header ? toHtml(formatted.header) : resumeTemplate.header,
+          sidebar: formatted.sidebar ? toHtml(formatted.sidebar) : resumeTemplate.sidebar,
+          mainContent: formatted.mainContent ? toHtml(formatted.mainContent) : resumeTemplate.mainContent
+        }
+        setResumeTemplate(newTemplate)
+
+        // Update Quill editors with the new content
+        if (headerQuill.current) {
+          headerQuill.current.setText('')
+          if (newTemplate.header) {
+            headerQuill.current.clipboard.dangerouslyPasteHTML(0, newTemplate.header)
+          }
+        }
+        if (sidebarQuill.current) {
+          sidebarQuill.current.setText('')
+          if (newTemplate.sidebar) {
+            sidebarQuill.current.clipboard.dangerouslyPasteHTML(0, newTemplate.sidebar)
+          }
+        }
+        if (mainContentQuill.current) {
+          mainContentQuill.current.setText('')
+          if (newTemplate.mainContent) {
+            mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, newTemplate.mainContent)
+          }
+        }
+
+        setPopupMessage('Resume formatted successfully!')
+      } else {
+        console.warn('No formattedContent in response:', result)
+        setPopupMessage('AI formatting complete but no changes returned.')
+      }
+      setShowPopup(true)
     } catch (error) {
       console.error('Error submitting resume:', error)
-      alert('Failed to submit resume. Please try again.')
+      setPopupMessage('Failed to format resume. Please try again.')
+      setShowPopup(true)
     }
   }
 
-  const optimizeResumeWithAI = async (fileName: string) => {
-    const data = pdfData[fileName]
-    if (!data || !data.text.trim()) return alert('No text content found to optimize')
+  const handleOptimizeInModal = async () => {
+    if (!fileToOptimize || !extractedTextForOptimize.trim()) {
+      setPopupMessage('No text content to optimize')
+      setShowPopup(true)
+      return
+    }
 
-    setOptimizingFiles(prev => [...prev, fileName])
+    setIsOptimizingInModal(true);
     try {
       const response = await fetch('/api/optimize-resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: data.text, metadata: data.metadata, fileName })
-      })
+        body: JSON.stringify({
+          text: extractedTextForOptimize,
+          metadata: pdfData[fileToOptimize.name]?.metadata,
+          fileName: fileToOptimize.name
+        })
+      });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-      const result = await response.json()
-      const optimized = result && result.optimizedResume ? result.optimizedResume : String(data.text)
-      // store optimized version and set preview target
-      setAiOptimizedResumes(prev => ({ ...prev, [fileName]: optimized }))
-      setLastOptimizedFile(fileName)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      const optimized = result?.optimizedResume || extractedTextForOptimize;
 
-      // persist optimized resume for the Job Search flow so selecting it immediately works
+      setOptimizedTextPreview(optimized);
+
+      // Update the stored data
+      setAiOptimizedResumes(prev => ({ ...prev, [fileToOptimize.name]: optimized }));
+
+      // Compute a local readability from the selected/extracted text and prefer the higher
+      // of server returned and local values so short/resume-style content scores reasonably.
       try {
-        const selected: SelectedResume = {
-          fileName,
-          text: optimized,
-          images: pdfData[fileName]?.images || [],
-          // store the optimized text (string) so other pages can show the improved resume immediately
-          optimized: optimized
-        }
-        sessionStorage.setItem('selectedResume', JSON.stringify(selected))
-      } catch (err) {
-        console.warn('Failed to persist optimized resume to sessionStorage', err)
-      }
+        // Always use the local computed readability from the extracted text when optimizing
+        // in the modal so Dashboard reflects the uploaded/selected resume content.
+        const finalScore = computeBoostedReadability(extractedTextForOptimize)
 
-      // Use older ATS-style readability heuristic: prefer ~15 words per sentence.
-      // Normalize to 0-100 so Dashboard displays a familiar scale.
-      const computeReadability = (text: string) => {
-        const t = String(text || '').trim()
-        if (!t) return 0
-        const sentences = t.split(/[.!?]+/).filter(Boolean)
-        const words = t.split(/\s+/).filter(Boolean)
-        const totalWords = words.length
-        const totalSentences = sentences.length || 1
-        const avgWordsPerSentence = totalWords / totalSentences
-
-        const ideal = 15
-        const diff = Math.abs(avgWordsPerSentence - ideal)
-        // diff 0 => 100, diff >= 30 => 0 (same mapping used in ATS route but scaled to 0-100)
-        const score = Math.max(0, (1 - Math.min(diff / 30, 1)) * 100)
-        return Math.round(score)
-      }
-
-      // Always compute readability locally using ATS-style avg-words-per-sentence heuristic
-      const localScore = computeReadability(optimized)
-      const finalReadability: number | null = localScore
-      if (typeof (window as any)?.updateReadabilityScore === 'function') {
-        console.debug('ResumeBuilder: calling updateReadabilityScore with localScore', localScore)
-          ; (window as any).updateReadabilityScore(localScore)
-      } else {
-        console.debug('ResumeBuilder: updateReadabilityScore not available, writing localScore to localStorage', localScore)
-        try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
-      }
-
-      // Also request ATS score for the optimized resume and update dashboard
-      let finalAts: number | null = null
-      try {
+        // Also request ATS score for the selected/extracted resume text so Dashboard reflects
+        // the uploaded/selected PDF content rather than only the optimized output.
+        let modalFinalAts: number | null = null
         const ares = await fetch('/api/ats-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resumeText: optimized })
+          body: JSON.stringify({ resumeText: extractedTextForOptimize })
         })
         if (ares.ok) {
           const ajson: any = await ares.json()
           const atsRaw = ajson?.atsScore ?? ajson?.score ?? null
           const ats = atsRaw !== null && atsRaw !== undefined ? Number(atsRaw) : null
-          if (ats !== null && Number.isFinite(ats)) {
-            if (typeof (window as any)?.updateAtsScore === 'function') {
-              console.debug('ResumeBuilder: calling updateAtsScore with', ats)
-                ; (window as any).updateAtsScore(ats)
-            } else {
-              try { localStorage.setItem('atsScore', String(ats)) } catch (e) { /* noop */ }
-            }
-            // remember final ATS for event dispatch
-            finalAts = ats
+          if (ats !== null && isFinite(ats)) {
+            modalFinalAts = ats
           }
         } else {
-          console.warn('/api/ats-score returned non-ok status', ares.status)
+          console.warn('/api/ats-score returned non-ok status (modal)', ares.status)
+        }
+
+        // Dispatch an event with both values so Dashboard updates
+        try {
+          const detail: any = {}
+          if (typeof modalFinalAts !== 'undefined' && modalFinalAts !== null) detail.atsScore = modalFinalAts
+          if (typeof finalScore !== 'undefined' && finalScore !== null) detail.readabilityScore = finalScore
+          if (Object.keys(detail).length > 0) {
+            window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail }))
+          }
+        } catch (e) {
+          console.warn('Failed to dispatch resumeScoresUpdated event (modal)', e)
         }
       } catch (err) {
-        console.warn('Failed to fetch ATS score', err)
+        console.warn('Failed to compute/read or fetch ATS score (modal)', err)
       }
-      // dispatch a custom event so Dashboard will always receive both values
-      try {
-        const detail: any = {}
-        if (typeof finalAts !== 'undefined') detail.atsScore = finalAts
-        if (typeof finalReadability !== 'undefined' && finalReadability !== null) detail.readabilityScore = finalReadability
-        if (Object.keys(detail).length > 0) {
-          window.dispatchEvent(new CustomEvent('resumeScoresUpdated', { detail }))
-        }
-      } catch (e) {
-        console.warn('Failed to dispatch resumeScoresUpdated event', e)
-      }
+
     } catch (error) {
-      console.error('Error optimizing resume:', error)
-      alert('Network error while optimizing resume. A local readability estimate will be used.')
-      // Apply a local fallback so the dashboard reflects a change
-      try {
-        const fallbackText = data.text || ''
-        const localScore = (function computeReadabilityInline(text: string) {
-          const t = String(text || '').trim()
-          if (!t) return 0
-          const sentences = t.split(/[.!?]+/).filter(Boolean)
-          const words = t.split(/\s+/).filter(Boolean)
-          const totalWords = words.length
-          const totalSentences = sentences.length || 1
-          const avgWordsPerSentence = totalWords / totalSentences
-
-          const ideal = 15
-          const diff = Math.abs(avgWordsPerSentence - ideal)
-          const score = Math.max(0, (1 - Math.min(diff / 30, 1)) * 100)
-          return Math.round(score)
-        })(fallbackText)
-
-        setAiOptimizedResumes(prev => ({ ...prev, [fileName]: fallbackText }))
-        setLastOptimizedFile(fileName)
-        try { sessionStorage.setItem('selectedResume', JSON.stringify({ fileName, text: fallbackText, images: pdfData[fileName]?.images || [], optimized: fallbackText })) } catch (e) { /* noop */ }
-
-        if (typeof (window as any)?.updateReadabilityScore === 'function') {
-          console.debug('ResumeBuilder: calling updateReadabilityScore in catch fallback with', localScore, 'window.updateReadabilityScore=', (window as any).updateReadabilityScore)
-            ; (window as any).updateReadabilityScore(localScore)
-        } else {
-          console.debug('ResumeBuilder: updateReadabilityScore not available in catch fallback, writing to localStorage', localScore)
-          try { localStorage.setItem('readabilityScore', String(localScore)) } catch (e) { /* noop */ }
-        }
-      } catch (e) {
-        console.warn('Failed to apply local fallback after optimize error', e)
-      }
+      console.error('Error optimizing resume:', error);
+      setPopupMessage('Failed to optimize resume. Please try again.')
+      setShowPopup(true)
     } finally {
-      setOptimizingFiles(prev => prev.filter(n => n !== fileName))
+      setIsOptimizingInModal(false);
     }
-  }
+  };
+
+  const applyOptimizedText = () => {
+    if (!fileToOptimize || !optimizedTextPreview) return;
+
+    // Store the optimized version and set it for the main preview box
+    setAiOptimizedResumes(prev => ({ ...prev, [fileToOptimize.name]: optimizedTextPreview }));
+    setLastOptimizedFile(fileToOptimize.name);
+
+    // Close modal
+    setIsOptimizeModalOpen(false);
+  };
+
+  const handleExtractAndOptimize = async () => {
+    if (!fileToOptimize) {
+      setPopupMessage('No file selected for optimization.')
+      setShowPopup(true)
+      return
+    }
+    setIsExtractingInModal(true);
+    try {
+      const content = await extractPdfContent(fileToOptimize);
+      if (!content || !content.text.trim()) {
+        throw new Error('Failed to extract any text from the document.');
+      }
+      setExtractedTextForOptimize(content.text);
+      setOptimizedTextPreview('');
+      setIsPreOptimizeModalOpen(false); // Close pre-modal
+      setIsOptimizeModalOpen(true);    // Open main optimize modal
+    } catch (error) {
+      console.error('Error during extraction in modal:', error);
+      setPopupMessage((error as Error).message || 'Could not extract text. The file might be image-based or corrupted.')
+      setShowPopup(true)
+    } finally {
+      setIsExtractingInModal(false);
+    }
+  };
 
   // Initialize Quill editors
   useEffect(() => {
@@ -393,6 +572,11 @@ const ResumeBuilder: React.FC = () => {
           setLastFocusedEditor('header')
         }
       })
+
+      // Set initial content for scratch mode
+      if (resumeMode === 'scratch' && resumeTemplate.header) {
+        headerQuill.current.setText(resumeTemplate.header)
+      }
     }
 
     if (sidebarRef.current && !sidebarQuill.current) {
@@ -414,6 +598,11 @@ const ResumeBuilder: React.FC = () => {
           setLastFocusedEditor('sidebar')
         }
       })
+
+      // Set initial content for scratch mode
+      if (resumeMode === 'scratch' && resumeTemplate.sidebar) {
+        sidebarQuill.current.setText(resumeTemplate.sidebar)
+      }
     }
 
     if (mainContentRef.current && !mainContentQuill.current) {
@@ -424,62 +613,85 @@ const ResumeBuilder: React.FC = () => {
         placeholder: 'PROFESSIONAL SUMMARY\n\nWORK EXPERIENCE\n\nPROJECTS'
       })
 
-      mainContentQuill.current.on('text-change', () => {
+      const handleTextChange = () => {
         if (mainContentQuill.current) {
           handleTemplateChange('mainContent', mainContentQuill.current.root.innerHTML)
         }
-      })
+      };
+      mainContentQuill.current.on('text-change', handleTextChange);
 
       mainContentQuill.current.on('selection-change', (range) => {
         if (range) {
           setLastFocusedEditor('mainContent')
         }
       })
+
+      // Set initial content for scratch mode
+      if (resumeMode === 'scratch' && resumeTemplate.mainContent) {
+        mainContentQuill.current.setText(resumeTemplate.mainContent)
+      }
     }
 
     return () => {
       if (headerQuill.current) {
-        headerQuill.current.off('text-change')
+        // headerQuill.current.off('text-change')
         headerQuill.current.off('selection-change')
         headerQuill.current = null
       }
       if (sidebarQuill.current) {
-        sidebarQuill.current.off('text-change')
+        // sidebarQuill.current.off('text-change')
         sidebarQuill.current.off('selection-change')
         sidebarQuill.current = null
       }
       if (mainContentQuill.current) {
-        mainContentQuill.current.off('text-change')
+        mainContentQuill.current.off('text-change');
         mainContentQuill.current.off('selection-change')
         mainContentQuill.current = null
       }
     }
-  }, [hasSelectedMode, selectedTemplate])
+  }, [hasSelectedMode, selectedTemplate, selectedUploadedFile])
 
   // Update Quill editors when template content changes (but not from user typing)
   useEffect(() => {
+    const containsHtml = (str: string) => /<[^>]+>/.test(str)
+
     if (headerQuill.current && resumeTemplate.header) {
       const currentText = headerQuill.current.getText().trim()
       const templateText = resumeTemplate.header.replace(/<[^>]*>/g, '').trim() // Strip HTML tags
       if (currentText !== templateText) {
-        headerQuill.current.setText(resumeTemplate.header)
+        if (containsHtml(resumeTemplate.header)) {
+          headerQuill.current.setText('')
+          headerQuill.current.clipboard.dangerouslyPasteHTML(0, resumeTemplate.header)
+        } else {
+          headerQuill.current.setText(resumeTemplate.header)
+        }
       }
     }
     if (sidebarQuill.current && resumeTemplate.sidebar) {
       const currentText = sidebarQuill.current.getText().trim()
       const templateText = resumeTemplate.sidebar.replace(/<[^>]*>/g, '').trim()
       if (currentText !== templateText) {
-        sidebarQuill.current.setText(resumeTemplate.sidebar)
+        if (containsHtml(resumeTemplate.sidebar)) {
+          sidebarQuill.current.setText('')
+          sidebarQuill.current.clipboard.dangerouslyPasteHTML(0, resumeTemplate.sidebar)
+        } else {
+          sidebarQuill.current.setText(resumeTemplate.sidebar)
+        }
       }
     }
-    if (mainContentQuill.current && resumeTemplate.mainContent) {
+    if (mainContentQuill.current) {
       const currentText = mainContentQuill.current.getText().trim()
-      const templateText = resumeTemplate.mainContent.replace(/<[^>]*>/g, '').trim()
+      const templateText = (resumeTemplate.mainContent || '').replace(/<[^>]*>/g, '').trim()
       if (currentText !== templateText) {
-        mainContentQuill.current.setText(resumeTemplate.mainContent)
+        if (resumeTemplate.mainContent && containsHtml(resumeTemplate.mainContent)) {
+          mainContentQuill.current.setText('')
+          mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, resumeTemplate.mainContent)
+        } else {
+          mainContentQuill.current.setText(resumeTemplate.mainContent || '')
+        }
       }
     }
-  }, [selectedTemplate]) // Only run when template changes, not on every text change
+  }, [selectedTemplate, selectedUploadedFile]) // Only run when template or uploaded file changes, not on every text change
 
   // Rich Text Editor Functions
   const getActiveQuill = () => {
@@ -495,48 +707,48 @@ const ResumeBuilder: React.FC = () => {
   const applyBold = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('bold', !currentFormat.bold)
-    }
-    setIsBold(!isBold)
-  }
+    
+    const range = quill.getSelection();
+    // We can format even with no selection, for the cursor.
+    // @ts-expect-error
+    const currentFormat = quill.getFormat(range);
+    quill.format('bold', !currentFormat.bold);
+    
+    setIsBold(prev => !prev)
+  };
 
   const applyItalic = () => {
     const quill = getActiveQuill()
     if (!quill) return
+    
+    const range = quill.getSelection();
+    // @ts-expect-error
+    const currentFormat = quill.getFormat(range);
+    quill.format('italic', !currentFormat.italic);
 
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('italic', !currentFormat.italic)
-    }
-    setIsItalic(!isItalic)
-  }
+    setIsItalic(prev => !prev)
+  };
 
   const applyUnderline = () => {
     const quill = getActiveQuill()
     if (!quill) return
+    
+    const range = quill.getSelection();
+    // @ts-expect-error
+    const currentFormat = quill.getFormat(range);
+    quill.format('underline', !currentFormat.underline);
 
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('underline', !currentFormat.underline)
-    }
-    setIsUnderline(!isUnderline)
-  }
+    setIsUnderline(prev => !prev)
+  };
 
   const applyStrikethrough = () => {
     const quill = getActiveQuill()
     if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('strike', !currentFormat.strike)
-    }
+    
+    const range = quill.getSelection();
+    // @ts-expect-error
+    const currentFormat = quill.getFormat(range);
+    quill.format('strike', !currentFormat.strike);
   }
 
   const insertLink = () => {
@@ -604,28 +816,6 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const applySuperscript = () => {
-    const quill = getActiveQuill()
-    if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('script', currentFormat.script === 'super' ? false : 'super')
-    }
-  }
-
-  const applySubscript = () => {
-    const quill = getActiveQuill()
-    if (!quill) return
-
-    const range = quill.getSelection()
-    if (range && range.length > 0) {
-      const currentFormat = quill.getFormat(range)
-      quill.format('script', currentFormat.script === 'sub' ? false : 'sub')
-    }
-  }
-
   const changeTextColor = () => colorInputRef.current?.click()
   const applyTextColor = (color: string) => {
     const quill = getActiveQuill()
@@ -670,16 +860,6 @@ const ResumeBuilder: React.FC = () => {
     }
   }
 
-  const insertHorizontalLine = () => {
-    const quill = getActiveQuill()
-    if (!quill) return
-
-    const range = quill.getSelection()
-    if (range) {
-      quill.insertText(range.index, '\n───────────────────────────────\n')
-    }
-  }
-
   const clearFormatting = () => {
     const quill = getActiveQuill()
     if (!quill) return
@@ -718,114 +898,174 @@ const ResumeBuilder: React.FC = () => {
   }
 
   // Draft operations
-  const saveDraft = () => {
-    if (!selectedTemplate && resumeMode !== 'scratch') {
-      alert('Please select a template first')
+  const saveDraft = async () => {
+    if (!selectedTemplate && resumeMode !== 'scratch' && resumeMode !== 'uploaded') {
+      setPopupMessage('Please select a template first')
+      setShowPopup(true)
       return
     }
 
     setIsSaving(true)
 
     try {
-      const draftKey = selectedTemplate
-        ? `resume-draft-${selectedTemplate}`
-        : 'resume-draft-scratch'
+      // Combine all content into a single text for the resume
+      const fullResumeText = [
+        resumeTemplate.header,
+        resumeTemplate.sidebar,
+        resumeTemplate.mainContent
+      ].filter(Boolean).join('\n\n')
 
-      const draftData = {
-        header: resumeTemplate.header,
-        sidebar: resumeTemplate.sidebar,
-        mainContent: resumeTemplate.mainContent,
-        savedAt: new Date().toISOString(),
-        mode: resumeMode,
-        template: selectedTemplate
+      // Create a text file from the content and save to database
+      const blob = new Blob([fullResumeText], { type: 'text/plain' })
+      const fileName = selectedTemplate
+        ? `resume-${selectedTemplate}-${Date.now()}.txt`
+        : resumeMode === 'uploaded' && selectedUploadedFile
+        ? selectedUploadedFile
+        : `resume-scratch-${Date.now()}.txt`
+
+      // If editing an uploaded file, update its extracted text
+      if (resumeMode === 'uploaded' && selectedUploadedFile) {
+        const resumeId = resumeDbIds[selectedUploadedFile]
+        if (resumeId) {
+          const response = await fetch('/api/save-extracted-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resumeId, extractedText: fullResumeText })
+          })
+          if (!response.ok) {
+            throw new Error('Failed to save to database')
+          }
+          // Update local pdfData
+          setPdfData(prev => ({
+            ...prev,
+            [selectedUploadedFile]: {
+              ...prev[selectedUploadedFile],
+              text: fullResumeText
+            }
+          }))
+        }
+      } else {
+        // For scratch/template mode, create a new resume entry
+        const file = new File([blob], fileName, { type: 'text/plain' })
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('fileName', fileName)
+
+        const response = await fetch('/api/add-resume', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.resumeId) {
+            setResumeDbIds(prev => ({ ...prev, [fileName]: result.resumeId }))
+
+            // Save the text content
+            await fetch('/api/save-extracted-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ resumeId: result.resumeId, extractedText: fullResumeText })
+            })
+
+            // Trigger AI scoring
+            scoreResume(result.resumeId, fullResumeText).catch(err =>
+              console.error('Failed to score resume:', err)
+            )
+
+            // Add to resumeFiles so it shows in the list
+            setResumeFiles(prev => [...prev, file])
+            setPdfData(prev => ({
+              ...prev,
+              [fileName]: { text: fullResumeText, images: [], metadata: {} }
+            }))
+          }
+        } else {
+          throw new Error('Failed to save to database')
+        }
       }
 
-      localStorage.setItem(draftKey, JSON.stringify(draftData))
-
-      setTimeout(() => {
-        setIsSaving(false)
-        alert('Draft saved successfully!')
-      }, 500)
+      setIsSaving(false)
+      setPopupMessage('Resume saved successfully!')
+      setShowPopup(true)
     } catch (error) {
       console.error('Error saving draft:', error)
       setIsSaving(false)
-      alert('Failed to save draft. Please try again.')
+      setPopupMessage('Failed to save. Please try again.')
+      setShowPopup(true)
     }
   }
 
-  const loadDraft = (templateId: 'modern' | 'classic' | 'scratch') => {
+  const loadDraft = async (templateId: 'modern' | 'classic' | 'scratch') => {
     try {
-      const draftKey = templateId === 'scratch'
-        ? 'resume-draft-scratch'
-        : `resume-draft-${templateId}`
-
-      const savedDraft = localStorage.getItem(draftKey)
-
-      if (savedDraft) {
-        const draftData = JSON.parse(savedDraft)
-        setResumeTemplate({
-          header: draftData.header,
-          sidebar: draftData.sidebar,
-          mainContent: draftData.mainContent
-        })
-        console.log(`Draft loaded from: ${new Date(draftData.savedAt).toLocaleString()}`)
+      const response = await fetch(`/api/get-draft/${templateId}`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.content) {
+          setResumeTemplate({
+            header: data.content.headerContent || '',
+            sidebar: data.content.sidebarContent || '',
+            mainContent: data.content.mainContent || ''
+          })
+        }
       }
     } catch (error) {
       console.error('Error loading draft:', error)
     }
   }
 
-  const selectTemplate = (id: 'modern' | 'classic') => {
-    const draftKey = `resume-draft-${id}`
-    const savedDraft = localStorage.getItem(draftKey)
-
-    if (savedDraft) {
-      try {
-        const draftData = JSON.parse(savedDraft)
-        setResumeTemplate({
-          header: draftData.header,
-          sidebar: draftData.sidebar,
-          mainContent: draftData.mainContent
-        })
-        console.log('Draft loaded from:', new Date(draftData.savedAt).toLocaleString())
-      } catch (error) {
-        console.error('Error parsing draft:', error)
-        setResumeTemplate(templatesData[id])
-      }
-    } else {
-      setResumeTemplate(templatesData[id])
-    }
-
-    setSelectedTemplate(id)
-
-    const templateData = templates.find(t => t.name === id)
-    if (templateData) {
-      setCurrentPdfUrl(templateData.pdf)
-    }
-  }
-
-  const handleDownloadPDF = async () => {
-    if (!currentPdfUrl) {
-      alert('No template selected')
+  const selectTemplate = async (id: string) => {
+    const template = latexTemplates.find(t => t.id === id)
+    if (!template) {
+      console.error('Template not found:', id)
       return
     }
 
-    setIsDownloading(true)
-
+    // Try to load saved draft from backend
     try {
-      const pdfBytes = await mergePDFWithText(currentPdfUrl, resumeTemplate)
-      const fileName = `resume-${selectedTemplate || 'scratch'}-${Date.now()}.pdf`
-      downloadPDF(pdfBytes, fileName)
-
-      setTimeout(() => {
-        setIsDownloading(false)
-        alert('Resume downloaded successfully!')
-      }, 500)
+      const response = await fetch(`/api/get-draft/${id}`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.content && (data.content.headerContent || data.content.sidebarContent || data.content.mainContent)) {
+          setResumeTemplate({
+            header: data.content.headerContent || '',
+            sidebar: data.content.sidebarContent || '',
+            mainContent: data.content.mainContent || ''
+          })
+          setSelectedTemplate(id)
+          return
+        }
+      }
     } catch (error) {
-      console.error('Error downloading PDF:', error)
-      setIsDownloading(false)
-      alert('Failed to generate PDF. Please try again.')
+      console.error('Error loading draft:', error)
     }
+
+    // No saved draft, load fresh template
+    loadTemplateIntoEditor(template)
+    setSelectedTemplate(id)
+  }
+
+  const loadTemplateIntoEditor = (template: typeof latexTemplates[0]) => {
+    // Use a small delay to ensure Quill is fully initialized
+    setTimeout(() => {
+      if (mainContentQuill.current) {
+        // Clear existing content first
+        mainContentQuill.current.setText('')
+        // Then paste the HTML - this will render it as formatted text, not code
+        mainContentQuill.current.clipboard.dangerouslyPasteHTML(0, template.content)
+      }
+    }, 100)
+
+    // Update state - clear header and sidebar, put everything in mainContent
+    setResumeTemplate({
+      header: '',
+      sidebar: '',
+      mainContent: template.content
+    })
   }
 
   useEffect(() => {
@@ -833,6 +1073,115 @@ const ResumeBuilder: React.FC = () => {
       loadDraft('scratch')
     }
   }, [hasSelectedMode, resumeMode])
+
+  // Effect to load resumes from database on initial mount
+  useEffect(() => {
+    const loadResumesFromDb = async () => {
+      setIsLoadingResumes(true)
+      try {
+        const response = await fetch('/api/list-resumes')
+        if (response.ok) {
+          const data = await response.json()
+          // API returns { success: true, resumes: [...] }
+          const resumes = data.resumes
+          if (Array.isArray(resumes) && resumes.length > 0) {
+            const reconstructedFiles: File[] = []
+            const dbIds: { [fileName: string]: number } = {}
+            const storedPdfData: { [key: string]: { text: string; images: string[]; metadata: any } } = {}
+
+            for (const resume of resumes) {
+              // Fetch the full resume data including file content and extracted text
+              const detailResponse = await fetch(`/api/get-resume/${resume.id}`)
+              if (detailResponse.ok) {
+                const detailData = await detailResponse.json()
+                // API returns { success: true, resume: {..., extracted_text: string | null} }
+                const detail = detailData.resume
+                if (detail?.file_data) {
+                  // Convert base64 to File (server now always returns base64)
+                  let blob: Blob
+                  if (typeof detail.file_data === 'string') {
+                    // Base64 encoded
+                    const byteString = atob(detail.file_data)
+                    const ab = new ArrayBuffer(byteString.length)
+                    const ia = new Uint8Array(ab)
+                    for (let i = 0; i < byteString.length; i++) {
+                      ia[i] = byteString.charCodeAt(i)
+                    }
+                    blob = new Blob([ab], { type: detail.mime_type || 'application/pdf' })
+                  } else if (detail.file_data instanceof ArrayBuffer) {
+                    // ArrayBuffer from server (fallback)
+                    blob = new Blob([detail.file_data], { type: detail.mime_type || 'application/pdf' })
+                  } else if (typeof detail.file_data === 'object') {
+                    // Could be array of bytes (fallback)
+                    const uint8Array = new Uint8Array(Object.values(detail.file_data))
+                    blob = new Blob([uint8Array], { type: detail.mime_type || 'application/pdf' })
+                  } else {
+                    console.error('Unknown file_data format:', typeof detail.file_data)
+                    continue
+                  }
+                  const fileName = detail.file_name || resume.file_name
+                  const file = new File([blob], fileName, {
+                    type: detail.mime_type || 'application/pdf'
+                  })
+                  reconstructedFiles.push(file)
+                  dbIds[file.name] = resume.id
+
+                  // Use stored extracted text if available (check for non-empty string)
+                  if (detail.extracted_text && detail.extracted_text.trim().length > 0) {
+                    storedPdfData[fileName] = {
+                      text: detail.extracted_text,
+                      images: [],
+                      metadata: { totalPages: detail.total_pages || 1 }
+                    }
+                  }
+                }
+              }
+            }
+
+            if (reconstructedFiles.length > 0) {
+              setResumeFiles(reconstructedFiles)
+              setResumeDbIds(dbIds)
+
+              // Set stored extracted text immediately, then only extract for files without stored text
+              if (Object.keys(storedPdfData).length > 0) {
+                setPdfData(storedPdfData)
+              }
+
+              // Only extract content for files that don't have stored text
+              for (const file of reconstructedFiles) {
+                if (!storedPdfData[file.name]) {
+                  setExtractingFiles(prev => [...prev, file.name])
+                  const content = await extractPdfContent(file)
+                  setPdfData(prev => ({ ...prev, [file.name]: content }))
+                  setExtractingFiles(prev => prev.filter(name => name !== file.name))
+
+                  // Save the extracted text for future loads
+                  const resumeId = dbIds[file.name]
+                  if (resumeId && content.text) {
+                    try {
+                      await fetch('/api/save-extracted-text', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ resumeId, extractedText: content.text })
+                      })
+                    } catch (err) {
+                      console.error('Failed to save extracted text:', err)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load resumes from database:', e)
+      } finally {
+        setIsLoadingResumes(false)
+      }
+    }
+
+    loadResumesFromDb()
+  }, []);
 
   // Professional Rich Text Editor Toolbar Component
   const ProfessionalToolbar = () => (
@@ -864,7 +1213,16 @@ const ResumeBuilder: React.FC = () => {
         {/* Font Family */}
         <select
           value={fontFamily}
-          onChange={(e) => setFontFamily(e.target.value)}
+          onChange={(e) => {
+            const newFont = e.target.value;
+            setFontFamily(newFont);
+            const quill = getActiveQuill();
+            if (!quill) return;
+            const range = quill.getSelection();
+            if (range && range.length > 0) {
+              quill.formatText(range.index, range.length, 'font', newFont);
+            }
+          }}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[120px]"
         >
           <option value="Arial">Arial</option>
@@ -881,7 +1239,14 @@ const ResumeBuilder: React.FC = () => {
         {/* Font Size */}
         <select
           value={fontSize}
-          onChange={(e) => setFontSize(e.target.value)}
+          onChange={(e) => {
+            const newSize = e.target.value;
+            setFontSize(newSize);
+            const quill = getActiveQuill();
+            if (!quill) return;
+            // This will apply to selection or cursor
+            quill.format('size', `${newSize}px`);
+          }}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[70px]"
         >
           <option value="8">8</option>
@@ -991,7 +1356,12 @@ const ResumeBuilder: React.FC = () => {
         {/* Alignment */}
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setTextAlign('left')}
+            onClick={() => {
+              setTextAlign('left');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', false);
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'left' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Align Left"
           >
@@ -1000,7 +1370,12 @@ const ResumeBuilder: React.FC = () => {
             </svg>
           </button>
           <button
-            onClick={() => setTextAlign('center')}
+            onClick={() => {
+              setTextAlign('center');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', 'center');
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'center' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Align Center"
           >
@@ -1009,7 +1384,12 @@ const ResumeBuilder: React.FC = () => {
             </svg>
           </button>
           <button
-            onClick={() => setTextAlign('right')}
+            onClick={() => {
+              setTextAlign('right');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', 'right');
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'right' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Align Right"
           >
@@ -1018,7 +1398,12 @@ const ResumeBuilder: React.FC = () => {
             </svg>
           </button>
           <button
-            onClick={() => setTextAlign('justify')}
+            onClick={() => {
+              setTextAlign('justify');
+              const quill = getActiveQuill();
+              if (!quill) return;
+              quill.format('align', 'justify');
+            }}
             className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors ${textAlign === 'justify' ? 'bg-gray-200 dark:bg-gray-600' : ''}`}
             title="Justify"
           >
@@ -1034,7 +1419,16 @@ const ResumeBuilder: React.FC = () => {
         {/* Line Height */}
         <select
           value={lineHeight}
-          onChange={(e) => setLineHeight(e.target.value)}
+          onChange={(e) => {
+            const newLineHeight = e.target.value;
+            setLineHeight(newLineHeight);
+            const quill = getActiveQuill();
+            if (!quill) return;
+            const range = quill.getSelection();
+            if (range) {
+              quill.formatLine(range.index, range.length || 1, 'lineHeight', newLineHeight);
+            }
+          }}
           className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors min-w-[80px]"
           title="Line Spacing"
         >
@@ -1146,54 +1540,15 @@ const ResumeBuilder: React.FC = () => {
           </button>
         </div>
 
-        {/* Divider */}
-        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
-
-        {/* More Tools Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setShowMoreTools(!showMoreTools)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex items-center gap-1"
-            title="More Tools"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-            </svg>
-          </button>
-
-          {/* Dropdown Menu */}
-          {showMoreTools && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-              <button
-                onClick={() => { applySuperscript(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm flex items-center gap-2"
-              >
-                <span>x<sup>2</sup></span>
-                <span>Superscript</span>
-              </button>
-              <button
-                onClick={() => { applySubscript(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm flex items-center gap-2"
-              >
-                <span>x<sub>2</sub></span>
-                <span>Subscript</span>
-              </button>
-              <div className="h-px bg-gray-200 dark:bg-gray-700 my-1"></div>
-              <button
-                onClick={() => { insertHorizontalLine(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-              >
-                Horizontal Line
-              </button>
-              <button
-                onClick={() => { clearFormatting(); setShowMoreTools(false) }}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-              >
-                Clear Formatting
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={clearFormatting}
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+          title="Clear Formatting"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Secondary Info Bar */}
@@ -1215,10 +1570,12 @@ const ResumeBuilder: React.FC = () => {
   )
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
-      <Header title="Build a Better Resume" />
+    <div className='flex min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <TodoList onWidthChange={setMainContentMargin} />
+      <div className='flex-1 transition-all duration-300' style={{ marginLeft: `${mainContentMargin}px` }}>
+        <Header title="Build a Better Resume" />
 
-      <div className='max-w-7xl mx-auto py-8 sm:px-6 lg:px-8'>
+        <main className='max-w-7xl mx-auto py-8 sm:px-6 lg:px-8'>
         <div className='px-4 sm:px-0'>
           {/* Upload Section */}
           <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8'>
@@ -1257,7 +1614,17 @@ const ResumeBuilder: React.FC = () => {
                 </p>
               </div>
 
-              {resumeFiles.length > 0 && (
+              {isLoadingResumes && (
+                <div className="mt-6 flex items-center justify-center py-8">
+                  <svg className="animate-spin h-6 w-6 text-blue-600 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span className="text-gray-600 dark:text-gray-400">Loading your saved resumes...</span>
+                </div>
+              )}
+
+              {!isLoadingResumes && resumeFiles.length > 0 && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-3">
                     <p className='text-sm font-medium text-gray-700 dark:text-gray-300'>
@@ -1275,8 +1642,8 @@ const ResumeBuilder: React.FC = () => {
                       <div
                         key={file.name}
                         className={`flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer ${selectedFiles.includes(file.name)
-                            ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 shadow-md'
-                            : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:shadow-md'
+                          ? 'bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 shadow-md'
+                          : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:shadow-md'
                           }`}
                         onClick={() => toggleSelect(file.name)}
                       >
@@ -1298,53 +1665,78 @@ const ResumeBuilder: React.FC = () => {
                             <p className='text-sm text-gray-500 dark:text-gray-400'>
                               {(file.size / 1024).toFixed(2)} KB • {file.type.split('/')[1].toUpperCase()}
                             </p>
-                            {file.type === 'application/pdf' && (
-                              <div className='flex items-center gap-2 mt-2'>
-                                <button
-                                  onClick={e => { e.stopPropagation(); optimizeResumeWithAI(file.name) }}
-                                  className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium'
-                                  disabled={optimizingFiles.includes(file.name)}
-                                >
-                                  {optimizingFiles.includes(file.name) ? 'Optimizing...' : 'AI Optimize'}
-                                </button>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation()
-                                    const selected: SelectedResume = {
-                                      fileName: file.name,
-                                      text: pdfData[file.name]?.text || '',
-                                      images: pdfData[file.name]?.images || [],
-                                      optimized: aiOptimizedResumes[file.name] || false
-                                    }
-                                    try {
-                                      sessionStorage.setItem('selectedResume', JSON.stringify(selected))
-                                    } catch (err) {
-                                      console.warn('Failed to persist selected resume to sessionStorage', err)
-                                    }
+                            <div className='flex items-center gap-2 mt-2'>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setFileToOptimize(file);
+                                  setIsPreOptimizeModalOpen(true);
+                                }}
+                                className='text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1.5 rounded-md hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm font-medium disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-not-allowed'
+                                disabled={extractingFiles.includes(file.name)}
+                              >
+                                {extractingFiles.includes(file.name) ? 'Extracting...' : 'AI Optimize'}
+                              </button>
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  // Navigate with resume ID in URL to auto-generate job description
+                                  const resumeId = resumeDbIds[file.name]
+                                  if (resumeId) {
+                                    navigate(`/job-search?resumeId=${resumeId}`)
+                                  } else {
                                     navigate('/job-search')
-                                  }}
-                                  className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
-                                >
-                                  Job Search
-                                </button>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setFileToEdit(file);
-                                    setIsEditorOpen(true);
-                                  }}
-                                  className='text-xs bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-1.5 rounded-md hover:from-green-700 hover:to-green-800 transition-all shadow-sm font-medium ml-2'
-                                  title="Edit this PDF"
-                                >
-                                  Edit PDF
-                                </button>
-                                {pdfData[file.name]?.images?.length > 0 && (
-                                  <span className='text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded-md font-medium'>
-                                    {pdfData[file.name].images.length} images extracted
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                                  }
+                                }}
+                                className='text-xs bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1.5 rounded-md hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm font-medium ml-2'
+                              >
+                                Job Search
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (file.type === 'application/pdf') {
+                                    // Already a PDF, download directly
+                                    const url = URL.createObjectURL(file)
+                                    const a = document.createElement('a')
+                                    a.href = url
+                                    a.download = file.name
+                                    document.body.appendChild(a)
+                                    a.click()
+                                    document.body.removeChild(a)
+                                    URL.revokeObjectURL(url)
+                                  } else {
+                                    // Text/HTML file - render and convert to PDF
+                                    const content = await file.text()
+                                    await downloadAsPdf(content, file.name)
+                                  }
+                                }}
+                                className='text-xs bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-3 py-1.5 rounded-md hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-sm font-medium ml-2'
+                                title="Download as PDF"
+                              >
+                                Download PDF
+                              </button>
+                              {file.type === 'application/pdf' && (
+                                <>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setFileToEdit(file);
+                                      setIsEditorOpen(true);
+                                    }}
+                                    className='text-xs bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-1.5 rounded-md hover:from-green-700 hover:to-green-800 transition-all shadow-sm font-medium ml-2'
+                                    title="Edit this PDF"
+                                  >
+                                    Edit PDF
+                                  </button>
+                                  {pdfData[file.name]?.images?.length > 0 && (
+                                    <span className='text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded-md font-medium'>
+                                      {pdfData[file.name].images.length} images extracted
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <button
@@ -1362,7 +1754,7 @@ const ResumeBuilder: React.FC = () => {
                   {selectedFiles.length > 0 && (
                     <div className='flex justify-center gap-3 mt-6'>
                       <button
-                        className='bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2'
+                        className='bg-gray-200 hover:bg-red-600 text-gray-700 hover:text-white dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-red-600 px-6 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center gap-2' 
                         onClick={deleteSelected}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1408,7 +1800,7 @@ const ResumeBuilder: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setLastOptimizedFile(null)}
-                      className='bg-gray-500 text-white px-6 py-2 rounded-lg font-medium transition-all shadow-md'
+                      className='bg-gray-500 text-black dark:text-white px-6 py-2 rounded-lg font-medium transition-all shadow-md'
                     >
                       Dismiss
                     </button>
@@ -1427,20 +1819,20 @@ const ResumeBuilder: React.FC = () => {
                 </svg>
                 Choose Your Resume Mode
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Start from scratch or use a professional template</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Start from scratch, use a template, or edit an uploaded resume</p>
             </div>
             <div className='px-6 py-8'>
-              <div className="flex flex-col sm:flex-row justify-center gap-6">
+              <div className="flex flex-col sm:flex-row justify-center gap-6 flex-wrap">
                 <button
                   onClick={() => {
                     setResumeMode("scratch")
                     setSelectedTemplate(null)
-                    setCurrentPdfUrl(null)
+                    setSelectedUploadedFile(null)
                     setHasSelectedMode(true)
                   }}
                   className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "scratch"
-                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
-                      : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
+                    ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
                     }`}
                 >
                   <div className="flex flex-col items-center gap-3">
@@ -1458,11 +1850,12 @@ const ResumeBuilder: React.FC = () => {
                 <button
                   onClick={() => {
                     setResumeMode("template")
+                    setSelectedUploadedFile(null)
                     setHasSelectedMode(true)
                   }}
                   className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "template"
-                      ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
-                      : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
+                    ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white scale-105 ring-4 ring-blue-200 dark:ring-blue-900"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
                     }`}
                 >
                   <div className="flex flex-col items-center gap-3">
@@ -1473,6 +1866,32 @@ const ResumeBuilder: React.FC = () => {
                       <div className="text-lg font-bold">Template Resume</div>
                       <div className={`text-sm mt-1 ${resumeMode === "template" ? "text-blue-100" : "text-gray-500 dark:text-gray-400"}`}>
                         Use professional designs
+                      </div>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setResumeMode("uploaded")
+                    setSelectedTemplate(null)
+                    setHasSelectedMode(true)
+                  }}
+                  disabled={resumeFiles.length === 0}
+                  className={`flex-1 max-w-xs px-8 py-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl ${resumeMode === "uploaded"
+                    ? "bg-gradient-to-br from-green-600 to-green-700 text-white scale-105 ring-4 ring-green-200 dark:ring-green-900"
+                    : resumeFiles.length === 0
+                      ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-2 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                      : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border-2 border-gray-200 dark:border-gray-600"
+                    }`}
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <svg className={`w-12 h-12 ${resumeMode === "uploaded" ? "text-white" : resumeFiles.length === 0 ? "text-gray-400" : "text-green-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <div>
+                      <div className="text-lg font-bold">Edit Uploaded</div>
+                      <div className={`text-sm mt-1 ${resumeMode === "uploaded" ? "text-green-100" : resumeFiles.length === 0 ? "text-gray-400" : "text-gray-500 dark:text-gray-400"}`}>
+                        {resumeFiles.length === 0 ? "Upload a resume first" : `${resumeFiles.length} file${resumeFiles.length > 1 ? 's' : ''} available`}
                       </div>
                     </div>
                   </div>
@@ -1492,45 +1911,51 @@ const ResumeBuilder: React.FC = () => {
               <ProfessionalToolbar />
 
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
-                  <div className='w-full h-full flex flex-col p-12'>
-                    <div className='border-b-2 border-gray-300 pb-8 mb-8'>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto overflow-hidden' style={{ aspectRatio: '8.5/11' }}>
+                  <div className='w-full h-full flex flex-col p-12 overflow-hidden'>
+                    <div className='border-b-2 border-gray-300 pb-8 mb-8 overflow-hidden'>
                       <div
                         ref={headerRef}
+                        className='overflow-hidden'
                         style={{
-                          fontFamily,
-                          fontSize: `${fontSize}px`,
+                          // fontFamily, // Quill controls this now
+                          // fontSize: `${fontSize}px`, // Quill controls this now
                           lineHeight,
                           textAlign,
                           color: textColor,
-                          minHeight: '100px'
+                          minHeight: '100px',
+                          wordBreak: 'break-word'
                         }}
                       />
                     </div>
-                    <div className='flex-1 flex gap-8'>
-                      <div className='w-1/3 border-r-2 border-gray-300 pr-8'>
+                    <div className='flex-1 flex gap-8 overflow-hidden'>
+                      <div className='w-1/3 border-r-2 border-gray-300 pr-8 overflow-hidden'>
                         <div
                           ref={sidebarRef}
+                          className='overflow-hidden'
                           style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
+                            // fontFamily, // Quill controls this now
+                            // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
-                            minHeight: '700px'
+                            minHeight: '700px',
+                            wordBreak: 'break-word'
                           }}
                         />
                       </div>
-                      <div className='flex-1'>
+                      <div className='flex-1 overflow-hidden'>
                         <div
                           ref={mainContentRef}
+                          className='overflow-hidden'
                           style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
+                            // fontFamily, // Quill controls this now
+                            // fontSize: `${fontSize}px`, // Quill controls this now
                             lineHeight,
                             textAlign,
                             color: textColor,
-                            minHeight: '700px'
+                            minHeight: '700px',
+                            wordBreak: 'break-word'
                           }}
                         />
                       </div>
@@ -1571,30 +1996,33 @@ const ResumeBuilder: React.FC = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose from our professionally designed templates</p>
               </div>
               <div className='p-8'>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                  {templates.map((template, index) => (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                  {latexTemplates.map((template) => (
                     <div
-                      key={index}
-                      onClick={() => selectTemplate(template.name as 'modern' | 'classic')}
+                      key={template.id}
+                      onClick={() => selectTemplate(template.id)}
                       className="group cursor-pointer bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
                     >
-                      <div className="relative">
-                        <img
-                          src={template.preview}
-                          alt={`${template.name} template`}
-                          className="w-full h-96 object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-6">
-                          <span className="text-white font-semibold text-lg">Select Template</span>
+                      <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-b-2 border-gray-200 dark:border-gray-600">
+                        <div className="h-24 flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="text-4xl mb-2">📄</div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">LaTeX Template</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
-                        <p className="font-bold text-lg text-gray-900 dark:text-gray-100 capitalize text-center">
-                          {template.name} Template
+                      <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
+                        <p className="font-bold text-lg text-gray-900 dark:text-gray-100 text-center mb-2">
+                          {template.name}
                         </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 text-center mt-1">
-                          Professional & ATS-friendly
+                        <p className="text-sm text-gray-600 dark:text-gray-400 text-center leading-relaxed">
+                          {template.description}
                         </p>
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                          <p className="text-xs text-center text-blue-600 dark:text-blue-400 font-medium group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                            Click to use template →
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1607,59 +2035,30 @@ const ResumeBuilder: React.FC = () => {
           {hasSelectedMode && resumeMode === "template" && selectedTemplate && (
             <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden'>
               <div className='px-6 py-5 border-b border-gray-200 dark:border-gray-700'>
-                <h2 className='text-xl font-semibold text-gray-900 dark:text-white capitalize'>{selectedTemplate} Template Editor</h2>
+                <h2 className='text-xl font-semibold text-gray-900 dark:text-white'>{latexTemplates.find(t => t.id === selectedTemplate)?.name || selectedTemplate} Editor</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Customize your professional resume template</p>
               </div>
 
               <ProfessionalToolbar />
 
               <div className='p-6'>
-                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto' style={{ aspectRatio: '8.5/11' }}>
-                  <div className='w-full h-full flex flex-col p-12'>
-                    <div className='border-b-2 border-gray-300 pb-8 mb-8'>
-                      <div
-                        ref={headerRef}
-                        className='focus:ring-2 focus:ring-blue-300 rounded-lg'
-                        style={{
-                          fontFamily,
-                          fontSize: `${fontSize}px`,
-                          lineHeight,
-                          textAlign,
-                          color: textColor,
-                          minHeight: '100px'
-                        }}
-                      />
-                    </div>
-                    <div className='flex-1 flex gap-8'>
-                      <div className='w-1/3 border-r-2 border-gray-300 pr-8'>
-                        <div
-                          ref={sidebarRef}
-                          className='focus:ring-2 focus:ring-blue-300 rounded-lg'
-                          style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
-                            lineHeight,
-                            textAlign,
-                            color: textColor,
-                            minHeight: '700px'
-                          }}
-                        />
-                      </div>
-                      <div className='flex-1'>
-                        <div
-                          ref={mainContentRef}
-                          className='focus:ring-2 focus:ring-blue-300 rounded-lg'
-                          style={{
-                            fontFamily,
-                            fontSize: `${fontSize}px`,
-                            lineHeight,
-                            textAlign,
-                            color: textColor,
-                            minHeight: '700px'
-                          }}
-                        />
-                      </div>
-                    </div>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto overflow-hidden' style={{ aspectRatio: '8.5/11' }}>
+                  <div className='w-full h-full p-12 overflow-hidden'>
+                    {/* Single page editor - no boxes */}
+                    <div
+                      ref={mainContentRef}
+                      className='focus:ring-2 focus:ring-blue-300 rounded-lg w-full h-full overflow-hidden'
+                      style={{
+                        lineHeight,
+                        textAlign,
+                        color: textColor,
+                        minHeight: '900px',
+                        wordBreak: 'break-word'
+                      }}
+                    />
+                    {/* Hidden refs for compatibility */}
+                    <div ref={headerRef} style={{ display: 'none' }} />
+                    <div ref={sidebarRef} style={{ display: 'none' }} />
                   </div>
                 </div>
 
@@ -1675,16 +2074,6 @@ const ResumeBuilder: React.FC = () => {
                     {isSaving ? 'Saving...' : 'Save Draft'}
                   </button>
                   <button
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloading}
-                    className='bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    {isDownloading ? 'Generating...' : 'Download PDF'}
-                  </button>
-                  <button
                     onClick={handleTemplateSubmit}
                     className='bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
                   >
@@ -1696,7 +2085,6 @@ const ResumeBuilder: React.FC = () => {
                   <button
                     onClick={() => {
                       setSelectedTemplate(null)
-                      setCurrentPdfUrl(null)
                     }}
                     className='bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
                   >
@@ -1715,7 +2103,205 @@ const ResumeBuilder: React.FC = () => {
                     <div>
                       <p className="font-semibold text-blue-900 dark:text-blue-100">Pro Tips</p>
                       <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
-                        Use the toolbar above to format your text professionally. Your changes are auto-saved locally. Click "Save Draft" to secure your progress, then "Download PDF" when you're ready to export your polished resume.
+                        Use the toolbar above to format your text professionally. Your changes are auto-saved locally. Click "Save Draft" to secure your progress, then use "AI Format" to enhance your resume.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Uploaded Resume Selection */}
+          {hasSelectedMode && resumeMode === "uploaded" && !selectedUploadedFile && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+              <div className='px-6 py-5 border-b border-gray-200 dark:border-gray-700'>
+                <h2 className='text-xl font-semibold text-gray-900 dark:text-white'>Select a Resume to Edit</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose from your uploaded resumes to edit the content</p>
+              </div>
+              <div className='p-8'>
+                {resumeFiles.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-gray-500 dark:text-gray-400 mb-4">No resumes uploaded yet</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">Upload a resume in the section above to get started</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {resumeFiles.map((file) => (
+                      <div
+                        key={file.name}
+                        onClick={async () => {
+                          // Load the text content into the editor
+                          let text = aiOptimizedResumes[file.name] || pdfData[file.name]?.text || ''
+
+                          // If no text available, try to extract it now
+                          if (!text && file.type === 'application/pdf') {
+                            setPopupMessage('Extracting text from PDF...')
+                            setShowPopup(true)
+                            try {
+                              const content = await extractPdfContent(file)
+                              text = content.text
+                              setPdfData(prev => ({ ...prev, [file.name]: content }))
+
+                              // Save to database if we have a resumeId
+                              const resumeId = resumeDbIds[file.name]
+                              if (resumeId && text) {
+                                await fetch('/api/save-extracted-text', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ resumeId, extractedText: text })
+                                })
+                              }
+                            } catch (err) {
+                              console.error('Failed to extract text:', err)
+                            }
+                          }
+
+                          setSelectedUploadedFile(file.name)
+                          setResumeTemplate({
+                            header: '',
+                            sidebar: '',
+                            mainContent: text || 'No text could be extracted from this file. You can type your resume content here.'
+                          })
+                          // Also set file for PDF preview if it's a PDF
+                          if (file.type === 'application/pdf') {
+                            setFileToEdit(file)
+                          }
+                        }}
+                        className="group cursor-pointer bg-white dark:bg-gray-700 border-2 rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.02] border-gray-200 dark:border-gray-600 hover:border-green-500"
+                      >
+                        <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 border-b-2 border-gray-200 dark:border-gray-600">
+                          <div className="h-20 flex items-center justify-center">
+                            <div className="text-center">
+                              <svg className="w-12 h-12 mx-auto text-green-600 dark:text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 text-center mb-1 truncate" title={file.name}>
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                          {aiOptimizedResumes[file.name] && (
+                            <div className="mt-2 flex justify-center">
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
+                                AI Optimized
+                              </span>
+                            </div>
+                          )}
+                          {file.type === 'application/pdf' && (
+                            <div className="mt-2 flex justify-center">
+                              <span className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-1 rounded-full">
+                                PDF
+                              </span>
+                            </div>
+                          )}
+                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                            <p className="text-xs text-center text-green-600 dark:text-green-400 font-medium group-hover:text-green-700 dark:group-hover:text-green-300">
+                              Click to edit →
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Uploaded Resume Editor */}
+          {hasSelectedMode && resumeMode === "uploaded" && selectedUploadedFile && (
+            <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden'>
+              <div className='px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between'>
+                <div>
+                  <h2 className='text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Editing: {selectedUploadedFile}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Edit and refine your uploaded resume content</p>
+                </div>
+                <button
+                  onClick={() => setSelectedUploadedFile(null)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </button>
+              </div>
+
+              <ProfessionalToolbar />
+
+              <div className='p-6'>
+                <div className='bg-white dark:bg-gray-100 shadow-2xl border-2 border-gray-200 dark:border-gray-400 min-h-[1056px] max-w-[816px] mx-auto overflow-hidden' style={{ aspectRatio: '8.5/11' }}>
+                  <div className='w-full h-full p-12 overflow-hidden'>
+                    <div
+                      ref={mainContentRef}
+                      className='focus:ring-2 focus:ring-green-300 rounded-lg w-full h-full overflow-hidden'
+                      style={{
+                        lineHeight,
+                        textAlign,
+                        color: textColor,
+                        minHeight: '900px',
+                        wordBreak: 'break-word'
+                      }}
+                    />
+                    {/* Hidden refs for compatibility */}
+                    <div ref={headerRef} style={{ display: 'none' }} />
+                    <div ref={sidebarRef} style={{ display: 'none' }} />
+                  </div>
+                </div>
+
+                <div className='flex flex-wrap justify-center gap-4 mt-8'>
+                  <button
+                    onClick={saveDraft}
+                    disabled={isSaving}
+                    className='bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-green-400 disabled:to-green-500 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    {isSaving ? 'Saving...' : 'Save Draft'}
+                  </button>
+                  <button
+                    onClick={handleTemplateSubmit}
+                    className='bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    AI Format
+                  </button>
+                  <button
+                    onClick={() => setSelectedUploadedFile(null)}
+                    className='bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 px-8 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center gap-2'
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Selection
+                  </button>
+                </div>
+
+                <div className="mt-8 p-5 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 border-l-4 border-green-500 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-green-900 dark:text-green-100">Editing Tips</p>
+                      <p className="text-sm text-green-800 dark:text-green-200 mt-1">
+                        You're editing the extracted text from your uploaded resume. Use the toolbar to format your content, and click "AI Format" to get intelligent formatting suggestions.
                       </p>
                     </div>
                   </div>
@@ -1724,20 +2310,209 @@ const ResumeBuilder: React.FC = () => {
             </div>
           )}
         </div>
+        </main>
       </div>
 
       {/* PDF Editor Modal */}
-      <PdfEditorModal
+      <CleanPdfEditor
         isOpen={isEditorOpen}
         onClose={() => {
-        setIsEditorOpen(false)
-        setFileToEdit(null)
+          setIsEditorOpen(false)
+          setFileToEdit(null)
         }}
-  file={fileToEdit}
-  onSave={handleSaveEditedPdf}
-/>
+        file={fileToEdit}
+        onSave={handleSaveEditedPdf}
+      />
+
+      {/* Pre-Optimize Extraction Modal */}
+      {isPreOptimizeModalOpen && fileToOptimize && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Prepare for AI Optimization
+              </h3>
+              <button onClick={() => setIsPreOptimizeModalOpen(false)} 
+              className="p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:text-white dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors">&times;</button>
+            </div>
+            <div className="flex-1 p-6 overflow-auto bg-gray-100 dark:bg-gray-900">
+              <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
+                Displaying a preview of <strong>{fileToOptimize.name}</strong>.
+              </p>
+              <div className="border rounded-lg shadow-inner bg-white dark:bg-gray-800 h-[60vh] overflow-hidden">
+                <iframe
+                  src={URL.createObjectURL(fileToOptimize)}
+                  className="w-full h-full"
+                  title="PDF Preview"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end items-center gap-4 bg-gray-50 dark:bg-gray-800">
+              <button
+                onClick={() => setIsPreOptimizeModalOpen(false)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExtractAndOptimize}
+                disabled={isExtractingInModal}
+                className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-sm hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-wait"
+              >
+                {isExtractingInModal ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2">⏳</span>
+                    Extracting Text...
+                  </>
+                ) : (
+                  'Extract for Optimization'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Optimize Modal */}
+      {isOptimizeModalOpen && fileToOptimize && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gradient-to-r from-blue-600 to-blue-700">
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                AI Resume Optimizer - {fileToOptimize.name}
+              </h3>
+              <button
+                onClick={() => setIsOptimizeModalOpen(false)}
+                className="p-2 bg-white border border-gray-300 text-black hover:text-red-500 dark:text-white dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Original Text */}
+              <div className="flex-1 p-6 border-r border-gray-200 dark:border-gray-700 overflow-auto">
+                <div className="mb-4">
+                  <h4 className="font-semibold text-lg text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Original Text
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Extracted from your document
+                  </p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono">
+                    {extractedTextForOptimize}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Optimized Text */}
+              <div className="flex-1 p-6 overflow-auto bg-blue-50 dark:bg-gray-800">
+                <div className="mb-4">
+                  <h4 className="font-semibold text-lg text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    AI-Optimized Text
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    {optimizedTextPreview ? 'Enhanced with AI suggestions' : 'Click "Optimize Now" to improve your resume'}
+                  </p>
+                </div>
+                {!optimizedTextPreview ? (
+                  <div className="flex items-center justify-center h-64 bg-white dark:bg-gray-700 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
+                    <div className="text-center p-6">
+                      <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        Ready to optimize your resume with AI?
+                      </p>
+                      <button
+                        onClick={handleOptimizeInModal}
+                        disabled={isOptimizingInModal}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-not-allowed"
+                      >
+                        {isOptimizingInModal ? (
+                          <>
+                            <span className="inline-block animate-spin mr-2">⏳</span>
+                            Optimizing...
+                          </>
+                        ) : (
+                          'Optimize Now'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-gray-700 rounded-lg p-4 border border-blue-200 dark:border-blue-800 shadow-lg">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono">
+                      {optimizedTextPreview}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {optimizedTextPreview && (
+                  <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Optimization complete!
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsOptimizeModalOpen(false)}
+                  className="px-5 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                {optimizedTextPreview && (
+                  <button
+                    onClick={applyOptimizedText}
+                    className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-green-700 border border-transparent rounded-lg shadow-sm hover:from-green-700 hover:to-green-800 transition-colors"
+                  >
+                    Apply Optimized Text
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* popup message with Ok button */}
+      {showPopup && (
+        <div className='fixed inset-0 bg-black/40 flex items-center justify-center z-50'>
+          <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center'>
+            <p className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>{popupMessage}</p>
+            <button
+              className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
+              onClick={() => setShowPopup(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default ResumeBuilder
+                  

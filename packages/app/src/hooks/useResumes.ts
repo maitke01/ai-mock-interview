@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useResumeScoresStore } from '../stores/resumeScoresStore'
 
 interface Resume {
   id: number
@@ -109,6 +110,7 @@ export const useGetResume = (resumeId: number | null) => {
 
 export const useDeleteResume = () => {
   const queryClient = useQueryClient()
+  const fetchScores = useResumeScoresStore((state) => state.fetchScores)
 
   return useMutation({
     mutationFn: async (resumeId: number): Promise<DeleteResumeResponse> => {
@@ -126,6 +128,10 @@ export const useDeleteResume = () => {
 
       return response.json()
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resumes'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['resumes'] })
+      // Refresh scores (will get next resume's scores or null if none left)
+      fetchScores()
+    }
   })
 }

@@ -37,13 +37,13 @@ const EditableTemplateEditor: React.FC<Props> = ({ resume, suggestion, onSave })
       <div className='flex gap-2'>
         <button
           onClick={() => onSave({ ...resume, optimized: edited })}
-          className='px-3 py-1 bg-blue-600 text-white rounded text-sm'
+          className='bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white px-3 py-1 rounded-md font-medium transition-colors border-2 border-transparent'
         >
           Save
         </button>
         <button
           onClick={() => setEdited(String(resume.optimized ?? resume.text ?? ''))}
-          className='px-3 py-1 border rounded text-sm'
+          className='px-3 py-1 border rounded font-medium underline'
         >
           Reset
         </button>

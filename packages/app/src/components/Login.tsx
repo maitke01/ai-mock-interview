@@ -40,7 +40,14 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className='flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900'>
+    <div className='relative flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <button
+        onClick={() => navigate('/')}
+        className='absolute top-8 left-8 z-10 text-sm font-bold text-gray-600 dark:text-gray-400 cursor-pointer hover:underline'
+      >
+        &larr; Back to Info
+      </button>
+
       <div className='w-full max-w-md p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-md'>
         <h1 className='mb-6 text-2xl font-bold text-center text-grey-800 dark:text-white'>Login</h1>
        

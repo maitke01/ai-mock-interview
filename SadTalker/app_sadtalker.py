@@ -1,4 +1,10 @@
 import os, sys
+import platform
+
+# Enable MPS fallback to CPU for unsupported operations (Apple Silicon only)
+if platform.system() == 'Darwin' and platform.machine() == 'arm64':
+    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+
 import gradio as gr
 from src.gradio_demo import SadTalker  
 
